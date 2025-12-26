@@ -59,7 +59,7 @@ export class AuthService {
     await user.save();
 
     // Create reset link
-    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+    const resetLink = `${process.env.FRONTEND_URL}reset-password?token=${resetToken}`;
 
     // ✅ JUST CALL TEMPLATE (NO HTML HERE)
     await this.mailService.sendForgotPasswordEmail(
