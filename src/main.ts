@@ -7,7 +7,8 @@ async function bootstrap() {
 
     // Enable CORS
   app.enableCors({
-    origin: process.env.FRONTEND_URL,
+    //origin: process.env.FRONTEND_URL,
+    origin: ['http://localhost:3000', 'https://rightbridge.csdevhub.com', 'http://localhost:3001'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
