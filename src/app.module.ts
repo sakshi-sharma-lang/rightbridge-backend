@@ -1,15 +1,22 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
+ 
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { ApplicationsModule } from './applications/applications.module';
-
+import { AdminModule } from './admin/admin.module';
+import { MailModule } from './mail/mail.module';
+ 
 @Module({
   imports: [
+    // 🔹 Global config
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+ 
+    // 🔹 MongoDB connection
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -17,9 +24,24 @@ import { ApplicationsModule } from './applications/applications.module';
         uri: configService.get<string>('MONGODB_URI'),
       }),
     }),
+ 
+    // 🔹 JWT (global)
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_SECRET'),
+        signOptions: { expiresIn: '1d' },
+      }),
+      global: true,
+    }),
+ 
+    // 🔹 Feature modules
     UsersModule,
     AuthModule,
     ApplicationsModule,
+    AdminModule,
+    MailModule,
   ],
 })
 export class AppModule {}
