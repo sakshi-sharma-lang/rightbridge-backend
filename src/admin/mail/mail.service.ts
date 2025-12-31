@@ -17,4 +17,34 @@ export class MailService {
     console.log('Sending email to:', email);
     console.log(html);
   }
+
+  async sendAdminRegistrationEmail(
+    email: string,
+    password: string,
+    loginUrl: string,
+  ) {
+    const templatePath = path.join(
+      __dirname,
+      '../mail/templates/admin-welcome.html',
+    );
+
+    let html = fs.readFileSync(templatePath, 'utf8');
+
+    html = html
+      .replace('{{EMAIL}}', email)
+      .replace('{{PASSWORD}}', password)
+      .replace('{{LOGIN_URL}}', loginUrl);
+
+    // 🔴 Replace with Nodemailer / SES / SendGrid
+    console.log('Sending Admin Registration Email to:', email);
+    console.log(html);
+  }
+
+
+
+  
+
+
+
+
 }
