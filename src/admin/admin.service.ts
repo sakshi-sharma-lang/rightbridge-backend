@@ -7,6 +7,8 @@ import { JwtService } from '@nestjs/jwt';
 import { Admin, AdminDocument } from './schemas/admin.schema';
 import { MailService } from '../mail/mail.service';
 import { ConfigService } from '@nestjs/config';
+import { RegisterAdminDto } from './dto/register-admin.dto';
+
 
 @Injectable()
 export class AdminService {
@@ -18,15 +20,42 @@ export class AdminService {
     private readonly configService: ConfigService, 
   ) {}
 
-  async register(data: any) {
-    const exists = await this.adminModel.findOne({ email: data.email });
-    if (exists) {
-      throw new UnauthorizedException('Email already registered');
-    }
-
-    data.password = await bcrypt.hash(data.password, 10);
-    return this.adminModel.create(data);
+async register(data: RegisterAdminDto) {
+  const exists = await this.adminModel.findOne({ email: data.email });
+  if (exists) {
+    throw new UnauthorizedException('Email already registered');
   }
+
+  const plainPassword = this.generateRandomPassword();
+  const hashedPassword = await bcrypt.hash(plainPassword, 10);
+
+  const admin = await this.adminModel.create({
+    ...data,
+    password: hashedPassword,
+  });
+
+  const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+  const loginUrl = `${frontendUrl}/login`;
+
+  await this.mailService.sendAdminRegistrationEmail(
+    data.email,
+    plainPassword,
+    loginUrl,
+  );
+
+  return {
+    success: true,
+    message: 'Admin registered successfully. Credentials sent via email.',
+    data: {
+      id: admin._id,
+      fullName: admin.fullName,
+      email: admin.email,
+      role: admin.role,
+      loginUrl,
+    },
+  };
+}
+
 
   async login(email: string, password: string) {
     const admin = await this.adminModel.findOne({ email });
@@ -75,4 +104,16 @@ export class AdminService {
 
     return { message: 'Password reset successful' };
   }
+  private generateRandomPassword(length: number = 10): string {
+  const chars =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$!%*?&';
+  let password = '';
+
+  for (let i = 0; i < length; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+
+  return password;
+}
+
 }

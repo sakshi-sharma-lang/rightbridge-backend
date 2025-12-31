@@ -71,4 +71,39 @@ async sendWelcomeEmail(email: string, firstName: string) {
   });
 }
 
+
+
+
+
+ async sendAdminRegistrationEmail(
+  email: string,
+  password: string,
+  loginUrl: string,
+) {
+ const templatePath = path.join(
+  process.cwd(),
+  'src',
+  'admin',
+  'templates',
+  'admin-welcome.html',
+);
+
+  let html = fs.readFileSync(templatePath, 'utf8');
+
+  html = html
+    .replace(/{{EMAIL}}/g, email)
+    .replace(/{{PASSWORD}}/g, password)
+    .replace(/{{LOGIN_URL}}/g, loginUrl);
+
+  await this.transporter.sendMail({
+    from: `"RightBridge" <${this.configService.get('SMTP_USER')}>`,
+    to: email,
+    subject: 'Your RightBridge Admin Account',
+    html,
+  });
+}
+
+
+
+
 }

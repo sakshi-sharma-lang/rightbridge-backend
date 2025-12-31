@@ -40,6 +40,7 @@ export class ApplicationsController {
 
   @Patch(':id')
   update(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+
     const userId = req.user?.userId;
     if (!userId) {
       throw new UnauthorizedException('Invalid or missing token');
