@@ -17,9 +17,14 @@ export class ApplicationsService {
   /* ================= CREATE ================= */
   async create(body: any, userId: string): Promise<Application> {
     const appId = await this.generateAppId();
-    const applicant = body.applicant || {};
-    const application = new this.applicationModel({
 
+    const applicant = body.applicant || {};
+    const property = body.property || {};
+    const loanRequirements = body.loanRequirements || {};
+    const financialProfile = body.financialProfile || {};
+    const solicitor = body.solicitor || {};
+    const additionalInfo = body.additionalInfo || {};
+    const application = new this.applicationModel({
 
       ...body,
           applicant: {
@@ -38,6 +43,56 @@ export class ApplicationsService {
       dateOfBirth: applicant.dateOfBirth ?? '',
       nationality: applicant.nationality ?? '',
     },
+    property: {
+    address: property?.address ?? '',
+    city: property?.city ?? '',
+    country: property?.country ?? '',
+    postcode: property?.postcode ?? '',
+    propertyType: property?.propertyType ?? '',
+    propertyStatus: property?.propertyStatus ?? '',
+    ownershipStatus: property?.ownershipStatus ?? '',
+    estimatedValue: property?.estimatedValue ?? '',
+    rentalIncome: property?.rentalIncome ?? '',
+    purchasePrice: property?.purchasePrice ?? '',
+    },
+    loanRequirements: {
+    loanAmount: loanRequirements.loanAmount ?? '',
+    loanTerm: loanRequirements.loanTerm ?? '',
+    loanTermMonths: loanRequirements.loanTermMonths ?? '',
+    loanPurpose: loanRequirements.loanPurpose ?? '',
+    interestPaymentPreference:loanRequirements.interestPaymentPreference ?? '',
+    interestPaymentType: loanRequirements.interestPaymentType ?? '',
+    existingMortgage: loanRequirements.existingMortgage ?? '',
+    refurbishmentCost: loanRequirements.refurbishmentCost ??'',
+    borrowerContribution: loanRequirements.borrowerContribution ?? '',
+    additionalSecurity: loanRequirements.additionalSecurity ?? '',
+        },
+    financialProfile: {
+    depositAmount: financialProfile.depositAmount ?? '',
+    sourceOfDeposit: financialProfile.sourceOfDeposit ?? '',
+    annualIncome: financialProfile.annualIncome ?? '',
+    employmentStatus: financialProfile.employmentStatus ?? '',
+    otherMortgagedProperties:financialProfile.otherMortgagedProperties ?? '',
+    adverseCreditHistory:financialProfile.adverseCreditHistory ?? '',
+    },
+    solicitor: {
+    firmName: solicitor.firmName ?? '',
+    contactName: solicitor.contactName ?? '',
+    email: solicitor.email ?? '',
+    contactNumber: solicitor.contactNumber ?? '',
+    address: solicitor.address ?? '',
+    city: solicitor.city ?? '',
+    country: solicitor.country ?? '',
+    postcode: solicitor.postcode ?? '',
+  },
+    additionalInfo: {
+    brokerReferralCode: additionalInfo.brokerReferralCode ?? '',
+    urgency: additionalInfo.urgency ?? '',
+    howDidYouHear: additionalInfo.howDidYouHear ?? '',
+    additionalNotes: additionalInfo.additionalNotes ?? '',
+  },
+
+
       appId,
       userId,
       status: 'active',
@@ -49,11 +104,13 @@ export class ApplicationsService {
 
   /* ================= GET ================= */
   async findById(id: string, userId: string): Promise<Application> {
+
     const app = await this.applicationModel.findOne({ _id: id, userId });
+
 
     if (!app) {
       throw new ForbiddenException(
-        'You are not authorized to access this application',
+        'You are not authorized to access this application1111',
       );
     }
 
