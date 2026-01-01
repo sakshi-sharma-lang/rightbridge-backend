@@ -110,7 +110,7 @@ export class ApplicationsService {
 
     if (!app) {
       throw new ForbiddenException(
-        'You are not authorized to access this application1111',
+        'You are not authorized to access this application',
       );
     }
 
@@ -125,6 +125,7 @@ export class ApplicationsService {
         $set: {
           ...body,
           isDraft: false,
+
         },
       },
       { new: true },
@@ -302,4 +303,85 @@ export class ApplicationsService {
     data,
   };
 }
+
+/* ================= ADMIN GET USER APPLICATION ================= */
+async findUserApplicationByIdForAdmin(id: string): Promise<Application> {
+  const application = await this.applicationModel.findById(id);
+
+  if (!application) {
+    throw new NotFoundException('User application not found');
+  }
+
+  return application;
+}
+
+async getApplicationSummary(applicationId: string) {
+  const application = await this.applicationModel
+    .findById(applicationId)
+    .select({
+      appId: 1,
+      status: 1,
+      createdAt: 1,
+      updatedAt:1,
+
+      // Applicant
+      'applicant.firstName': 1,
+      'applicant.lastName': 1,
+      'applicant.email': 1,
+
+      // Loan
+      'loanRequirements.loanAmount': 1,
+
+      // Property
+      'property.address': 1,
+      'property.estimatedValue': 1,
+    })
+    .lean();
+
+  if (!application) {
+    throw new NotFoundException('Application not found');
+  }
+    
+  const loanAmount = application.loanRequirements?.loanAmount ?? 0;
+  const propertyValue = application.property?.estimatedValue ?? 0;
+ const updatedAt=application.updatedAt?? 0;
+
+
+  return {
+    applicationId: application.appId,
+
+    submittedDate: application.updatedAt
+  ? new Intl.DateTimeFormat('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(new Date(application.updatedAt))
+  : null,
+
+    status: application.status,
+    //createdat: createdAt,
+
+    applicant: {
+      name: `${application.applicant?.firstName ?? ''} ${application.applicant?.lastName ?? ''}`.trim(),
+      email: application.applicant?.email ?? '',
+    },
+
+    loan: {
+      amount: loanAmount,
+      propertyValue,
+      ltv:
+        loanAmount && propertyValue
+          ? `${((loanAmount / propertyValue) * 100).toFixed(1)}%`
+          : null,
+    },
+
+    property: {
+      address: application.property?.address ?? '',
+    },
+  };
+}
+
+
+
+
 }
