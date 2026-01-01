@@ -8,6 +8,7 @@ import {
   Req,
   UseGuards,
   UnauthorizedException,
+  Query
 } from '@nestjs/common';
 import { ApplicationsService } from './applications.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -47,4 +48,10 @@ export class ApplicationsController {
     }
     return this.service.update(id, body, userId);
   }
+
+    @Get()
+  getApplications(@Query() query: any) {
+    return this.service.getApplications(query);
+  }
+
 }
