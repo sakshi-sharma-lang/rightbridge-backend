@@ -19,6 +19,12 @@ export class Admin {
 
   @Prop({ default: 'active' })
   status: string;
+    @Prop({ default: 'admin' })
+  appId: string;
+
+  @Prop({ default: null })
+  lastLogin: Date;
+
 }
 
 export const AdminSchema = SchemaFactory.createForClass(Admin);

@@ -12,6 +12,8 @@ import {
 } from '@nestjs/common';
 import { ApplicationsService } from './applications.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AdminJwtGuard } from '../auth/admin-jwt.guard';
+
 
 @UseGuards(JwtAuthGuard)
 @Controller('applications')
@@ -39,6 +41,12 @@ export class ApplicationsController {
     return this.service.findById(id, userId);
   }
 
+   @Get('admin/:id') 
+  @UseGuards(AdminJwtGuard)
+  getUserApplicationForAdmin(@Param('id') id: string) {
+    return this.service.findUserApplicationByIdForAdmin(id);
+  }
+
   @Patch(':id')
   update(@Req() req: any, @Param('id') id: string, @Body() body: any) {
 
@@ -49,9 +57,16 @@ export class ApplicationsController {
     return this.service.update(id, body, userId);
   }
 
-    @Get()
-  getApplications(@Query() query: any) {
-    return this.service.getApplications(query);
-  }
+ 
+ @Get()
+@UseGuards(AdminJwtGuard)
+getApplications(@Query() query: any) {
+  return this.service.getApplications(query);
+}
 
+@Get(':id/summary')
+@UseGuards(JwtAuthGuard)
+getApplicationSummary(@Param('id') id: string) {
+  return this.service.getApplicationSummary(id);
+}
 }
