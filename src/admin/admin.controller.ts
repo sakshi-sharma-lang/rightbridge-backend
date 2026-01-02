@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Query ,Get  ,UseGuards ,Patch} from '@nestjs/common';
+import { Controller, Post, Body, Param, Query ,Get  ,UseGuards ,Patch,Req} from '@nestjs/common';
 
 import { AdminService } from './admin.service';
 import { AdminJwtGuard } from '../auth/admin-jwt.guard';
@@ -34,19 +34,24 @@ export class AdminController {
   }
 @UseGuards(AdminJwtGuard)
 @Get('users')
-getUsersForAdmin(@Query() query: any) {
-  return this.adminService.getUsersForAdmin(query);
+getUsersForAdmin(
+  @Query() query: any,
+  @Req() req: any,
+) {
+  return this.adminService.getUsersForAdmin(query, req.user);
+}
+
+@UseGuards(AdminJwtGuard)
+@Patch('users/:id')
+updateUserByAdmin(
+  @Param('id') id: string,
+  @Body() body: any,
+  @Req() req: any,
+) {
+  return this.adminService.updateUserByAdmin(id, body, req.user);
 }
 
 
- @UseGuards(AdminJwtGuard)
-  @Patch('users/:id')
-  updateUserByAdmin(
-    @Param('id') id: string,
-    @Body() body: any,
-  ) {
-    return this.adminService.updateUserByAdmin(id, body);
-  }
 
 
 }

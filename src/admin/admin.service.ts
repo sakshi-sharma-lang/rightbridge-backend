@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException ,NotFoundException,BadRequestException} from '@nestjs/common';
+import { Injectable, UnauthorizedException ,NotFoundException,BadRequestException , ForbiddenException} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
@@ -136,7 +136,8 @@ private async generateAppId(): Promise<string> {
   return `USR-${counter.seq.toString().padStart(3, '0')}`;
 }
 
-async getUsersForAdmin(query: any) {
+async getUsersForAdmin(query: any, jwtUser: any) {
+
   const {
     role,
     status,
@@ -146,6 +147,14 @@ async getUsersForAdmin(query: any) {
   } = query;
 
   const filter: any = {};
+  console.log("roles",jwtUser.role)
+  
+    if (jwtUser.role !== 'super_admin') {
+    throw new ForbiddenException('You are not allowed to view user data');
+  }
+
+
+
 
   // 🔹 ROLE FILTER
   if (role) {
@@ -243,7 +252,7 @@ async getUsersForAdmin(query: any) {
   };
 }
 
-async updateUserByAdmin(userId: string, data: any) {
+async updateUserByAdmin(userId: string, data: any ,  jwtUser: any) {
   // ✅ ALLOWED FIELDS
   const allowedFields = ['fullName', 'role', 'status'];
 
@@ -251,6 +260,11 @@ async updateUserByAdmin(userId: string, data: any) {
   const invalidFields = Object.keys(data).filter(
     (key) => !allowedFields.includes(key),
   );
+
+   if (jwtUser.role !== 'super_admin') {
+    throw new ForbiddenException('Only super admin can update users');
+  }
+
 
   if (invalidFields.length > 0) {
     throw new BadRequestException(
