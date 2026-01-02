@@ -154,6 +154,8 @@ export class ApplicationsService {
   }
 
 async getApplications(query: any) {
+
+
   const {
     status,
     loanType,
@@ -164,17 +166,21 @@ async getApplications(query: any) {
     limit = 10,
   } = query;
 
-  const filter: any = {};
+  const filter: any = {
+  status: { $ne: 'active' }, // 🔒 active NEVER included
+};
 
   // ================= STATUS FILTER =================
-  if (status) {
-    filter.status = {
-      $regex: `^${status.trim()}$`,
-      $options: 'i',
-    };
-  }
+if (status && status !== 'active') {
+  filter.status = {
+    $regex: `^${status.trim()}$`,
+    $options: 'i',
+  };
+}
 
   // ================= LOAN TYPE FILTER =================
+
+
   if (loanType) {
     filter['loanType.applicationType'] = loanType;
   }
