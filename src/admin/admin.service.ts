@@ -16,7 +16,7 @@ export class AdminService {
   constructor(
     @InjectModel(Admin.name)
     private readonly adminModel: Model<AdminDocument>,
-    @InjectModel(Counter.name)              
+    @InjectModel(Counter.name)               // ✅ THIS WAS MISSING
     private readonly counterModel: Model<Counter>,
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
@@ -71,6 +71,8 @@ async register(data: RegisterAdminDto) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+  admin.lastLogin = new Date();
+  await admin.save();
     return {
       token: this.jwtService.sign({
         id: admin._id,

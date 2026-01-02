@@ -30,7 +30,7 @@ import { MailModule } from '../mail/mail.module';
 
     MongooseModule.forFeature([
       { name: Admin.name, schema: AdminSchema },
-      { name: Counter.name, schema: CounterSchema },
+      { name: Counter.name, schema: CounterSchema }, 
     ]),
 
     MailModule,

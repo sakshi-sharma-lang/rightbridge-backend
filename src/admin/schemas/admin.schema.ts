@@ -5,6 +5,8 @@ export type AdminDocument = Admin & Document;
 
 @Schema({ timestamps: true })
 export class Admin {
+  
+
   @Prop({ required: true })
   fullName: string;
 
@@ -19,7 +21,8 @@ export class Admin {
 
   @Prop({ default: 'active' })
   status: string;
-    @Prop({ default: 'admin' })
+
+  @Prop({ default: 'admin' })
   appId: string;
 
   @Prop({ default: null })
