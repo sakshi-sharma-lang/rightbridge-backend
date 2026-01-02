@@ -153,7 +153,7 @@ export class ApplicationsService {
     return `BL-${year}-${counter.seq.toString().padStart(4, '0')}`;
   }
 
-  async getApplications(query: any) {
+async getApplications(query: any) {
   const {
     status,
     loanType,
@@ -185,16 +185,31 @@ export class ApplicationsService {
 
     if (fromDate) {
       const start = new Date(fromDate);
-      start.setHours(0, 0, 0, 0); // start of day
+      start.setHours(0, 0, 0, 0);
       filter.createdAt.$gte = start;
     }
 
     if (toDate) {
       const end = new Date(toDate);
-      end.setHours(23, 59, 59, 999); // end of day (inclusive)
+      end.setHours(23, 59, 59, 999);
       filter.createdAt.$lte = end;
     }
   }
+
+  // ================= CURRENT MONTH RANGE =================
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const endOfMonth = new Date();
+  endOfMonth.setHours(23, 59, 59, 999);
+
+  // ================= LAST MONTH RANGE =================
+  const startOfLastMonth = new Date(startOfMonth);
+  startOfLastMonth.setMonth(startOfLastMonth.getMonth() - 1);
+
+  const endOfLastMonth = new Date(startOfMonth);
+  endOfLastMonth.setMilliseconds(-1);
 
   // ================= SEARCH =================
   if (search) {
@@ -208,7 +223,7 @@ export class ApplicationsService {
 
   const skip = (Number(page) - 1) * Number(limit);
 
-  // ================= TODAY RANGE (DASHBOARD) =================
+  // ================= TODAY RANGE =================
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
@@ -225,6 +240,8 @@ export class ApplicationsService {
     kycInProgress,
     underwritingQueue,
     offersIssued,
+    thisMonthCount,
+    lastMonthCount,
   ] = await Promise.all([
     // 🔹 LIST DATA
     this.applicationModel
@@ -241,14 +258,7 @@ export class ApplicationsService {
       .sort({ updatedAt: -1 })
       .skip(skip)
       .limit(Number(limit))
-      .lean<{
-        appId: string;
-        status: string;
-        updatedAt: Date;
-        applicant?: { firstName?: string; lastName?: string };
-        loanRequirements?: { loanAmount?: number };
-        property?: { address?: string };
-      }[]>(),
+      .lean(),
 
     // 🔹 FILTERED TOTAL
     this.applicationModel.countDocuments(filter),
@@ -256,7 +266,7 @@ export class ApplicationsService {
     // 🔹 TOTAL APPLICATIONS
     this.applicationModel.countDocuments(),
 
-    // 🔹 DIP TODAY (UPDATED TODAY)
+    // 🔹 DIP TODAY
     this.applicationModel.countDocuments({
       updatedAt: { $gte: startOfToday, $lte: endOfToday },
     }),
@@ -272,7 +282,20 @@ export class ApplicationsService {
 
     // 🔹 OFFERS ISSUED
     this.applicationModel.countDocuments({ status: 'offer_issued' }),
+
+    // 🔹 THIS MONTH COUNT
+    this.applicationModel.countDocuments({
+      createdAt: { $gte: startOfMonth, $lte: endOfMonth },
+    }),
+
+    // 🔹 LAST MONTH COUNT
+    this.applicationModel.countDocuments({
+      createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth },
+    }),
   ]);
+
+  // ================= FINAL CALCULATION =================
+  const thisMonthChange = thisMonthCount - lastMonthCount;
 
   // ================= FORMAT TABLE =================
   const data = rows.map((item) => ({
@@ -294,6 +317,9 @@ export class ApplicationsService {
     underwritingQueue,
     offersIssued,
 
+    // ✅ ONLY ONE KEY FOR “+12 this month”
+    thisMonthChange,
+
     // 🔹 TABLE META
     total,
     page: Number(page),
@@ -303,6 +329,9 @@ export class ApplicationsService {
     data,
   };
 }
+
+
+
 
 /* ================= ADMIN GET USER APPLICATION ================= */
 async findUserApplicationByIdForAdmin(id: string): Promise<Application> {

@@ -185,6 +185,7 @@ async getUsersForAdmin(query: any) {
         email: 1,
         role: 1,
         status: 1,
+        lastLogin: 1,
       
       })
       .sort({ createdAt: -1 })
@@ -224,7 +225,19 @@ async getUsersForAdmin(query: any) {
       name: u.fullName,
       email: u.email,
       role: u.role,
-      status: u.status
+      status: u.status,
+    lastLogin: u.lastLogin
+  ? new Date(u.lastLogin).toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+  : 'Never',
+
+
   
     })),
   };
