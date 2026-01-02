@@ -155,7 +155,6 @@ export class ApplicationsService {
 
 async getApplications(query: any) {
 
-
   const {
     status,
     loanType,
@@ -166,21 +165,22 @@ async getApplications(query: any) {
     limit = 10,
   } = query;
 
-  const filter: any = {
-  status: { $ne: 'active' }, // 🔒 active NEVER included
-};
+  // 🔒 BASE FILTER: ACTIVE applications are treated as NON-EXISTENT
+  const baseFilter = { status: { $ne: 'active' } };
+
+  // 🔒 MAIN FILTER (used for list + filtered total)
+  const filter: any = { ...baseFilter };
 
   // ================= STATUS FILTER =================
-if (status && status !== 'active') {
-  filter.status = {
-    $regex: `^${status.trim()}$`,
-    $options: 'i',
-  };
-}
+  // NOTE: status=active is intentionally ignored
+  if (status && status !== 'active') {
+    filter.status = {
+      $regex: `^${status.trim()}$`,
+      $options: 'i',
+    };
+  }
 
   // ================= LOAN TYPE FILTER =================
-
-
   if (loanType) {
     filter['loanType.applicationType'] = loanType;
   }
@@ -249,7 +249,8 @@ if (status && status !== 'active') {
     thisMonthCount,
     lastMonthCount,
   ] = await Promise.all([
-    // 🔹 LIST DATA
+
+    // 🔹 LIST DATA (active excluded)
     this.applicationModel
       .find(filter)
       .select({
@@ -266,36 +267,33 @@ if (status && status !== 'active') {
       .limit(Number(limit))
       .lean(),
 
-    // 🔹 FILTERED TOTAL
+    // 🔹 FILTERED TOTAL (active excluded)
     this.applicationModel.countDocuments(filter),
 
-    // 🔹 TOTAL APPLICATIONS
-    this.applicationModel.countDocuments(),
+    // 🔹 TOTAL APPLICATIONS (active excluded)
+    this.applicationModel.countDocuments(baseFilter),
 
-    // 🔹 DIP TODAY
+    // 🔹 DIP TODAY (active excluded)
     this.applicationModel.countDocuments({
+      ...baseFilter,
       updatedAt: { $gte: startOfToday, $lte: endOfToday },
     }),
 
-    // 🔹 AWAITING FEE
+    // 🔹 STATUS COUNTS (already non-active)
     this.applicationModel.countDocuments({ status: 'fee_required' }),
-
-    // 🔹 KYC IN PROGRESS
     this.applicationModel.countDocuments({ status: 'kyc_in_progress' }),
-
-    // 🔹 UNDERWRITING QUEUE
     this.applicationModel.countDocuments({ status: 'underwriting' }),
-
-    // 🔹 OFFERS ISSUED
     this.applicationModel.countDocuments({ status: 'offer_issued' }),
 
-    // 🔹 THIS MONTH COUNT
+    // 🔹 THIS MONTH COUNT (active excluded)
     this.applicationModel.countDocuments({
+      ...baseFilter,
       createdAt: { $gte: startOfMonth, $lte: endOfMonth },
     }),
 
-    // 🔹 LAST MONTH COUNT
+    // 🔹 LAST MONTH COUNT (active excluded)
     this.applicationModel.countDocuments({
+      ...baseFilter,
       createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth },
     }),
   ]);
@@ -323,7 +321,7 @@ if (status && status !== 'active') {
     underwritingQueue,
     offersIssued,
 
-    // ✅ ONLY ONE KEY FOR “+12 this month”
+    // 🔹 MONTH CHANGE
     thisMonthChange,
 
     // 🔹 TABLE META
@@ -335,6 +333,7 @@ if (status && status !== 'active') {
     data,
   };
 }
+
 
 
 
