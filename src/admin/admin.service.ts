@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException ,NotFoundException,BadRequestException} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
@@ -62,6 +62,7 @@ async register(data: RegisterAdminDto) {
     },
   };
 }
+
 
 
   async login(email: string, password: string) {
@@ -226,6 +227,55 @@ async getUsersForAdmin(query: any) {
       status: u.status
   
     })),
+  };
+}
+
+async updateUserByAdmin(userId: string, data: any) {
+  // ✅ ALLOWED FIELDS
+  const allowedFields = ['fullName', 'role', 'status'];
+
+  // ❌ CHECK FOR INVALID FIELDS
+  const invalidFields = Object.keys(data).filter(
+    (key) => !allowedFields.includes(key),
+  );
+
+  if (invalidFields.length > 0) {
+    throw new BadRequestException(
+      `Invalid fields: ${invalidFields.join(', ')}`,
+    );
+  }
+
+  const updateData: any = {};
+
+  if (data.fullName && data.fullName.trim()) {
+    updateData.fullName = data.fullName.trim();
+  }
+
+  if (data.role && data.role.trim()) {
+    updateData.role = data.role;
+  }
+
+  if (data.status && data.status.trim()) {
+    updateData.status = data.status;
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    throw new BadRequestException('No valid fields provided for update');
+  }
+
+  const updatedUser = await this.adminModel.findByIdAndUpdate(
+    userId,
+    { $set: updateData },
+    { new: true },
+  );
+
+  if (!updatedUser) {
+    throw new NotFoundException('User not found');
+  }
+
+  return {
+    message: 'User updated successfully',
+    data: updatedUser,
   };
 }
 

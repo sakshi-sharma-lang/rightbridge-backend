@@ -27,6 +27,7 @@ export class Admin {
 
   @Prop({ default: null })
   lastLogin: Date;
+
 }
 
 export const AdminSchema = SchemaFactory.createForClass(Admin);

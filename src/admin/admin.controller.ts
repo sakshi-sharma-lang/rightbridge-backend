@@ -2,6 +2,7 @@ import { Controller, Post, Body, Param , Query,
   UseGuards,
   Get,} from '@nestjs/common';
 import { AdminService } from './admin.service';
+import { AdminJwtGuard } from '../auth/admin-jwt.guard';
 import {
   RegisterAdminDto,
   LoginAdminDto,
@@ -40,5 +41,16 @@ export class AdminController {
 getUsersForAdmin(@Query() query: any) {
   return this.adminService.getUsersForAdmin(query);
 }
+
+
+ @UseGuards(AdminJwtGuard)
+  @Patch('users/:id')
+  updateUserByAdmin(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.adminService.updateUserByAdmin(id, body);
+  }
+
 
 }

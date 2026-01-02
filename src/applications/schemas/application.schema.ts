@@ -122,14 +122,14 @@ export class Application extends Document {
   @Prop({ unique: true })
   appId: string;
 
-  @Prop()
+    @Prop()
 createdAt: Date;
 
 @Prop()
 updatedAt: Date;
 
 
-  
+
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true })
   userId: any;
 }
