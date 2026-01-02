@@ -1,16 +1,13 @@
-import { Controller, Post, Body, Param , Query,
-  UseGuards,
-  Get,} from '@nestjs/common';
+import { Controller, Post, Body, Param, Query ,Get  ,UseGuards ,Patch} from '@nestjs/common';
+
 import { AdminService } from './admin.service';
 import { AdminJwtGuard } from '../auth/admin-jwt.guard';
 import {
   RegisterAdminDto,
   LoginAdminDto,
   ForgotPasswordDto,
-  ResetPasswordDto, 
-
+  ResetPasswordDto,
 } from './dto';
-import { AdminJwtGuard } from '../auth/admin-jwt.guard';
 
 @Controller('admin/auth')
 export class AdminController {
@@ -35,9 +32,8 @@ export class AdminController {
   reset(@Param('token') token: string, @Body() dto: ResetPasswordDto) {
     return this.adminService.resetPassword(token, dto.password);
   }
-
-  @Get('users')
 @UseGuards(AdminJwtGuard)
+@Get('users')
 getUsersForAdmin(@Query() query: any) {
   return this.adminService.getUsersForAdmin(query);
 }
