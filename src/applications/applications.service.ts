@@ -154,6 +154,7 @@ export class ApplicationsService {
   }
 
 async getApplications(query: any) {
+ 
 
   const {
     status,
@@ -333,11 +334,6 @@ async getApplications(query: any) {
     data,
   };
 }
-
-
-
-
-
 /* ================= ADMIN GET USER APPLICATION ================= */
 async findUserApplicationByIdForAdmin(id: string): Promise<Application> {
   const application = await this.applicationModel.findById(id);
@@ -350,6 +346,7 @@ async findUserApplicationByIdForAdmin(id: string): Promise<Application> {
 }
 
 async getApplicationSummary(applicationId: string) {
+
   const application = await this.applicationModel
     .findById(applicationId)
     .select({
@@ -376,6 +373,8 @@ async getApplicationSummary(applicationId: string) {
     throw new NotFoundException('Application not found');
   }
     
+
+      console.log("hersss");
   const loanAmount = application.loanRequirements?.loanAmount ?? 0;
   const propertyValue = application.property?.estimatedValue ?? 0;
  const updatedAt=application.updatedAt?? 0;
@@ -414,8 +413,5 @@ async getApplicationSummary(applicationId: string) {
     },
   };
 }
-
-
-
 
 }

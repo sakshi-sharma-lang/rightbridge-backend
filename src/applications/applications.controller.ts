@@ -61,6 +61,7 @@ export class ApplicationsController {
  @Get()
 @UseGuards(AdminJwtGuard)
 getApplications(@Query() query: any) {
+
   return this.service.getApplications(query);
 }
 

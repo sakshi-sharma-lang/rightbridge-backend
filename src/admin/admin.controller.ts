@@ -51,7 +51,4 @@ updateUserByAdmin(
   return this.adminService.updateUserByAdmin(id, body, req.user);
 }
 
-
-
-
 }
