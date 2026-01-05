@@ -954,5 +954,9 @@ async getAllApplicationbyAdmin(query: any) {
 }
 
 
+async findApplicationByUserId(userId: string) {
+  return this.applicationModel.findOne({ userId });
+}
+
 
 }

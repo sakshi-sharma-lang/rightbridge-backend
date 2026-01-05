@@ -8,6 +8,7 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
 import { MailService } from '../mail/mail.service';
+import { ApplicationsService } from '../applications/applications.service';
 
 @Injectable()
 export class AuthService {
@@ -15,6 +16,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly mailService: MailService, // ✅ inject mail service
+    private readonly applicationsService: ApplicationsService,
   ) {}
 
   // ===================== LOGIN =====================
@@ -34,14 +36,24 @@ export class AuthService {
     return result;
   }
 
-  async login(user: any) {
-    const payload = { email: user.email, sub: user._id };
+async login(user: any) {
 
-    return {
-      access_token: this.jwtService.sign(payload),
-      user,
-    };
-  }
+  const payload = { email: user.email, sub: user._id };
+
+  const application =
+    await this.applicationsService.findApplicationByUserId(user._id);
+
+  return {
+    access_token: this.jwtService.sign(payload),
+    user,
+    applicationId: application?._id ?? null,
+
+
+  };
+}
+
+
+
 
   // ===================== FORGOT PASSWORD =====================
   async forgotPassword(email: string) {

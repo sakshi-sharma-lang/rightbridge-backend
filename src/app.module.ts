@@ -8,7 +8,8 @@ import { AuthModule } from './auth/auth.module';
 import { ApplicationsModule } from './applications/applications.module';
 import { AdminModule } from './admin/admin.module';
 import { MailModule } from './mail/mail.module';
- 
+import { SurveyorsModule } from './surveyors/surveyors.module';
+
 @Module({
   imports: [
     // 🔹 Global config
@@ -42,6 +43,7 @@ import { MailModule } from './mail/mail.module';
     ApplicationsModule,
     AdminModule,
     MailModule,
+    SurveyorsModule,
   ],
 })
 export class AppModule {}

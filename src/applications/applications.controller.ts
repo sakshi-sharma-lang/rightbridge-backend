@@ -59,7 +59,7 @@ export class ApplicationsController {
   }
 
  
- @Get()
+ @Get('admin/dashboard/overview')
 @UseGuards(AdminJwtGuard)
 getApplications(@Query() query: any) {
 

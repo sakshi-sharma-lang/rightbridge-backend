@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ApplicationsModule } from '../applications/applications.module';
 
 
 import { AuthService } from './auth.service';
@@ -19,6 +20,7 @@ import { Admin, AdminSchema } from '../admin/schemas/admin.schema';
   imports: [
     UsersModule,
     MailModule,
+    ApplicationsModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
      MongooseModule.forFeature([
       { name: Admin.name, schema: AdminSchema },
