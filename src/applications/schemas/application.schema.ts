@@ -128,6 +128,13 @@ createdAt: Date;
 @Prop()
 updatedAt: Date;
 
+/* ================= PRIORITY ================= */
+@Prop({
+  type: String,
+  default: '',
+})
+priority: string;
+
 
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true })

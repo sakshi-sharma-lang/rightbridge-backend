@@ -7,10 +7,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { AdminJwtStrategy } from './admin-jwt.strategy';
+import { AdminApplicationsController } from './admin-applications.controller';
 
 import { Admin, AdminSchema } from './schemas/admin.schema';
 import { Counter, CounterSchema } from '../applications/schemas/counter.schema';
 import { MailModule } from '../mail/mail.module';
+import { ApplicationsModule } from '../applications/applications.module'; 
 
 @Module({
   imports: [
@@ -34,8 +36,10 @@ import { MailModule } from '../mail/mail.module';
     ]),
 
     MailModule,
+    ApplicationsModule,
   ],
-  controllers: [AdminController],
+  controllers: [AdminController ,AdminApplicationsController
+],
   providers: [
     AdminService,
     AdminJwtStrategy,

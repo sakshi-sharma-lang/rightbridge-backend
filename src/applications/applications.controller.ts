@@ -34,6 +34,7 @@ export class ApplicationsController {
 
   @Get(':id')
   get(@Req() req: any, @Param('id') id: string) {
+
     const userId = req.user?.userId;
     if (!userId) {
       throw new UnauthorizedException('Invalid or missing token');
@@ -70,4 +71,24 @@ getApplications(@Query() query: any) {
 getApplicationSummary(@Param('id') id: string) {
   return this.service.getApplicationSummary(id);
 }
+
+
+// Application Details Section api frotnend user 2nd tabs
+
+
+@Get(':applicationId/details')
+getApplicationDetails(
+  @Req() req: any,
+  @Param('applicationId') applicationId: string,
+) {
+  const userId = req.user?.userId;
+  if (!userId) {
+    throw new UnauthorizedException('Invalid or missing token');
+  }
+  return this.service.findById(applicationId, userId);
+}
+
+
+
+
 }
