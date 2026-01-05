@@ -37,20 +37,24 @@ export class AuthService {
   }
 
 async login(user: any) {
-
   const payload = { email: user.email, sub: user._id };
 
   const application =
     await this.applicationsService.findApplicationByUserId(user._id);
 
+  const allowedStatuses = ['active', 'dip_stage'];
+
   return {
     access_token: this.jwtService.sign(payload),
     user,
-    applicationId: application?._id ?? null,
 
-
+    applicationId:
+      application && allowedStatuses.includes(application.status)
+        ? application._id
+        : null,
   };
 }
+
 
 
 

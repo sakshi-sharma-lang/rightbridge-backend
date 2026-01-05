@@ -113,8 +113,30 @@ export class Application extends Document {
   consents: { key: string; value: boolean }[];
 
   /* ================= STATUS ================= */
-  @Prop({ default: 'active' })
-  status: string; // draft | submitted
+ @Prop({
+  type: String,
+  enum: [
+    'active',
+    'draft',
+    'dip_stage',
+    'kyc_stage',
+    'valuation',
+    'underwriting',
+    'offer_sent',
+    'completed',
+  ],
+  default: 'active',
+})
+status:
+  | 'active'
+  | 'draft'
+  | 'welcome'
+  | 'dip_stage'
+  | 'kyc_stage'
+  | 'valuation'
+  | 'underwriting'
+  | 'offer_sent'
+  | 'completed';
 
   @Prop({ default: true })
   isDraft: boolean;
