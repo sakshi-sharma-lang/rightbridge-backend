@@ -50,7 +50,7 @@ async login(user: any) {
     !application || blockedStatuses.includes(application.status);
 
   return {
-    access_token: this.jwtService.sign(payload, { expiresIn: '15m' }),
+    access_token: this.jwtService.sign(payload),
 
     user,
 
