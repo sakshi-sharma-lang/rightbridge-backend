@@ -135,12 +135,15 @@ async login(user: any) {
     throw new BadRequestException('OTP expired');
   }
 
-  // await this.usersService.update(user._id, {
-  //   isOtpVerified: true,
-  //   status: 'active',
-  //   otp: null,
-  //   otpExpiresAt: null,
-  // });
+  await this.usersService.update(user._id.toString(), {
+    isOtpVerified: true,
+    status: 'active',
+    otp: null,
+    otpExpiresAt: null,
+  });
+
+
+
 
   await this.mailService.sendWelcomeEmail(
     user.email,
