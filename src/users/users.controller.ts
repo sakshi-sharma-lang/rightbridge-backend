@@ -13,27 +13,36 @@ export class UsersController {
     ) {}
 
   @Post()
-  async create(@Body() createUserDto: CreateUserDto) { // ✅ use DTO
-  const { email, phoneNumber, password } = createUserDto;
+ async create(@Body() createUserDto: CreateUserDto) { // ✅ use DTO
+  const { email, phoneNumber, password, ...rest } = createUserDto;
 
   // 🔹 Check email
   const emailExists = await this.usersService.findByEmail(email);
 
-  // 🟡 ADD: Email exists but OTP NOT verified → update & resend OTP
+  // 🟡 ADD: Email exists but OTP NOT verified → update ALL fields except email
   if (emailExists && !emailExists.isOtpVerified) {
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
     const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
     const otp_expiry_time = 5;
 
-    await this.usersService.update(emailExists._id.toString(), {
+    const updateData: any = {
+      ...rest,               // ✅ update all other fields
+      phoneNumber,           // ✅ update phone
       otp,
       otpExpiresAt,
       status: 'deactive',
       isOtpVerified: false,
-    });
+    };
+
+    // ✅ Update password ONLY if provided
+    if (password) {
+      updateData.password = await bcrypt.hash(password, 10);
+    }
+
+    await this.usersService.update(emailExists._id.toString(), updateData);
 
     await this.mailService.sendOtpVerificationEmail(
-      emailExists.email,
+      emailExists.email,     // ✅ email unchanged
       emailExists.firstName,
       otp,
       otp_expiry_time,
@@ -86,6 +95,7 @@ export class UsersController {
 
   return result;
 }
+
 
   // async create(@Body() createUserDto: CreateUserDto) { // ✅ use DTO
   //   const { email, phoneNumber, password } = createUserDto;

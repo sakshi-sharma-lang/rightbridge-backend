@@ -37,6 +37,12 @@ export class AuthService {
   }
 
 async login(user: any) {
+  
+  if (!user.isOtpVerified) {
+    throw new UnauthorizedException(
+      'Your verification is pending. Please complete OTP verification.',
+    );
+  }
   const payload = { email: user.email, sub: user._id };
 
   await this.usersService.updateLastLogin(user._id);
