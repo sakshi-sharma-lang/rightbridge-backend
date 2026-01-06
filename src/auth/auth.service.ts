@@ -111,17 +111,13 @@ async login(user: any) {
     return { message: 'Password reset successful' };
   }
   
- async verifyOtp(userId: string, otp: string) {
-  const user = await this.usersService.findById(userId);
 
-  // ✅ REQUIRED null check
+ async verifyOtp(email: string, otp: string) {
+  const user = await this.usersService.findByEmail(email);
+
   if (!user) {
     throw new UnauthorizedException('User not found');
   }
-
-  // ✅ Safe to access now
-  const email = user.email;
-  const fullName = `${user.firstName} ${user.lastName}`;
 
   if (user.isOtpVerified) {
     throw new BadRequestException('OTP already verified');
@@ -139,12 +135,12 @@ async login(user: any) {
     throw new BadRequestException('OTP expired');
   }
 
-  await this.usersService.update(userId, {
-    isOtpVerified: true,
-    status: 'active',
-    otp: null,
-    otpExpiresAt: null,
-  });
+  // await this.usersService.update(user._id, {
+  //   isOtpVerified: true,
+  //   status: 'active',
+  //   otp: null,
+  //   otpExpiresAt: null,
+  // });
 
   await this.mailService.sendWelcomeEmail(
     user.email,
@@ -155,6 +151,7 @@ async login(user: any) {
     message: 'OTP verified successfully. Account activated.',
   };
 }
+
 
 
 

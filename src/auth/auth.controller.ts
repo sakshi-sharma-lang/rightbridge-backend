@@ -34,11 +34,10 @@ export class AuthController {
     return this.authService.resetPassword(dto.token, dto.newPassword);
   }
 
-@UseGuards(AuthGuard('jwt'))
-@Post('user/verify-otp')
-async verifyOtp(@Req() req, @Body() dto: VerifyOtpDto) {
-  return this.authService.verifyOtp(req.user.userId, dto.otp);
-}
 
+@Post('user/verify-otp')
+async verifyOtp(@Body() dto: VerifyOtpDto) {
+  return this.authService.verifyOtp(dto.email, dto.otp);
+}
 
 }

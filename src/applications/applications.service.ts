@@ -50,8 +50,6 @@ export class ApplicationsService {
       address: applicant.address ?? '',
       postcode: applicant.postcode ?? '',
       timeAtAddress: applicant.timeAtAddress ?? '',
-
-      // 👇 FORCE EMPTY SAVE (even if frontend did not send)
       phoneNumber: applicant.phoneNumber ?? '',
       dateOfBirth: applicant.dateOfBirth ?? '',
       nationality: applicant.nationality ?? '',
