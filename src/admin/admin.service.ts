@@ -60,20 +60,31 @@ export class AdminService {
     };
   }
   async login(email: string, password: string) {
-    const admin = await this.adminModel.findOne({ email });
-    if (!admin || !(await bcrypt.compare(password, admin.password))) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
+  const admin = await this.adminModel.findOne({ email });
+
+  if (!admin || !(await bcrypt.compare(password, admin.password))) {
+    throw new UnauthorizedException('Invalid email or password');
+  }
 
   admin.lastLogin = new Date();
   await admin.save();
-    return {
-      token: this.jwtService.sign({
-        id: admin._id,
-        role: admin.role,
-      }),
-    };
-  }
+
+  const token = this.jwtService.sign(
+    {
+      id: admin._id,
+      role: admin.role,
+    },
+    {
+      expiresIn: '15m', // ✅ token expires after 15 minutes
+    },
+  );
+
+  return {
+    token,
+    expiresIn: '15m',
+  };
+}
+
 
   async forgotPassword(email: string) {
     const admin = await this.adminModel.findOne({ email });
