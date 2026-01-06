@@ -222,6 +222,7 @@ export class AdminService {
 
       // 🔹 TABLE DATA
       data: users.map((u) => ({
+         id: u._id,              // ✅ MongoDB ObjectId
         userId: u.appId,
         name: u.fullName,
         email: u.email,

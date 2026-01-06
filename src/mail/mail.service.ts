@@ -104,6 +104,28 @@ async sendWelcomeEmail(email: string, firstName: string) {
 }
 
 
+ async sendOtpVerificationEmail(
+  email: string,
+  firstName: string,
+  otp: string,
+  otp_expiry_time: number,
+) {
+  const html = this.loadTemplate('otp-verification.html', {
+    FIRST_NAME: firstName,
+    OTP_CODE: otp,
+    TIME_LIMIT: otp_expiry_time.toString(),
+  });
+
+  await this.transporter.sendMail({
+    from: `"RightBridge" <${this.configService.get('SMTP_FROM') || this.configService.get('SMTP_USER')}>`,
+    to: email,
+    subject: 'Verify your email – RightBridge',
+    html,
+  });
+}
+
+
+
 
 
 }

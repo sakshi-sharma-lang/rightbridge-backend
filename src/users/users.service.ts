@@ -30,4 +30,25 @@ export class UsersService {
   async findByResetToken(token: string) {
   return this.userModel.findOne({ resetPasswordToken: token });
 }
+
+async updateLastLogin(userId: string): Promise<void> {
+  await this.userModel.updateOne(
+    { _id: userId },
+    { $set: { lastLogin: new Date() } }
+  );
+}
+
+async findById(userId: string) {
+  return this.userModel.findById(userId).select('-password');
+}
+
+// async findByIdUserotpveify(id: string) {
+//   return this.userModel.findById(id);
+// }
+
+async update(id: string, data: any) {
+  return this.userModel.findByIdAndUpdate(id, data, { new: true });
+}
+
+
 }

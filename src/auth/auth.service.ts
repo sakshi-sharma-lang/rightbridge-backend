@@ -36,28 +36,25 @@ export class AuthService {
     return result;
   }
 
-async login(user: any) {
-  const payload = { email: user.email, sub: user._id };
+  async login(user: any) {
+    const payload = { email: user.email, sub: user._id };
 
-  const application =
-    await this.applicationsService.findApplicationByUserId(user._id);
+    await this.usersService.updateLastLogin(user._id);
 
-  const allowedStatuses = ['active', 'dip_stage'];
+    const application =
+      await this.applicationsService.findApplicationByUserId(user._id);
 
-  return {
-    access_token: this.jwtService.sign(payload),
-    user,
+    const allowedStatuses = ['active', 'dip_stage'];
 
-    applicationId:
-      application && allowedStatuses.includes(application.status)
-        ? application._id
-        : null,
-  };
-}
-
-
-
-
+    return {
+      access_token: this.jwtService.sign(payload),
+      user,
+      applicationId:
+        application && allowedStatuses.includes((application as any).status)
+          ? application._id
+          : null,
+    };
+  }
 
   // ===================== FORGOT PASSWORD =====================
   async forgotPassword(email: string) {
@@ -108,4 +105,52 @@ async login(user: any) {
 
     return { message: 'Password reset successful' };
   }
+  
+ async verifyOtp(userId: string, otp: string) {
+  const user = await this.usersService.findById(userId);
+
+  // ✅ REQUIRED null check
+  if (!user) {
+    throw new UnauthorizedException('User not found');
+  }
+
+  // ✅ Safe to access now
+  const email = user.email;
+  const fullName = `${user.firstName} ${user.lastName}`;
+
+  if (user.isOtpVerified) {
+    throw new BadRequestException('OTP already verified');
+  }
+
+  if (!user.otp || !user.otpExpiresAt) {
+    throw new BadRequestException('OTP not found');
+  }
+
+  if (user.otp !== otp) {
+    throw new BadRequestException('Invalid OTP');
+  }
+
+  if (user.otpExpiresAt < new Date()) {
+    throw new BadRequestException('OTP expired');
+  }
+
+  await this.usersService.update(userId, {
+    isOtpVerified: true,
+    status: 'active',
+    otp: null,
+    otpExpiresAt: null,
+  });
+
+  await this.mailService.sendWelcomeEmail(
+    user.email,
+    user.firstName,
+  );
+
+  return {
+    message: 'OTP verified successfully. Account activated.',
+  };
+}
+
+
+
 }
