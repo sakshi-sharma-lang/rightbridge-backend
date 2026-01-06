@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException , BadRequestException} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Application } from './schemas/application.schema';
@@ -16,6 +16,19 @@ export class ApplicationsService {
 
   /* ================= CREATE ================= */
   async create(body: any, userId: string): Promise<Application> {
+  
+    const existingApplication = await this.applicationModel.findOne({
+    userId,
+    status: 'welcome_stage',
+  });
+    console.log("existingApplication",existingApplication);
+
+  if (existingApplication) {
+    throw new BadRequestException(
+      'You cannot create an application. Your application is already in progress.',
+    );
+  }
+
     const appId = await this.generateAppId();
 
     const applicant = body.applicant || {};
@@ -95,7 +108,7 @@ export class ApplicationsService {
 
       appId,
       userId,
-      status: 'active',
+  
       isDraft: true,
     });
 

@@ -1,6 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
+import { AdminRole } from '../../common/enums/admin-role.enum';
+
 export type AdminDocument = Admin & Document;
 
 @Schema({ timestamps: true })
@@ -16,8 +18,12 @@ export class Admin {
   @Prop({ required: true })
   password: string;
 
-  @Prop({ default: 'admin' })
-  role: string;
+  @Prop({
+    type: String,
+    enum: Object.values(AdminRole),
+    default: AdminRole.ADMIN,
+  })
+  role: AdminRole;
 
   @Prop({ default: 'active' })
   status: string;

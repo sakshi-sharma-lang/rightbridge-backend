@@ -113,49 +113,49 @@ export class Application extends Document {
   consents: { key: string; value: boolean }[];
 
   /* ================= STATUS ================= */
- @Prop({
+ /* ================= STATUS ================= */
+@Prop({
   type: String,
   enum: [
-    'active',
-    'draft',
+    'welcome_stage',
     'dip_stage',
     'kyc_stage',
-    'valuation',
-    'underwriting',
-    'offer_sent',
-    'completed',
+    'valuation_stage',
+    'underwriting_stage',
+    'offersent_stage',
+    'completed_stage',
+    'decline',
   ],
-  default: 'active',
+  default: null,
 })
 status:
-  | 'active'
-  | 'draft'
-  | 'welcome'
+  | 'welcome_stage'
   | 'dip_stage'
   | 'kyc_stage'
-  | 'valuation'
-  | 'underwriting'
-  | 'offer_sent'
-  | 'completed';
+  | 'valuation_stage'
+  | 'underwriting_stage'
+  | 'offersent_stage'
+  | 'completed_stage'
+  | 'decline';
 
   @Prop({ default: true })
   isDraft: boolean;
 
-  @Prop({ unique: true })
-  appId: string;
+    @Prop({ unique: true })
+    appId: string;
 
-    @Prop()
-createdAt: Date;
+      @Prop()
+  createdAt: Date;
 
-@Prop()
-updatedAt: Date;
+  @Prop()
+  updatedAt: Date;
 
-/* ================= PRIORITY ================= */
-@Prop({
-  type: String,
-  default: '',
-})
-priority: string;
+  /* ================= PRIORITY ================= */
+  @Prop({
+    type: String,
+    default: '',
+  })
+  priority: string;
 
 
 

@@ -36,25 +36,29 @@ export class AuthService {
     return result;
   }
 
-  async login(user: any) {
-    const payload = { email: user.email, sub: user._id };
+async login(user: any) {
+  const payload = { email: user.email, sub: user._id };
 
-    await this.usersService.updateLastLogin(user._id);
+  await this.usersService.updateLastLogin(user._id);
 
-    const application =
-      await this.applicationsService.findApplicationByUserId(user._id);
+  const application =
+    await this.applicationsService.findApplicationByUserId(user._id);
 
-    const allowedStatuses = ['active', 'dip_stage'];
+  const blockedStatuses = ['decline', 'completed_stage'];
 
-    return {
-      access_token: this.jwtService.sign(payload),
-      user,
-      applicationId:
-        application && allowedStatuses.includes((application as any).status)
-          ? application._id
-          : null,
-    };
-  }
+  const isBlocked =
+    !application || blockedStatuses.includes(application.status);
+
+  return {
+    access_token: this.jwtService.sign(payload),
+    user,
+
+    applicationId: isBlocked ? null : application._id,
+    applicationStatus: isBlocked ? null : application.status,
+  };
+}
+
+
 
   // ===================== FORGOT PASSWORD =====================
   async forgotPassword(email: string) {

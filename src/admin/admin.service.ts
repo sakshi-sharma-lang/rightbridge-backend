@@ -139,11 +139,11 @@ export class AdminService {
     } = query;
 
     const filter: any = {};
-    console.log("roles",jwtUser.role)
+  //  console.log("roles",jwtUser.role)
     
-      if (jwtUser.role !== 'super_admin') {
-      throw new ForbiddenException('You are not allowed to view user data');
-    }
+    //   if (jwtUser.role !== 'super_admin') {
+    //   throw new ForbiddenException('You are not allowed to view user data');
+    // }
 
 
 
