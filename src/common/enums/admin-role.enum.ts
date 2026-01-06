@@ -3,4 +3,5 @@ export enum AdminRole {
   UNDERWRITER = 'underwriter',
   OPERATIONS = 'operations',
   VIEWER = 'viewer',
+  SuperAdmin='super_admin'
 }
