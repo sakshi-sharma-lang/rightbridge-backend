@@ -167,7 +167,7 @@ status: ApplicationStatus;
     default: '',
   })
   priority: string;
-
+  underwriter: string;
 
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true })

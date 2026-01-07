@@ -22,7 +22,7 @@ export class ApplicationsController {
 
   @Post()
   create(@Req() req: any, @Body() body: any) {
-  console.log('JWT USER:', req.user); 
+
 
   const userId = req.user?.userId;
   if (!userId) {
@@ -60,7 +60,7 @@ export class ApplicationsController {
 
 
   // Update appliaction details frontend api application tabs
-  
+
   @Patch(':id/update-details')
 updateApplicationDetails(
   @Req() req: any,
