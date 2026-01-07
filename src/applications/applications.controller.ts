@@ -58,6 +58,24 @@ export class ApplicationsController {
     return this.service.update(id, body, userId);
   }
 
+
+  // Update appliaction details frontend api application tabs
+  
+  @Patch(':id/update-details')
+updateApplicationDetails(
+  @Req() req: any,
+  @Param('id') id: string,
+  @Body() body: any,
+) {
+  const userId = req.user?.userId;
+  if (!userId) {
+    throw new UnauthorizedException('Invalid or missing token');
+  }
+
+  return this.service.updateApplicationDetails(id, body, userId);
+}
+
+
  
  @Get('admin/dashboard/overview')
 @UseGuards(AdminJwtGuard)

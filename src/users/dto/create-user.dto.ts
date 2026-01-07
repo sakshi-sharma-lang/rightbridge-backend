@@ -1,4 +1,5 @@
 import { IsString, IsEmail, Matches, MinLength, IsNotEmpty } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreateUserDto {
   @IsString({ message: 'First name must be a string' })
@@ -15,6 +16,7 @@ export class CreateUserDto {
   })
   lastName: string;
 
+   @Transform(({ value }) => value?.toLowerCase().trim())
   @IsEmail({}, { message: 'Invalid email format' })
   email: string;
 
