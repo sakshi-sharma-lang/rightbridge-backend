@@ -916,6 +916,7 @@ export class ApplicationsService {
       this.applicationModel
         .find(filter)
         .select({
+          _id: 1, 
           appId: 1,
           status: 1,
           priority: 1,
@@ -964,6 +965,7 @@ export class ApplicationsService {
 
     // ================= TABLE FORMAT =================
     const data = rows.map((item) => ({
+      id: item._id,
       appId: item.appId,
       applicantName: `${item.applicant?.firstName ?? ''} ${item.applicant?.lastName ?? ''}`.trim(),
       loanAmount: item.loanRequirements?.loanAmount ?? 0,
