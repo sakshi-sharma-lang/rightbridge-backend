@@ -1,6 +1,8 @@
 import { Prop, Schema, SchemaFactory, raw } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import * as mongoose from 'mongoose';
+import { ApplicationStatus } from '../enums/application-status.enum';
+
 
 @Schema({ timestamps: true })
 export class Application extends Document {
@@ -114,29 +116,38 @@ export class Application extends Document {
 
   /* ================= STATUS ================= */
  /* ================= STATUS ================= */
-@Prop({
+
+  @Prop({
   type: String,
-  enum: [
-    'welcome_stage',
-    'dip_stage',
-    'kyc_stage',
-    'valuation_stage',
-    'underwriting_stage',
-    'offersent_stage',
-    'completed_stage',
-    'decline',
-  ],
+  enum: Object.values(ApplicationStatus),
   default: null,
 })
-status:
-  | 'welcome_stage'
-  | 'dip_stage'
-  | 'kyc_stage'
-  | 'valuation_stage'
-  | 'underwriting_stage'
-  | 'offersent_stage'
-  | 'completed_stage'
-  | 'decline';
+status: ApplicationStatus;
+
+
+// @Prop({
+//   type: String,
+//   enum: [
+//     'welcome_stage',
+//     'dip_stage',
+//     'kyc_stage',
+//     'valuation_stage',
+//     'underwriting_stage',
+//     'offersent_stage',
+//     'completed_stage',
+//     'decline',
+//   ],
+//   default: null,
+// })
+// status:
+//   | 'welcome_stage'
+//   | 'dip_stage'
+//   | 'kyc_stage'
+//   | 'valuation_stage'
+//   | 'underwriting_stage'
+//   | 'offersent_stage'
+//   | 'completed_stage'
+//   | 'decline';
 
   @Prop({ default: true })
   isDraft: boolean;

@@ -22,7 +22,7 @@ export class ApplicationsController {
 
   @Post()
   create(@Req() req: any, @Body() body: any) {
-  console.log('JWT USER:', req.user); // 👈 ADD THIS
+  console.log('JWT USER:', req.user); 
 
   const userId = req.user?.userId;
   if (!userId) {
@@ -61,9 +61,9 @@ export class ApplicationsController {
  
  @Get('admin/dashboard/overview')
 @UseGuards(AdminJwtGuard)
-getApplications(@Query() query: any) {
+getApplicationsAdmindashboard(@Query() query: any) {
 
-  return this.service.getApplications(query);
+  return this.service.getApplicationsAdmindashboard(query);
 }
 
 @Get(':id/summary')
@@ -72,9 +72,7 @@ getApplicationSummary(@Param('id') id: string) {
   return this.service.getApplicationSummary(id);
 }
 
-
 // Application Details Section api frotnend user 2nd tabs
-
 
 @Get(':applicationId/details')
 getApplicationDetails(
@@ -87,8 +85,5 @@ getApplicationDetails(
   }
   return this.service.findById(applicationId, userId);
 }
-
-
-
 
 }

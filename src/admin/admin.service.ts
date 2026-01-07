@@ -75,13 +75,13 @@ export class AdminService {
       role: admin.role,
     },
     {
-      expiresIn: '15m', // ✅ token expires after 15 minutes
+      expiresIn: '1h', // ✅ token expires after 15 minutes
     },
   );
 
   return {
     token,
-    expiresIn: '15m',
+    expiresIn: '1h',
   };
 }
 

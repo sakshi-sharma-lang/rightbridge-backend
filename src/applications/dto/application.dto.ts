@@ -1,3 +1,6 @@
+import { IsEnum, IsNotEmpty } from 'class-validator';
+import { ApplicationStatus } from '../enums/application-status.enum';
+
 export class ApplicationDto {
   loanType?: any;
   applicant?: any;
@@ -8,5 +11,10 @@ export class ApplicationDto {
   solicitor?: any;
   additionalInfo?: any;
   consents?: { key: string; value: boolean }[];
-  status?: string;
+
+  @IsNotEmpty({ message: 'Status is required' })
+  @IsEnum(ApplicationStatus, {
+    message: 'Invalid application status',
+  })
+  status: ApplicationStatus;
 }

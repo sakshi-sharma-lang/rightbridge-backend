@@ -15,19 +15,18 @@ export class ApplicationsService {
   ) {}
 
   /* ================= CREATE ================= */
-  async create(body: any, userId: string): Promise<Application> {
-  
+ async create(body: any, userId: string): Promise<Application> {
+  try {
     const existingApplication = await this.applicationModel.findOne({
-    userId,
-    status: 'welcome_stage',
-  });
-    console.log("existingApplication",existingApplication);
+      userId,
+      status: 'welcome_stage',
+    });
 
-  if (existingApplication) {
-    throw new BadRequestException(
-      'You cannot create an application. Your application is already in progress.',
-    );
-  }
+    if (existingApplication) {
+      throw new BadRequestException(
+        'You cannot create an application. Your application is already in progress.',
+      );
+    }
 
     const appId = await this.generateAppId();
 
@@ -37,88 +36,95 @@ export class ApplicationsService {
     const financialProfile = body.financialProfile || {};
     const solicitor = body.solicitor || {};
     const additionalInfo = body.additionalInfo || {};
+
     const application = new this.applicationModel({
-
-      ...body,
-          applicant: {
-      // existing / optional fields
-      applyingAs: applicant.applyingAs ?? '',
-      firstName: applicant.firstName ?? '',
-      lastName: applicant.lastName ?? '',
-      email: applicant.email ?? '',
-      mobile: applicant.mobile ?? '',
-      address: applicant.address ?? '',
-      postcode: applicant.postcode ?? '',
-      timeAtAddress: applicant.timeAtAddress ?? '',
-      phoneNumber: applicant.phoneNumber ?? '',
-      dateOfBirth: applicant.dateOfBirth ?? '',
-      nationality: applicant.nationality ?? '',
-    },
-    property: {
-    address: property?.address ?? '',
-    city: property?.city ?? '',
-    country: property?.country ?? '',
-    postcode: property?.postcode ?? '',
-    propertyType: property?.propertyType ?? '',
-    propertyStatus: property?.propertyStatus ?? '',
-    ownershipStatus: property?.ownershipStatus ?? '',
-    estimatedValue: property?.estimatedValue ?? '',
-    rentalIncome: property?.rentalIncome ?? '',
-    purchasePrice: property?.purchasePrice ?? '',
-    },
-    loanRequirements: {
-    loanAmount: loanRequirements.loanAmount ?? '',
-    loanTerm: loanRequirements.loanTerm ?? '',
-    loanTermMonths: loanRequirements.loanTermMonths ?? '',
-    loanPurpose: loanRequirements.loanPurpose ?? '',
-    interestPaymentPreference:loanRequirements.interestPaymentPreference ?? '',
-    interestPaymentType: loanRequirements.interestPaymentType ?? '',
-    existingMortgage: loanRequirements.existingMortgage ?? '',
-    refurbishmentCost: loanRequirements.refurbishmentCost ??'',
-    borrowerContribution: loanRequirements.borrowerContribution ?? '',
-    additionalSecurity: loanRequirements.additionalSecurity ?? '',
-        },
-    financialProfile: {
-    depositAmount: financialProfile.depositAmount ?? '',
-    sourceOfDeposit: financialProfile.sourceOfDeposit ?? '',
-    annualIncome: financialProfile.annualIncome ?? '',
-    employmentStatus: financialProfile.employmentStatus ?? '',
-    otherMortgagedProperties:financialProfile.otherMortgagedProperties ?? '',
-    adverseCreditHistory:financialProfile.adverseCreditHistory ?? '',
-    },
-    solicitor: {
-    firmName: solicitor.firmName ?? '',
-    contactName: solicitor.contactName ?? '',
-    email: solicitor.email ?? '',
-    contactNumber: solicitor.contactNumber ?? '',
-    address: solicitor.address ?? '',
-    city: solicitor.city ?? '',
-    country: solicitor.country ?? '',
-    postcode: solicitor.postcode ?? '',
-  },
-    additionalInfo: {
-    brokerReferralCode: additionalInfo.brokerReferralCode ?? '',
-    urgency: additionalInfo.urgency ?? '',
-    howDidYouHear: additionalInfo.howDidYouHear ?? '',
-    additionalNotes: additionalInfo.additionalNotes ?? '',
-  },
-
-
+      ...body, // keep as-is
+      applicant: {
+        applyingAs: applicant.applyingAs ?? '',
+        firstName: applicant.firstName ?? '',
+        lastName: applicant.lastName ?? '',
+        email: applicant.email ?? '',
+        mobile: applicant.mobile ?? '',
+        address: applicant.address ?? '',
+        postcode: applicant.postcode ?? '',
+        timeAtAddress: applicant.timeAtAddress ?? '',
+        phoneNumber: applicant.phoneNumber ?? '',
+        dateOfBirth: applicant.dateOfBirth ?? '',
+        nationality: applicant.nationality ?? '',
+      },
+      property: {
+        address: property.address ?? '',
+        city: property.city ?? '',
+        country: property.country ?? '',
+        postcode: property.postcode ?? '',
+        propertyType: property.propertyType ?? '',
+        propertyStatus: property.propertyStatus ?? '',
+        ownershipStatus: property.ownershipStatus ?? '',
+        estimatedValue: property.estimatedValue ?? '',
+        rentalIncome: property.rentalIncome ?? '',
+        purchasePrice: property.purchasePrice ?? '',
+      },
+      loanRequirements: {
+        loanAmount: loanRequirements.loanAmount ?? '',
+        loanTerm: loanRequirements.loanTerm ?? '',
+        loanTermMonths: loanRequirements.loanTermMonths ?? '',
+        loanPurpose: loanRequirements.loanPurpose ?? '',
+        interestPaymentPreference: loanRequirements.interestPaymentPreference ?? '',
+        interestPaymentType: loanRequirements.interestPaymentType ?? '',
+        existingMortgage: loanRequirements.existingMortgage ?? '',
+        refurbishmentCost: loanRequirements.refurbishmentCost ?? '',
+        borrowerContribution: loanRequirements.borrowerContribution ?? '',
+        additionalSecurity: loanRequirements.additionalSecurity ?? '',
+      },
+      financialProfile: {
+        depositAmount: financialProfile.depositAmount ?? '',
+        sourceOfDeposit: financialProfile.sourceOfDeposit ?? '',
+        annualIncome: financialProfile.annualIncome ?? '',
+        employmentStatus: financialProfile.employmentStatus ?? '',
+        otherMortgagedProperties: financialProfile.otherMortgagedProperties ?? '',
+        adverseCreditHistory: financialProfile.adverseCreditHistory ?? '',
+      },
+      solicitor: {
+        firmName: solicitor.firmName ?? '',
+        contactName: solicitor.contactName ?? '',
+        email: solicitor.email ?? '',
+        contactNumber: solicitor.contactNumber ?? '',
+        address: solicitor.address ?? '',
+        city: solicitor.city ?? '',
+        country: solicitor.country ?? '',
+        postcode: solicitor.postcode ?? '',
+      },
+      additionalInfo: {
+        brokerReferralCode: additionalInfo.brokerReferralCode ?? '',
+        urgency: additionalInfo.urgency ?? '',
+        howDidYouHear: additionalInfo.howDidYouHear ?? '',
+        additionalNotes: additionalInfo.additionalNotes ?? '',
+      },
       appId,
       userId,
-  
       isDraft: true,
     });
 
-    return application.save();
+    return await application.save();
+
+  } catch (error) {
+    // ✅ SIMPLE ENUM ERROR HANDLING
+    if (
+      error?.name === 'ValidationError' &&
+      error?.errors?.status
+    ) {
+      throw new BadRequestException('Invalid application status. Please select a valid status.');
+
+    }
+
+    throw error; // other errors unchanged
   }
+}
+
 
   /* ================= GET ================= */
   async findById(id: string, userId: string): Promise<Application> {
-
     const app = await this.applicationModel.findOne({ _id: id, userId });
-
-
     if (!app) {
       throw new ForbiddenException(
         'You are not authorized to access this application',
@@ -147,7 +153,6 @@ export class ApplicationsService {
         'You are not authorized to update this application',
       );
     }
-
     return updated;
   }
 
@@ -164,8 +169,7 @@ export class ApplicationsService {
     return `BL-${year}-${counter.seq.toString().padStart(4, '0')}`;
   }
 
-async getApplications(query: any) {
- 
+async getApplicationsAdmindashboard(query: any) {
 
   const {
     status,
@@ -178,7 +182,11 @@ async getApplications(query: any) {
   } = query;
 
   // 🔒 BASE FILTER: ACTIVE applications are treated as NON-EXISTENT
-  const baseFilter = { status: { $ne: 'active' } };
+    const baseFilter = {
+    status: { $nin: ['welcome_stage'] },
+    isDraft: { $ne: true },
+  };
+
 
   // 🔒 MAIN FILTER (used for list + filtered total)
   const filter: any = { ...baseFilter };
@@ -384,8 +392,6 @@ async getApplicationSummary(applicationId: string) {
     throw new NotFoundException('Application not found');
   }
     
-
-      console.log("hersss");
   const loanAmount = application.loanRequirements?.loanAmount ?? 0;
   const propertyValue = application.property?.estimatedValue ?? 0;
  const updatedAt=application.updatedAt?? 0;
@@ -811,8 +817,9 @@ async getAllApplicationbyAdmin(query: any) {
   } = query;
 
   // ================= BASE FILTER =================
-  const baseFilter: any = {
-    status: { $ne: 'active' },
+    const baseFilter = {
+    status: { $nin: ['welcome_stage'] },
+    isDraft: { $ne: true },
   };
 
   const filter: any = { ...baseFilter };
