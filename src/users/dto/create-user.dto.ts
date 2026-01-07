@@ -25,6 +25,12 @@ export class CreateUserDto {
   })
   phoneNumber: string;
 
+   @IsString({ message: 'Country code must be a string' })
+  @Matches(/^\+\d{1,4}$/, {
+    message: 'Country code must be like +1, +91, +44',
+  })
+  countryCode: string;
+
   @MinLength(6, { message: 'Password must be at least 6 characters long' })
   @Matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*?&]{6,}$/, {
     message: 'Password must contain at least one letter and one number',

@@ -24,6 +24,9 @@ export class User extends Document {
   @Prop()
   resetPasswordToken?: string;
 
+  @Prop({ required: true })
+  countryCode: string;
+
   @Prop()
   resetPasswordExpires?: Date;
 
