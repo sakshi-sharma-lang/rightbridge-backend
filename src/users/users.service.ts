@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Model } from 'mongoose';
 import { User } from './schemas/user.schema';
+import { InjectModel } from '@nestjs/mongoose';
+
 
 @Injectable()
 export class UsersService {
@@ -48,6 +49,23 @@ async findById(userId: string) {
 
 async update(id: string, data: any) {
   return this.userModel.findByIdAndUpdate(id, data, { new: true });
+}
+
+
+
+// Update user by email or phone number
+  async updateByEmailOrPhone(
+  identifier: { email?: string; phoneNumber?: string },
+  data: any,
+) {
+  const user = await this.userModel.findOne(identifier);
+
+  if (!user) {
+    throw new NotFoundException('User not found');
+  }
+
+  Object.assign(user, data);
+  return user.save();
 }
 
 

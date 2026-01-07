@@ -3,8 +3,10 @@ import { UsersService } from './users.service';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
 import { MailService } from '../mail/mail.service';
+import { UpdateUserDto } from './dto/update-user-by-email.dto';
 
-@Controller('users/register')
+
+@Controller('users')
 export class UsersController {
   constructor(private usersService: UsersService,
   private readonly mailService: MailService, 
@@ -12,7 +14,8 @@ export class UsersController {
 
     ) {}
 
-  @Post()
+  
+  @Post('register')
  async create(@Body() createUserDto: CreateUserDto) { // ✅ use DTO
   const { email, phoneNumber, password, ...rest } = createUserDto;
 
@@ -149,4 +152,61 @@ export class UsersController {
       return rest;
     });
   }
+
+
+@Post('otp/verify-by-email-or-phone')
+async updateUserOtp(@Body() dto: UpdateUserDto) {
+  const { email, phoneNumber } = dto;
+
+  if (!email && !phoneNumber) {
+    throw new BadRequestException('Email or phone number is required');
+  }
+
+  let user;
+
+  if (email) {
+    user = await this.usersService.findByEmail(email);
+  } else if (phoneNumber) {
+    user = await this.usersService.findByPhoneNumber(phoneNumber);
+  }
+
+  if (!user) {
+    throw new BadRequestException('User not found');
+  }
+
+  // 🚫 BLOCK IF ALREADY VERIFIED
+  if (user.isOtpVerified === true) {
+    throw new BadRequestException(
+      'User already verified. OTP resend not allowed.',
+    );
+  }
+
+  // 🔢 Generate OTP
+  const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
+  const otp_expiry_time = 5;
+
+  // 🔐 Update OTP fields only
+  user.otp = otp;
+  user.otpExpiresAt = otpExpiresAt;
+  user.isOtpVerified = false;
+
+  await user.save();
+
+  // 📧 Send OTP email
+  await this.mailService.sendOtpVerificationEmail(
+    user.email,
+    user.firstName,
+    otp,
+    otp_expiry_time,
+  );
+
+  return {
+    message: 'OTP sent successfully. Please verify your email.',
+  };
+}
+
+
+
+
 }
