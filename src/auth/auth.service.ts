@@ -71,6 +71,8 @@ async login(user: any) {
     message: 'OTP verification pending. Verification email sent.',
     isOtpNotVerified: false,
     email: user.email,
+     statusCode: 401,
+
   });
 }
 
@@ -88,8 +90,8 @@ async login(user: any) {
 
   return {
      message: 'Login successful',
-  error: null,
-  statusCode: 200,
+      error: null,
+      statusCode: 200,
     access_token: this.jwtService.sign(payload),
 
     user,
