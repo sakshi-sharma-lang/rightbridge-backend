@@ -1,11 +1,20 @@
-import { IsString, IsNotEmpty, IsNumber, Min, IsEnum } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsNumber,
+  Min,
+  IsEnum,
+  IsArray,
+  ArrayNotEmpty,
+  IsMongoId,
+} from 'class-validator';
 
 export class CreateSurveyorDto {
   @IsString()
   @IsNotEmpty()
   name: string;
 
-  @IsEnum(['RICS Accredited', 'Independent', 'Other'])
+  @IsEnum(['Rics_Accredited', 'Independent', 'Other'])
   companyType: string;
 
   @IsNumber()
@@ -19,4 +28,10 @@ export class CreateSurveyorDto {
   @IsString()
   @IsNotEmpty()
   accreditation: string;
+
+  // 🔴 MANDATORY at creation time
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsMongoId({ each: true })
+  applicationIds: string[];
 }
