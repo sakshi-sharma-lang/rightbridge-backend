@@ -1,6 +1,7 @@
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -14,13 +15,31 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
   
+  // app.useGlobalPipes(
+  //   new ValidationPipe({
+  //     whitelist: true,            // strips properties not in DTO
+  //     forbidNonWhitelisted: true, // throws error if extra props sent
+  //     transform: true,            // converts payload to DTO instance
+  //   }),
+  // );
+
   app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,            // strips properties not in DTO
-      forbidNonWhitelisted: true, // throws error if extra props sent
-      transform: true,            // converts payload to DTO instance
-    }),
-  );
+  new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+
+    exceptionFactory: (errors) => {
+      const firstError = errors[0];
+      const message = firstError?.constraints
+        ? Object.values(firstError.constraints)[0]
+        : 'Validation error';
+
+      return new BadRequestException(message);
+    },
+  }),
+);
+
 
   const port = process.env.PORT || 4000;
   await app.listen(port);
