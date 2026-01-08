@@ -87,12 +87,16 @@ async login(user: any) {
     !application || blockedStatuses.includes(application.status);
 
   return {
+     message: 'Login successful',
+  error: null,
+  statusCode: 200,
     access_token: this.jwtService.sign(payload),
 
     user,
 
     applicationId: isBlocked ? null : application._id,
     applicationStatus: isBlocked ? null : application.status,
+
   };
 }
 

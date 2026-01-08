@@ -53,6 +53,8 @@ export class UsersController {
 
     return {
       message: 'OTP resent successfully. Please verify your email.',
+        error: null,
+      statusCode: 200,
     };
   }
 
@@ -96,7 +98,12 @@ export class UsersController {
     ...result
   } = user.toObject();
 
-  return result;
+  return {
+  message: 'User registered successfully',
+  error: null,
+  statusCode: 201,
+  data: result,
+};
 }
 
 
