@@ -37,13 +37,44 @@ export class AuthService {
   }
 
 async login(user: any) {
+    const payload = { email: user.email, sub: user._id };
+
   
-  if (!user.isOtpVerified) {
-    throw new UnauthorizedException(
-      'Your verification is pending. Please complete OTP verification.',
-    );
+ if (!user.isOtpVerified) {
+
+  const now = new Date();
+  let otp = user.otp;
+  let otpExpiresAt = user.otpExpiresAt;
+   const otp_expiry_time = 5;
+  // 🔁 Generate new OTP only if expired or missing
+  if (!otp || !otpExpiresAt || otpExpiresAt < now) {
+    otp = Math.floor(1000 + Math.random() * 9000).toString();
+    otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
+   
+
+    await this.usersService.update(user._id.toString(), {
+      otp,
+      otpExpiresAt,
+    });
   }
-  const payload = { email: user.email, sub: user._id };
+
+  // 📧 Send OTP verification email
+  await this.mailService.sendOtpVerificationEmail(
+    user.email,
+    user.firstName,
+    otp,
+    otp_expiry_time
+  );
+
+  // 🚫 Block login + send flag
+  throw new UnauthorizedException({
+    message: 'OTP verification pending. Verification email sent.',
+    isOtpNotVerified: false,
+    email: user.email,
+  });
+}
+
+
 
   await this.usersService.updateLastLogin(user._id);
 
