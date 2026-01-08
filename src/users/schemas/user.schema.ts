@@ -24,7 +24,7 @@ export class User extends Document {
   @Prop()
   resetPasswordToken?: string;
 
-  @Prop({ required: true })
+  @Prop({ required: false })
   countryCode: string;
 
   @Prop()
