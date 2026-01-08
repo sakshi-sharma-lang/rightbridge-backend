@@ -26,8 +26,8 @@ export class CreateUserDto {
   phoneNumber: string;
 
   // ✅ Mandatory but no strict format
-  @IsString({ message: 'Country code must be a string' })
-  @IsNotEmpty({ message: 'Country code is required' })
+   @IsString()
+  @IsNotEmpty()
   countryCode: string;
 
   @MinLength(6, { message: 'Password must be at least 6 characters long' })

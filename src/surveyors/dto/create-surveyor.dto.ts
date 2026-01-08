@@ -14,7 +14,10 @@ export class CreateSurveyorDto {
   @IsNotEmpty()
   name: string;
 
-  @IsEnum(['Rics_Accredited', 'Independent', 'Other'])
+  // ✅ Correct usage (still inline, no enum file)
+  @IsEnum(['Rics_Accredited', 'Independent', 'Other'], {
+    message: 'companyType must be Rics_Accredited, Independent, or Other',
+  })
   companyType: string;
 
   @IsNumber()
@@ -29,9 +32,9 @@ export class CreateSurveyorDto {
   @IsNotEmpty()
   accreditation: string;
 
-  // 🔴 MANDATORY at creation time
+  // 🔴 Mandatory + MULTIPLE allowed
   @IsArray()
-  @ArrayNotEmpty()
+  @ArrayNotEmpty({ message: 'At least one applicationId is required' })
   @IsMongoId({ each: true })
   applicationIds: string[];
 }
