@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model  , Types} from 'mongoose';
 import { Surveyor, SurveyorDocument } from './schemas/surveyor.schema';
 import { CreateSurveyorDto } from './dto/create-surveyor.dto';
 import { UpdateSurveyorDto } from './dto/update-surveyor.dto';
@@ -13,8 +13,15 @@ export class SurveyorsService {
   ) {}
 
   async create(dto: CreateSurveyorDto) {
-    return this.surveyorModel.create(dto);
-  }
+  const payload = {
+    ...dto,
+    applicationIds: dto.applicationIds.map(
+      (id) => new Types.ObjectId(id),
+    ),
+  };
+
+  return this.surveyorModel.create(payload);
+}
 
   async findAll(query: any) {
     const {

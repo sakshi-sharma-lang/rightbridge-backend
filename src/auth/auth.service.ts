@@ -99,33 +99,62 @@ async login(user: any) {
 
 
   // ===================== FORGOT PASSWORD =====================
-  async forgotPassword(email: string) {
-    const user = await this.usersService.findByEmail(email);
+async forgotPassword(email: string) {
+  const user = await this.usersService.findByEmail(email);
 
-    if (!user) {
-      throw new BadRequestException('Email not registered');
-    }
-
-    // Generate token
-    const resetToken = crypto.randomBytes(32).toString('hex');
-
-    user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000);
-    await user.save();
-
-    // Create reset link
-    const resetLink = `${process.env.FRONTEND_URL}reset-password?token=${resetToken}`;
-
-    // ✅ JUST CALL TEMPLATE (NO HTML HERE)
-    await this.mailService.sendForgotPasswordEmail(
-      user.email,
-      resetLink,
-    );
-
-    return {
-      message: 'Password reset email sent successfully',
-    };
+  if (!user) {
+    throw new BadRequestException({
+      statusCode: 400,
+      message: 'Email is not registered',
+    });
   }
+
+  // 🔐 ALWAYS generate reset token
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  user.resetPasswordToken = resetToken;
+  user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000);
+  await user.save();
+
+  const resetLink = `${process.env.FRONTEND_URL}reset-password?token=${resetToken}`;
+
+  // 📧 1️⃣ Send reset password email
+  await this.mailService.sendForgotPasswordEmail(
+    user.email,
+    resetLink,
+  );
+
+  // 📧 2️⃣ ALWAYS send OTP email
+  const now = new Date();
+  let otp = user.otp;
+  let otpExpiresAt = user.otpExpiresAt;
+  const otp_expiry_time = 5;
+
+  if (!otp || !otpExpiresAt || otpExpiresAt < now) {
+    otp = Math.floor(1000 + Math.random() * 9000).toString();
+    otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    await this.usersService.update(user._id.toString(), {
+      otp,
+      otpExpiresAt,
+    });
+  }
+
+  await this.mailService.sendOtpVerificationEmail(
+    user.email,
+    user.firstName,
+    otp,
+    otp_expiry_time,
+  );
+
+  return {
+    statusCode: 202,
+    message: 'OTP and password reset emails sent successfully',
+    email: user.email,
+  };
+}
+
+
+
 
   // ===================== RESET PASSWORD =====================
   async resetPassword(token: string, newPassword: string) {

@@ -1,4 +1,13 @@
-import { IsString, IsNumber, Min, IsEnum, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  Min,
+  IsEnum,
+  IsOptional,
+  IsArray,
+  ArrayNotEmpty,
+  IsMongoId,
+} from 'class-validator';
 
 export class UpdateSurveyorDto {
   @IsOptional()
@@ -21,4 +30,11 @@ export class UpdateSurveyorDto {
   @IsOptional()
   @IsString()
   accreditation?: string;
+
+  // ✅ Application IDs (optional on update)
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty({ message: 'At least one applicationId is required' })
+  @IsMongoId({ each: true })
+  applicationIds?: string[];
 }
