@@ -1,12 +1,4 @@
-import {
-  IsString,
-  IsEmail,
-  Matches,
-  MinLength,
-  IsNotEmpty,
-  IsOptional,
-} from 'class-validator';
-import { Transform } from 'class-transformer';
+import { IsString, IsEmail, Matches, MinLength, IsNotEmpty } from 'class-validator';
 
 export class CreateUserDto {
   @IsString({ message: 'First name must be a string' })
@@ -23,8 +15,7 @@ export class CreateUserDto {
   })
   lastName: string;
 
-  @Transform(({ value }) => value?.toLowerCase().trim())
-  @IsEmail({}, { message: 'Invalid email format' })
+ @IsEmail({}, { message: 'Invalid email format' })
   email: string;
 
   @Matches(/^\d{10}$/, {
@@ -32,13 +23,14 @@ export class CreateUserDto {
   })
   phoneNumber: string;
 
-  // ✅ OPTIONAL country code
-  @IsOptional()
+    @IsOptional()
   @IsString({ message: 'Country code must be a string' })
   @Matches(/^\+?[1-9]\d{0,3}$/, {
     message: 'Invalid country code',
   })
   countryCode?: string;
+
+  
 
   @MinLength(6, { message: 'Password must be at least 6 characters long' })
   @Matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*?&]{6,}$/, {
