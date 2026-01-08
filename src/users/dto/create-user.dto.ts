@@ -16,7 +16,7 @@ export class CreateUserDto {
   })
   lastName: string;
 
-  @Transform(({ value }) => value?.toLowerCase().trim())
+   @Transform(({ value }) => value?.toLowerCase().trim())
   @IsEmail({}, { message: 'Invalid email format' })
   email: string;
 
@@ -25,10 +25,11 @@ export class CreateUserDto {
   })
   phoneNumber: string;
 
-  // ✅ Mandatory but no strict format
-   @IsString()
-  @IsNotEmpty()
-  countryCode: string;
+  @IsString({ message: 'Country code must be a string' })
+@Matches(/^\+?[1-9]\d{0,3}$/, {
+  message: 'Invalid country code',
+})
+countryCode: string;
 
   @MinLength(6, { message: 'Password must be at least 6 characters long' })
   @Matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*?&]{6,}$/, {
