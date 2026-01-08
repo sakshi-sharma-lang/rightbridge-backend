@@ -40,4 +40,13 @@ async verifyOtp(@Body() dto: VerifyOtpDto) {
   return this.authService.verifyOtp(dto.email, dto.otp);
 }
 
+
+ @Post('/verify-otp/forget-password')
+  verifyOtpForgetPassword(@Body() dto: VerifyOtpDto) {
+    return this.authService.verifyOtpForgetPassword(
+      dto.email,
+      dto.otp,
+    );
+  }
+
 }

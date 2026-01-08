@@ -224,4 +224,68 @@ async forgotPassword(email: string) {
 
 
 
+  async verifyOtpForgetPassword(email: string, otp: string) {
+    const user = await this.usersService.findByEmail(email);
+
+    if (!user) {
+      throw new UnauthorizedException({
+        statusCode: 401,
+        message: 'User not found',
+        error: 'USER_NOT_FOUND',
+      });
+    }
+
+    if (!user.otp || !user.otpExpiresAt) {
+      throw new BadRequestException({
+        statusCode: 400,
+        message: 'OTP not found',
+        error: 'OTP_NOT_FOUND',
+      });
+    }
+
+    if (user.otp !== otp) {
+      throw new BadRequestException({
+        statusCode: 400,
+        message: 'Invalid OTP',
+        error: 'INVALID_OTP',
+      });
+    }
+
+    if (user.otpExpiresAt < new Date()) {
+      throw new BadRequestException({
+        statusCode: 400,
+        message: 'OTP expired',
+        error: 'OTP_EXPIRED',
+      });
+    }
+
+    // 🔑 Generate reset password token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000);
+
+    await this.usersService.update(user._id.toString(), {
+      resetPasswordToken: resetToken,
+      resetPasswordExpires,
+      otp: null,
+      otpExpiresAt: null,
+    });
+
+    // 🔗 Reset link
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+    // 📧 Send reset password email
+    await this.mailService.sendForgotPasswordEmail(
+      user.email,
+      resetLink,
+    );
+
+    return {
+      statusCode: 200,
+      message: 'OTP verified. Password reset link sent to email.',
+      resetToken: resetToken,
+    };
+  }
+
+
+
 }
