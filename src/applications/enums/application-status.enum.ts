@@ -6,5 +6,5 @@ export enum ApplicationStatus {
   UNDERWRITING = 'underwriting_stage',
   OFFER_SENT = 'offersent_stage',
   COMPLETED = 'completed_stage',
-  DECLINE = 'decline_dip',
+  DECLINE = 'decline_stage',
 }
