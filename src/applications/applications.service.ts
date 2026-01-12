@@ -868,6 +868,7 @@ if (search) {
       sort = 'recent', // recent | oldest | highest_amount | lowest_amount | priority
     } = query;
 
+
     const STATUS_LABEL_MAP: Record<string, string> = {
     welcome_stage: 'Draft',
     dip_stage: 'DIP Submitted',
@@ -921,14 +922,37 @@ if (search) {
     }
 
     // ================= SEARCH =================
-    if (search) {
-      filter.$or = [
-        { appId: { $regex: search, $options: 'i' } },
-        { 'applicant.firstName': { $regex: search, $options: 'i' } },
-        { 'applicant.lastName': { $regex: search, $options: 'i' } },
-        { 'property.address': { $regex: search, $options: 'i' } },
-      ];
-    }
+   // ================= SEARCH =================
+if (search) {
+  const searchValue = search.trim();
+  const searchParts = searchValue.split(/\s+/);
+  const searchNumber = Number(searchValue);
+
+  filter.$or = [
+    { appId: { $regex: searchValue, $options: 'i' } },
+    { 'property.address': { $regex: searchValue, $options: 'i' } },
+
+    // Single-field name match
+    { 'applicant.firstName': { $regex: searchValue, $options: 'i' } },
+    { 'applicant.lastName': { $regex: searchValue, $options: 'i' } },
+
+    // Full name match: "Prahshat Sharma"
+    ...(searchParts.length >= 2
+      ? [{
+          $and: [
+            { 'applicant.firstName': { $regex: searchParts[0], $options: 'i' } },
+            { 'applicant.lastName': { $regex: searchParts[1], $options: 'i' } },
+          ],
+        }]
+      : []),
+
+    // Loan amount search
+    ...(isNaN(searchNumber)
+      ? []
+      : [{ 'loanRequirements.loanAmount': searchNumber }]),
+  ];
+}
+
 
     // ================= SORT =================
     let sortQuery: any = { updatedAt: -1 };
