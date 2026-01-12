@@ -274,41 +274,40 @@ export class ApplicationsService {
   const endOfLastMonth = new Date(startOfMonth);
   endOfLastMonth.setMilliseconds(-1);
 
-  // ================= SEARCH =================
-// ================= SEARCH =================
 // ================= SEARCH =================
 if (search) {
-  const searchValue = search.trim();
-  const searchParts = searchValue.split(/\s+/); // split by spaces
-  const searchNumber = Number(searchValue);
+  const raw = search.trim();
+  const parts = raw.split(/\s+/);
 
   filter.$or = [
-    { appId: { $regex: searchValue, $options: 'i' } },
-    { 'property.address': { $regex: searchValue, $options: 'i' } },
+    { appId: { $regex: raw, $options: 'i' } },
+    { 'property.address': { $regex: raw, $options: 'i' } },
 
-    // 👇 first name only
-    { 'applicant.firstName': { $regex: searchValue, $options: 'i' } },
+    // full string in first or last name
+    { 'applicant.firstName': { $regex: raw, $options: 'i' } },
+    { 'applicant.lastName': { $regex: raw, $options: 'i' } },
 
-    // 👇 last name only
-    { 'applicant.lastName': { $regex: searchValue, $options: 'i' } },
-
-    // 👇 full name: "Prahshat Sharma"
-    ...(searchParts.length >= 2
+    // Multi-word first name + last name
+    ...(parts.length >= 2
       ? [{
           $and: [
-            { 'applicant.firstName': { $regex: searchParts[0], $options: 'i' } },
-            { 'applicant.lastName': { $regex: searchParts[1], $options: 'i' } },
+            {
+              'applicant.firstName': {
+                $regex: parts.slice(0, -1).join(' '),
+                $options: 'i',
+              },
+            },
+            {
+              'applicant.lastName': {
+                $regex: parts[parts.length - 1],
+                $options: 'i',
+              },
+            },
           ],
         }]
       : []),
-
-    // 👇 loan amount
-    ...(isNaN(searchNumber)
-      ? []
-      : [{ 'loanRequirements.loanAmount': searchNumber }]),
   ];
 }
-
 
 
   const skip = (Number(page) - 1) * Number(limit);
@@ -921,35 +920,38 @@ if (search) {
       }
     }
 
-    // ================= SEARCH =================
-   // ================= SEARCH =================
+// ================= SEARCH =================
 if (search) {
-  const searchValue = search.trim();
-  const searchParts = searchValue.split(/\s+/);
-  const searchNumber = Number(searchValue);
+  const raw = search.trim();
+  const parts = raw.split(/\s+/);
 
   filter.$or = [
-    { appId: { $regex: searchValue, $options: 'i' } },
-    { 'property.address': { $regex: searchValue, $options: 'i' } },
+    { appId: { $regex: raw, $options: 'i' } },
+    { 'property.address': { $regex: raw, $options: 'i' } },
 
-    // Single-field name match
-    { 'applicant.firstName': { $regex: searchValue, $options: 'i' } },
-    { 'applicant.lastName': { $regex: searchValue, $options: 'i' } },
+    // full string in first or last name
+    { 'applicant.firstName': { $regex: raw, $options: 'i' } },
+    { 'applicant.lastName': { $regex: raw, $options: 'i' } },
 
-    // Full name match: "Prahshat Sharma"
-    ...(searchParts.length >= 2
+    // Multi-word first name + last name
+    ...(parts.length >= 2
       ? [{
           $and: [
-            { 'applicant.firstName': { $regex: searchParts[0], $options: 'i' } },
-            { 'applicant.lastName': { $regex: searchParts[1], $options: 'i' } },
+            {
+              'applicant.firstName': {
+                $regex: parts.slice(0, -1).join(' '),
+                $options: 'i',
+              },
+            },
+            {
+              'applicant.lastName': {
+                $regex: parts[parts.length - 1],
+                $options: 'i',
+              },
+            },
           ],
         }]
       : []),
-
-    // Loan amount search
-    ...(isNaN(searchNumber)
-      ? []
-      : [{ 'loanRequirements.loanAmount': searchNumber }]),
   ];
 }
 
