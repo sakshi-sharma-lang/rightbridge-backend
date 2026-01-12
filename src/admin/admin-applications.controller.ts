@@ -29,7 +29,7 @@ export class AdminApplicationsController {
     return this.service.getAllApplicationbyAdmin(query);
   }
 
-   @Patch(':id/stage')
+   @Patch('admin/:id/stage-managment')
   updateStageManagment(
     @Param('id') id: string,
     @Body('application_stage_management') stage: string
@@ -37,7 +37,7 @@ export class AdminApplicationsController {
     return this.adminApplicationsService.updateStageManagment(id, stage);
   }
 
-  @Post(':id/decline-dip')
+  @Post('admin/:id/decline-dip')
 declineDip(
   @Param('id') id: string,
   @Body('reason') reason: string,
