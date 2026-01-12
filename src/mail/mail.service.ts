@@ -125,6 +125,30 @@ async sendWelcomeEmail(email: string, firstName: string) {
 }
 
 
+async sendDipDeclineEmail(
+  email: string,
+  name: string,
+  appId: string,
+  reason: string,
+) {
+  const html = this.loadTemplate('dip-decline.html', {
+    FIRST_NAME: name,
+    APP_ID: appId,
+    REASON: reason,
+  });
+
+  await this.transporter.sendMail({
+    from: `"RightBridge" <${this.configService.get('SMTP_FROM') || this.configService.get('SMTP_USER')}>`,
+    to: email,
+    subject: `Your RightBridge application  was declined`,
+    html,
+  });
+}
+
+
+
+
+
 
 
 

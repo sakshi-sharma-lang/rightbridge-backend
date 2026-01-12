@@ -170,6 +170,13 @@ status: ApplicationStatus;
   underwriter: string;
 
 
+@Prop({
+  type: [String],
+  default: [],
+})
+application_stage_management: string[];
+
+
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true })
   userId: any;
 }

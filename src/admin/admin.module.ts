@@ -12,7 +12,13 @@ import { AdminApplicationsController } from './admin-applications.controller';
 import { Admin, AdminSchema } from './schemas/admin.schema';
 import { Counter, CounterSchema } from '../applications/schemas/counter.schema';
 import { MailModule } from '../mail/mail.module';
-import { ApplicationsModule } from '../applications/applications.module'; 
+import { ApplicationsModule } from '../applications/applications.module';
+
+import { Application, ApplicationSchema } from '../applications/schemas/application.schema'; 
+
+
+import { AdminApplicationsService } from './admin-applications.service';
+
 
 @Module({
   imports: [
@@ -33,6 +39,8 @@ import { ApplicationsModule } from '../applications/applications.module';
     MongooseModule.forFeature([
       { name: Admin.name, schema: AdminSchema },
       { name: Counter.name, schema: CounterSchema }, 
+        { name: Application.name, schema: ApplicationSchema },  
+
     ]),
 
     MailModule,
@@ -42,6 +50,7 @@ import { ApplicationsModule } from '../applications/applications.module';
 ],
   providers: [
     AdminService,
+  AdminApplicationsService,   
     AdminJwtStrategy,
   ],
 })
