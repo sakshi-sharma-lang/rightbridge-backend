@@ -275,14 +275,23 @@ export class ApplicationsService {
   endOfLastMonth.setMilliseconds(-1);
 
   // ================= SEARCH =================
-  if (search) {
-    filter.$or = [
-      { appId: { $regex: search, $options: 'i' } },
-      { 'applicant.firstName': { $regex: search, $options: 'i' } },
-      { 'applicant.lastName': { $regex: search, $options: 'i' } },
-      { 'property.address': { $regex: search, $options: 'i' } },
-    ];
-  }
+// ================= SEARCH =================
+if (search) {
+  const searchNumber = Number(search);
+
+  filter.$or = [
+    { appId: { $regex: search, $options: 'i' } },
+    { 'applicant.firstName': { $regex: search, $options: 'i' } },
+    { 'applicant.lastName': { $regex: search, $options: 'i' } },
+    { 'property.address': { $regex: search, $options: 'i' } },
+
+    // 👇 Search by loan amount (numeric)
+    ...(isNaN(searchNumber)
+      ? []
+      : [{ 'loanRequirements.loanAmount': searchNumber }]),
+  ];
+}
+
 
   const skip = (Number(page) - 1) * Number(limit);
 
