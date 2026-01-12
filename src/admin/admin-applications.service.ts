@@ -26,7 +26,7 @@ async updateStageManagment(appId: string, stage: string) {
     }
 
     // 🚫 BLOCK if DIP is declined
-    if (app.application_stage_management?.includes('decline_dip')) {
+    if (app.application_stage_management?.includes('decline_stage')) {
       return {
         statusCode: 403,
         message: 'This application was declined in DIP stage and cannot be modified.',
@@ -59,9 +59,13 @@ async updateStageManagment(appId: string, stage: string) {
 }
 
 
-async declineDip(appId: string, reason: string, email: string) {
+async declineDip(
+  appId: string,
+  reason: string,
+  email: string,
+  status: string,
+) {
   try {
-
     if (!email || !email.trim()) {
       return {
         statusCode: 400,
@@ -78,6 +82,14 @@ async declineDip(appId: string, reason: string, email: string) {
       };
     }
 
+    if (!status || !status.trim()) {
+      return {
+        statusCode: 400,
+        message: 'Status is required',
+        data: null,
+      };
+    }
+
     const app = await this.applicationModel
       .findById(appId)
       .populate('userId');
@@ -90,24 +102,23 @@ async declineDip(appId: string, reason: string, email: string) {
       };
     }
 
-    // 🚫 Prevent double rejection
-    if (app.application_stage_management.includes('decline_dip')) {
+    // Prevent double same-status push
+    if (app.application_stage_management?.includes(status)) {
       return {
         statusCode: 400,
-        message: 'DIP already declined',
+        message: `Application already in ${status} state`,
         data: null,
       };
     }
 
-    // 🔒 Lock application
+    // Save frontend status in BOTH places
     await this.applicationModel.findByIdAndUpdate(appId, {
-      $addToSet: { application_stage_management: 'decline_dip' },
-      status: 'decline',
+      $addToSet: { application_stage_management: status },
+      status: status,
       dipRejectReason: reason.trim(),
       dipRejectedAt: new Date(),
     });
 
-    // 📧 Send email
     await this.mailService.sendDipDeclineEmail(
       email.trim(),
       app.userId.firstName,
@@ -121,6 +132,7 @@ async declineDip(appId: string, reason: string, email: string) {
       data: {
         appId: app.appId,
         email: email.trim(),
+        status: status,
       },
     };
   } catch (error) {
@@ -131,6 +143,9 @@ async declineDip(appId: string, reason: string, email: string) {
     };
   }
 }
+
+
+
 
 
 }

@@ -308,10 +308,7 @@ if (search) {
       : []),
   ];
 }
-
-
   const skip = (Number(page) - 1) * Number(limit);
-
   // ================= TODAY RANGE =================
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);

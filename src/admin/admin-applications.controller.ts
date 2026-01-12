@@ -42,9 +42,11 @@ declineDip(
   @Param('id') id: string,
   @Body('reason') reason: string,
     @Body('email') email: string,
+      @Body('status') status: string,   // 👈 coming from frontend
+
 
 ) {
-  return this.adminApplicationsService.declineDip(id, reason , email);
+  return this.adminApplicationsService.declineDip(id, reason , email , status);
 }
 
 }
