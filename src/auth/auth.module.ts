@@ -30,8 +30,10 @@ import { Admin, AdminSchema } from '../admin/schemas/admin.schema';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.getOrThrow<string>('JWT_SECRET'),
-        signOptions: { expiresIn: '1h' },
+       secret: config.getOrThrow<string>('JWT_SECRET'),
+    signOptions: {
+      expiresIn: config.getOrThrow<string>('JWT_EXPIRES_IN') as any,
+    },
       }),
     }),
   ],

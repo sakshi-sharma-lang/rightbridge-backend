@@ -9,6 +9,8 @@ import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
 import { MailService } from '../mail/mail.service';
 import { ApplicationsService } from '../applications/applications.service';
+import { ConfigService } from '@nestjs/config';
+
 
 @Injectable()
 export class AuthService {
@@ -17,6 +19,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly mailService: MailService, // ✅ inject mail service
     private readonly applicationsService: ApplicationsService,
+    private readonly configService: ConfigService,
   ) {}
 
   // ===================== LOGIN =====================
@@ -58,6 +61,14 @@ async login(user: any) {
     });
   }
 
+const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN');
+
+const access_token = this.jwtService.sign(payload); // expiry already applied by JwtModule
+
+
+  console.log('access_token', access_token, 'expiresIn', expiresIn);
+
+
   // 📧 Send OTP verification email
   await this.mailService.sendOtpVerificationEmail(
     user.email,
@@ -77,6 +88,9 @@ async login(user: any) {
 }
 
 
+   
+const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN');
+const access_token = this.jwtService.sign(payload); // expiry already applied by JwtModule
 
   await this.usersService.updateLastLogin(user._id);
 
@@ -87,6 +101,7 @@ async login(user: any) {
 
   const isBlocked =
     !application || blockedStatuses.includes(application.status);
+
 
   return {
      message: 'Login successful',
