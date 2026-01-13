@@ -13,11 +13,7 @@ export class AdminApplicationsService {
 
   ) {}
 
-async updateStageManagment(
-  appId: string,
-  stage: string,
-  email: string,
-) {
+async updateStageManagment(appId: string, stage: string, email: string) {
   try {
     const app = await this.applicationModel.findById(appId);
 
@@ -28,7 +24,6 @@ async updateStageManagment(
       };
     }
 
-    // 🚫 Validate email
     if (!email || !email.trim()) {
       return {
         statusCode: 400,
@@ -41,6 +36,24 @@ async updateStageManagment(
       return {
         statusCode: 403,
         message: 'This application was declined in DIP stage and cannot be modified.',
+      };
+    }
+
+  
+    const ALLOWED_STAGES = [
+      'dip_approved',
+      'kyc_confirm',
+      'valuation_started',
+      'underwriting_started',
+      'offer_issued',
+      'completed_stage',
+    ];
+
+    if (!ALLOWED_STAGES.includes(stage)) {
+      return {
+        statusCode: 400,
+        message: 'Invalid application stage status',
+        allowedStages: ALLOWED_STAGES,
       };
     }
 

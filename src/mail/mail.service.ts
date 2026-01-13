@@ -156,23 +156,16 @@ async sendStageEmail(
   let message = '';
 
   switch (stage) {
-    case 'approved_dip':
+    case 'dip_approved':
       title = 'DIP Approved';
       message =
-        'Your Decision in Principle (DIP) has been approved. We will now proceed with KYC verification.';
+        'Your Decision in Principle (DIP) has been approved.';
       break;
 
-    case 'dip_declined':
-      title = 'Application Declined';
+     case 'kyc_confirm':
+      title = 'KYC Confirm';
       message =
-        'We regret to inform you that your loan application has been declined at the Decision in Principle (DIP) stage.';
-      break;
-
-   
-     case 'kyc_confirmed':
-      title = 'KYC Approved';
-      message =
-        'Your KYC verification has been successfully completed. Your application will now move to the valuation stage.';
+        'Your KYC verification has been successfully completed.';
       break;
 
     case 'valuation_started':
@@ -193,7 +186,7 @@ async sendStageEmail(
         'Your loan offer has been issued. Please log in to review it.';
       break;
 
-    case 'completed':
+    case 'completed_stage':
       title = 'Application Completed';
       message =
         'Your loan application has been successfully completed.';
