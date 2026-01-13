@@ -279,35 +279,43 @@ if (search) {
   const raw = search.trim();
   const parts = raw.split(/\s+/);
 
-  filter.$or = [
+  const orConditions: any[] = [
     { appId: { $regex: raw, $options: 'i' } },
     { 'property.address': { $regex: raw, $options: 'i' } },
-
-    // full string in first or last name
     { 'applicant.firstName': { $regex: raw, $options: 'i' } },
     { 'applicant.lastName': { $regex: raw, $options: 'i' } },
-
-    // Multi-word first name + last name
-    ...(parts.length >= 2
-      ? [{
-          $and: [
-            {
-              'applicant.firstName': {
-                $regex: parts.slice(0, -1).join(' '),
-                $options: 'i',
-              },
-            },
-            {
-              'applicant.lastName': {
-                $regex: parts[parts.length - 1],
-                $options: 'i',
-              },
-            },
-          ],
-        }]
-      : []),
   ];
+
+  // 🔹 Full name search: "John Smith"
+  if (parts.length >= 2) {
+    orConditions.push({
+      $and: [
+        {
+          'applicant.firstName': {
+            $regex: parts.slice(0, -1).join(' '),
+            $options: 'i',
+          },
+        },
+        {
+          'applicant.lastName': {
+            $regex: parts[parts.length - 1],
+            $options: 'i',
+          },
+        },
+      ],
+    });
+  }
+
+  // 🔹 Loan amount search (numeric)
+  if (!isNaN(Number(raw))) {
+    orConditions.push({
+      'loanRequirements.loanAmount': Number(raw),
+    });
+  }
+
+  filter.$or = orConditions;
 }
+
   const skip = (Number(page) - 1) * Number(limit);
   // ================= TODAY RANGE =================
   const startOfToday = new Date();
@@ -922,34 +930,41 @@ if (search) {
   const raw = search.trim();
   const parts = raw.split(/\s+/);
 
-  filter.$or = [
+  const orConditions: any[] = [
     { appId: { $regex: raw, $options: 'i' } },
     { 'property.address': { $regex: raw, $options: 'i' } },
-
-    // full string in first or last name
     { 'applicant.firstName': { $regex: raw, $options: 'i' } },
     { 'applicant.lastName': { $regex: raw, $options: 'i' } },
-
-    // Multi-word first name + last name
-    ...(parts.length >= 2
-      ? [{
-          $and: [
-            {
-              'applicant.firstName': {
-                $regex: parts.slice(0, -1).join(' '),
-                $options: 'i',
-              },
-            },
-            {
-              'applicant.lastName': {
-                $regex: parts[parts.length - 1],
-                $options: 'i',
-              },
-            },
-          ],
-        }]
-      : []),
   ];
+
+  // 🔹 Full name search: "John Smith"
+  if (parts.length >= 2) {
+    orConditions.push({
+      $and: [
+        {
+          'applicant.firstName': {
+            $regex: parts.slice(0, -1).join(' '),
+            $options: 'i',
+          },
+        },
+        {
+          'applicant.lastName': {
+            $regex: parts[parts.length - 1],
+            $options: 'i',
+          },
+        },
+      ],
+    });
+  }
+
+  // 🔹 Loan amount search (numeric)
+  if (!isNaN(Number(raw))) {
+    orConditions.push({
+      'loanRequirements.loanAmount': Number(raw),
+    });
+  }
+
+  filter.$or = orConditions;
 }
 
 
