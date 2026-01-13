@@ -39,6 +39,12 @@ async function bootstrap() {
     },
   }),
 );
+app.use(
+  '/additional-info/docs-uploads',
+  require('express').static('additional-info/docs-uploads'),
+);
+
+
 
 
   const port = process.env.PORT || 4000;

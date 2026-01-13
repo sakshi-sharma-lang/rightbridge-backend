@@ -8,11 +8,24 @@ import {
   Req,
   UseGuards,
   UnauthorizedException,
-  Query
+  Query,
+  UseInterceptors,
+  BadRequestException,
+  UploadedFiles,
+  Delete,  
+
 } from '@nestjs/common';
 import { ApplicationsService } from './applications.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminJwtGuard } from '../auth/admin-jwt.guard';
+
+import { FilesInterceptor } from '@nestjs/platform-express';
+import * as multer from 'multer';
+import * as fs from 'fs';
+import * as path from 'path'
+
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 
 
 @UseGuards(JwtAuthGuard)
@@ -22,17 +35,59 @@ import { AdminJwtGuard } from '../auth/admin-jwt.guard';
 export class ApplicationsController {
   constructor(private readonly service: ApplicationsService) {}
 
-   @Post('applications')
-  create(@Req() req: any, @Body() body: any) {
+//    @Post('applications')
+//   create(@Req() req: any, @Body() body: any) {
 
 
+//   const userId = req.user?.userId;
+//   if (!userId) {
+//     throw new UnauthorizedException('Invalid or missing token');
+//   }
+
+//   return this.service.create(body, userId);
+// }
+
+
+@Post('applications')
+@UseInterceptors(
+  FilesInterceptor('documents', 10, {
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10 MB
+    },
+    fileFilter: (req, file, cb) => {
+      const allowed = ['.pdf', '.jpg', '.jpeg', '.png'];
+      const ext = extname(file.originalname).toLowerCase();
+
+      if (!allowed.includes(ext)) {
+        return cb(
+          new BadRequestException(
+            'Only PDF, JPG, and PNG files are allowed',
+          ),
+          false,
+        );
+      }
+
+      cb(null, true);
+    },
+    storage: diskStorage({
+      destination: './tmp', // temp folder
+      filename: (req, file, cb) => {
+        const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        cb(null, unique + extname(file.originalname));
+      },
+    }),
+  }),
+)
+create(
+  @Req() req,
+  @Body() body,
+  @UploadedFiles() files: Express.Multer.File[],
+) {
   const userId = req.user?.userId;
-  if (!userId) {
-    throw new UnauthorizedException('Invalid or missing token');
-  }
-
-  return this.service.create(body, userId);
+  if (!userId) throw new UnauthorizedException();
+  return this.service.create(body, userId, files);
 }
+
 
   @Get('applications/:id')
   get(@Req() req: any, @Param('id') id: string) {
@@ -104,6 +159,18 @@ getApplicationDetails(
     throw new UnauthorizedException('Invalid or missing token');
   }
   return this.service.findById(applicationId, userId);
+}
+
+
+@UseGuards(JwtAuthGuard)
+@Delete('applications/delete-documents/:id')
+deleteAdditionalDocument(
+  @Req() req,
+  @Param('id') id: string,
+  @Body('fileUrl') fileUrl: string,
+) {
+  const userId = req.user.userId;
+  return this.service.deleteAdditionalDocument(id, userId, fileUrl);
 }
 
 

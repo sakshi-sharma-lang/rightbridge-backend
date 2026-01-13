@@ -177,6 +177,19 @@ status: ApplicationStatus;
 application_stage_management: string[];
 
 
+@Prop({
+  type: [String],      // stores only file URLs
+  default: [],
+})
+additionalInformationDocuments: string[];
+
+@Prop({
+  type: String,
+  default: '',
+})
+additionalInformationText: string;
+
+
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true })
   userId: any;
 }
