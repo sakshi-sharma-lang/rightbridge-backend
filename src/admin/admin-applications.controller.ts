@@ -28,21 +28,26 @@ export class AdminApplicationsController {
   getAllApplicationbyAdmin(@Query() query: any) {
     return this.service.getAllApplicationbyAdmin(query);
   }
+@Patch('admin/stage-managment/:id')
+updateStageManagment(
+  @Param('id') id: string,
+  @Body('application_stage_management') stage: string,
+  @Body('email') email: string,
+) {
+  return this.adminApplicationsService.updateStageManagment(
+    id,
+    stage,
+    email,
+  );
+}
 
-   @Patch('admin/stage-managment/:id')
-  updateStageManagment(
-    @Param('id') id: string,
-    @Body('application_stage_management') stage: string
-  ) {
-    return this.adminApplicationsService.updateStageManagment(id, stage);
-  }
 
   @Post('admin/decline-dip/:id')
 declineDip(
   @Param('id') id: string,
   @Body('reason') reason: string,
-    @Body('email') email: string,
-      @Body('status') status: string,   // 👈 coming from frontend
+   @Body('email') email: string,
+     @Body('status') status: string,   // 👈 coming from frontend
 
 
 ) {

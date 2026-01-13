@@ -147,6 +147,82 @@ async sendDipDeclineEmail(
 
 
 
+async sendStageEmail(
+  email: string,
+  stage: string,
+  appId: string,
+) {
+  let title = '';
+  let message = '';
+
+  switch (stage) {
+    case 'approved_dip':
+      title = 'DIP Approved';
+      message =
+        'Your Decision in Principle (DIP) has been approved. We will now proceed with KYC verification.';
+      break;
+
+    case 'dip_declined':
+      title = 'Application Declined';
+      message =
+        'We regret to inform you that your loan application has been declined at the Decision in Principle (DIP) stage.';
+      break;
+
+   
+     case 'kyc_confirmed':
+      title = 'KYC Approved';
+      message =
+        'Your KYC verification has been successfully completed. Your application will now move to the valuation stage.';
+      break;
+
+    case 'valuation_started':
+      title = 'Valuation Started';
+      message =
+        'Property valuation has started for your loan application.';
+      break;
+
+    case 'underwriting_started':
+      title = 'Underwriting In Progress';
+      message =
+        'Your loan application is currently under underwriting review.';
+      break;
+
+    case 'offer_issued':
+      title = 'Offer Issued';
+      message =
+        'Your loan offer has been issued. Please log in to review it.';
+      break;
+
+    case 'completed':
+      title = 'Application Completed';
+      message =
+        'Your loan application has been successfully completed.';
+      break;
+
+    default:
+      title = 'Application Update';
+      message = 'Your application status has been updated.';
+  }
+
+  const html = this.loadTemplate('stage-management-notification.html', {
+    TITLE: title,
+    MESSAGE: message,
+    APP_ID: appId,
+  });
+
+  await this.transporter.sendMail({
+    from: `"RightBridge" <${this.configService.get('SMTP_FROM') || this.configService.get('SMTP_USER')}>`,
+    to: email,
+    subject: title,
+    html,
+  });
+}
+
+
+
+
+
+
 
 
 

@@ -9,11 +9,15 @@ export class AdminApplicationsService {
   constructor(
     @InjectModel(Application.name)
     private readonly applicationModel: Model<Application>,
-      private readonly mailService: MailService,      // 👈 ADD THIS
+      private readonly mailService: MailService,      
 
   ) {}
 
-async updateStageManagment(appId: string, stage: string) {
+async updateStageManagment(
+  appId: string,
+  stage: string,
+  email: string,
+) {
   try {
     const app = await this.applicationModel.findById(appId);
 
@@ -21,42 +25,56 @@ async updateStageManagment(appId: string, stage: string) {
       return {
         statusCode: 404,
         message: 'Application not found',
-        data: null,
       };
     }
 
-    // 🚫 BLOCK if DIP is declined
-    if (app.application_stage_management?.includes('decline_stage')) {
+    // 🚫 Validate email
+    if (!email || !email.trim()) {
+      return {
+        statusCode: 400,
+        message: 'Customer email is required to send notification',
+      };
+    }
+
+    // 🚫 Lock if DIP declined
+    if (app.application_stage_management?.includes('dip_declined')) {
       return {
         statusCode: 403,
         message: 'This application was declined in DIP stage and cannot be modified.',
-        data: null,
       };
     }
 
-    const updated = await this.applicationModel.findByIdAndUpdate(
-      appId,
-      {
-        $addToSet: {
-          application_stage_management: stage,
-        },
-      },
-      { new: true },
-    );
+    // 🚫 Prevent duplicate stage
+    if (app.application_stage_management?.includes(stage)) {
+      return {
+        statusCode: 400,
+        message: 'This stage is already applied',
+      };
+    }
+
+    // ✅ Save stage
+    app.application_stage_management.push(stage);
+    await app.save();
+
+    // 📧 Send email
+    await this.mailService.sendStageEmail(email, stage, appId);
 
     return {
       statusCode: 200,
-      message: 'Stage added successfully',
-      data: updated,
+      message: 'Stage updated and email sent successfully',
+      data: app,
     };
   } catch (error) {
     return {
       statusCode: 500,
-      message: 'Failed to update application stage',
+      message: 'Stage update failed',
       error: error.message,
     };
   }
 }
+
+
+
 
 
 async declineDip(
