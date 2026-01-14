@@ -4,6 +4,7 @@ import {
   IsString,
   MinLength,
   ValidateIf,
+  IsIn,
 } from 'class-validator';
 
 export class UpdateUserDto {
@@ -18,7 +19,9 @@ export class UpdateUserDto {
   phoneNumber?: string;
 
 
-
+ @IsOptional()
+  @IsIn(['FORGOT_PASSWORD'])
+  type?: 'FORGOT_PASSWORD';
 
   @IsOptional()
   @MinLength(6)

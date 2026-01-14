@@ -165,6 +165,7 @@ export class UsersController {
 async updateUserOtp(@Body() dto: UpdateUserDto) {
   const { email, phoneNumber } = dto;
 
+
   if (!email && !phoneNumber) {
     throw new BadRequestException('Email or phone number is required');
   }
@@ -182,12 +183,23 @@ async updateUserOtp(@Body() dto: UpdateUserDto) {
   }
 
   // 🚫 BLOCK IF ALREADY VERIFIED
-  if (user.isOtpVerified === true) {
-    throw new BadRequestException(
-      'User already verified. OTP resend not allowed.',
-    );
-  }
+  // if (user.isOtpVerified === true) {
+  //   throw new BadRequestException(
+  //     'User already verified. OTP resend not allowed.',
+  //   );
+  // }
 
+  if (dto.type !== 'FORGOT_PASSWORD' && user.isOtpVerified === true) {
+  throw new BadRequestException(
+    'User already verified. OTP resend not allowed.',
+  );
+}
+
+
+
+if (dto.type === 'FORGOT_PASSWORD') {
+    user.isForgetPasswordVerified = true;
+  }
   // 🔢 Generate OTP
   const otp = Math.floor(1000 + Math.random() * 9000).toString();
   const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
