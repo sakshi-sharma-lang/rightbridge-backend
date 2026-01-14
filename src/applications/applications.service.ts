@@ -204,6 +204,10 @@ export class ApplicationsService {
   body: any,
   userId: string,
 ): Promise<Application> {
+
+    console.log('UPDATE BODY:', body);
+
+
   const updated = await this.applicationModel.findOneAndUpdate(
     { _id: id, userId },
     {

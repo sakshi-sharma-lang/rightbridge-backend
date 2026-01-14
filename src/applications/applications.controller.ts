@@ -20,6 +20,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminJwtGuard } from '../auth/admin-jwt.guard';
 
 import { FilesInterceptor } from '@nestjs/platform-express';
+import { AnyFilesInterceptor } from '@nestjs/platform-express';
+
 import * as multer from 'multer';
 import * as fs from 'fs';
 import * as path from 'path'
@@ -117,8 +119,8 @@ create(
 
 
   // Update appliaction details frontend api application tabs
-
-  @Patch('applications/:id/update-details')
+@Patch('applications/:id/update-details')
+@UseInterceptors(AnyFilesInterceptor())
 updateApplicationDetails(
   @Req() req: any,
   @Param('id') id: string,
@@ -129,9 +131,9 @@ updateApplicationDetails(
     throw new UnauthorizedException('Invalid or missing token');
   }
 
+
   return this.service.updateApplicationDetails(id, body, userId);
 }
-
 
  
  @Get('applications/admin/dashboard/overview')
