@@ -86,18 +86,15 @@ export class SurveyorsService {
     return surveyor;
   }
 
-  async delete(id: string) {
-    const surveyor = await this.surveyorModel.findByIdAndUpdate(
-      id,
-      { isActive: false },
-      { new: true },
-    );
+async delete(id: string) {
+  const surveyor = await this.surveyorModel.findByIdAndDelete(id);
 
-    if (!surveyor) {
-      throw new NotFoundException('Surveyor not found');
-    }
-
-    return { message: 'Surveyor deactivated successfully' };
+  if (!surveyor) {
+    throw new NotFoundException('Surveyor not found');
   }
+
+  return { message: 'Surveyor deleted successfully' };
+}
+
 }
 
