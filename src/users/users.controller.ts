@@ -198,8 +198,10 @@ async updateUserOtp(@Body() dto: UpdateUserDto) {
 
 
 if (dto.type === 'FORGOT_PASSWORD') {
-    user.isForgetPasswordVerified = true;
-  }
+  user.isForgetPasswordVerified = false; // reset before verification
+} else {
+  user.isOtpVerified = false; // only for REGISTER / LOGIN
+}
   // 🔢 Generate OTP
   const otp = Math.floor(1000 + Math.random() * 9000).toString();
   const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -208,7 +210,7 @@ if (dto.type === 'FORGOT_PASSWORD') {
   // 🔐 Update OTP fields only
   user.otp = otp;
   user.otpExpiresAt = otpExpiresAt;
-  user.isOtpVerified = false;
+
 
   await user.save();
 
