@@ -9,9 +9,11 @@ export class Application extends Document {
 
   /* ================= POPUP: LOAN TYPE ================= */
   @Prop(raw({
+    referralCode: String,
     applicationType: String,
     purposeOfLoan: String,
     fundUrgency: String,
+
   }))
   loanType: Record<string, any>;
 
@@ -27,7 +29,23 @@ export class Application extends Document {
     nationality: String,
     address: String,
     postcode: String,
-    timeAtAddress: String,
+    timeAtAddress: {
+    type: String,
+    required: true,
+  },
+
+previousAddress: {
+  previousResidentialAddress: {
+    type: String,
+    required: false,
+  },
+  previousPostcode: {
+    type: String,
+    required: false,
+  },
+},
+
+
   }))
   applicant: Record<string, any>;
 
@@ -39,12 +57,31 @@ export class Application extends Document {
     postcode: String,
     propertyType: String,
     propertyStatus: String,
-    ownershipStatus: String,
+    ownershipStatus: String,   // radio: owned by me / another entity / purchase
     estimatedValue: Number,
     rentalIncome: Number,
     purchasePrice: Number,
+    hasOutstandingMortgage: String,   // Yes / No
+    existingMortgageDetails: {
+    lenderName: String,
+    amountOutstanding: Number,
+    paymentsUpToDate: String,       // Yes / No
+    amountInArrears: Number,
+  },
+   entityDetails: {
+    entityName: String,
+    entityType: String,
+    companyRegistrationNumber: String,
+    registeredAddress: String,
+    postcode: String,
+  },
+
   }))
+
+
   property: Record<string, any>;
+
+
 
   /* ================= POPUP + FORM: LOAN ================= */
   @Prop(raw({

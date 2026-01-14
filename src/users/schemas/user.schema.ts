@@ -42,6 +42,11 @@ export class User extends Document {
   @Prop({ default: false })
   isOtpVerified?: boolean;
 
+   @Prop({ default: false })
+  isForgetPasswordVerified?: boolean;
+
+
+
 
 }
 

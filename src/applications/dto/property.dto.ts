@@ -1,4 +1,6 @@
-import { IsBoolean, IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsNumber, IsString ,  IsOptional  ,  ValidateNested} from 'class-validator';
+
+import { Type } from 'class-transformer';
 
 export class PropertyDto {
 
@@ -22,4 +24,32 @@ export class PropertyDto {
 
   @IsNumber({}, { message: 'Rental income must be a number' })
   rentalIncome: number;
+
+  @IsString()
+  ownershipStatus: string;
+
+  // ✅ NEW FIELD
+  @IsString()
+  @IsOptional()
+  hasOutstandingMortgage?: string;
+
+  // ✅ NESTED OBJECT
+  @ValidateNested()
+  @Type(() => Object)
+  @IsOptional()
+  existingMortgageDetails?: {
+    lenderName?: string;
+    amountOutstanding?: number;
+    paymentsUpToDate?: string;
+    amountInArrears?: number;
+  };
+  @IsOptional()
+entityDetails?: {
+  entityName?: string;
+  entityType?: string;
+  companyRegistrationNumber?: string;
+  registeredAddress?: string;
+  postcode?: string;
+};
 }
+
