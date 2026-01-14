@@ -220,11 +220,8 @@ export class ApplicationsService {
       'You are not authorized to update this application',
     );
   }
-
   return updated;
 }
-
-
   /* ================= APP ID GENERATOR ================= */
   private async generateAppId(): Promise<string> {
     const year = new Date().getFullYear();
@@ -456,7 +453,6 @@ if (search) {
     data,
   };
 }
-
   /* ================= ADMIN GET USER APPLICATION ================= */
   async findUserApplicationByIdForAdmin(id: string): Promise<Application> {
     const application = await this.applicationModel.findById(id);
@@ -1018,6 +1014,5 @@ if (search) {
     });
   }
 }
-
 
 }

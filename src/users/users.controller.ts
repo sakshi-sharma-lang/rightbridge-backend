@@ -209,6 +209,7 @@ async updateUserOtp(@Body() dto: UpdateUserDto) {
   );
 
   return {
+      statusCode: 200,
     message: 'OTP sent successfully. Please verify your email.',
   };
 }

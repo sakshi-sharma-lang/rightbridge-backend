@@ -23,10 +23,11 @@ export class AuthController {
   }
 
   // ===================== FORGOT PASSWORD =====================
-  @Post('forgot-password') // POST /auth/forgot-password
+  @Post('forgot-password')
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
-    return this.authService.forgotPassword(dto.email);
+    return this.authService.forgotPassword(dto.email, dto.type);
   }
+
 
   // ===================== RESET PASSWORD =====================
   @Post('reset-password') // POST /auth/reset-password
@@ -46,6 +47,7 @@ async verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.authService.verifyOtpForgetPassword(
       dto.email,
       dto.otp,
+      dto.type
     );
   }
 

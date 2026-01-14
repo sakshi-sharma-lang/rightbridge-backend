@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsString, Length } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, Length , IsOptional} from 'class-validator';
 
 export class VerifyOtpDto {
   @IsEmail({}, { message: 'Email must be a valid email address' })
@@ -9,4 +9,8 @@ export class VerifyOtpDto {
   @IsString({ message: 'OTP must be a string' })
   @Length(4, 4, { message: 'OTP must be 4 digits' })
   otp: string;
+
+   @IsOptional()        
+  @IsString()
+  type?: string;       // mobile | web
 }

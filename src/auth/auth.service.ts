@@ -120,58 +120,125 @@ const access_token = this.jwtService.sign(payload); // expiry already applied by
 
 
   // ===================== FORGOT PASSWORD =====================
-  async forgotPassword(email: string) {
-    const user = await this.usersService.findByEmail(email);
+  // async forgotPassword(email: string) {
+  //   const user = await this.usersService.findByEmail(email);
 
-    if (!user) {
-      throw new BadRequestException('Email not registered');
+  //   if (!user) {
+  //     throw new BadRequestException('Email not registered');
+  //   }
+
+  //   // Generate token
+  //   const resetToken = crypto.randomBytes(32).toString('hex');
+
+  //   user.resetPasswordToken = resetToken;
+  //   user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000);
+  //   await user.save();
+
+  //   // Create reset link
+  //   const resetLink = `${process.env.FRONTEND_URL}reset-password?token=${resetToken}`;
+
+  //   // ✅ JUST CALL TEMPLATE (NO HTML HERE)
+  //   await this.mailService.sendForgotPasswordEmail(
+  //     user.email,
+  //     resetLink,
+  //   );
+
+  //   return {
+  //     message: 'Password reset email sent successfully',
+  //   };
+  // }
+
+
+async forgotPassword(email: string, type?: string) {
+  const user = await this.usersService.findByEmail(email);
+
+  if (!user) {
+    throw new BadRequestException({
+      statusCode: 400,
+      message: 'Email is not registered',
+    });
+  }
+
+  const now = new Date();
+
+  // ================= MOBILE FLOW (OTP ONLY) =================
+  if (type === 'mobile') {
+    let otp = user.otp;
+    let otpExpiresAt = user.otpExpiresAt;
+    const otp_expiry_time = 5;
+
+    if (!otp || !otpExpiresAt || otpExpiresAt < now) {
+      otp = Math.floor(1000 + Math.random() * 9000).toString();
+      otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+      await this.usersService.update(user._id.toString(), {
+        otp,
+        otpExpiresAt,
+      });
     }
 
-    // Generate token
-    const resetToken = crypto.randomBytes(32).toString('hex');
-
-    user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000);
-    await user.save();
-
-    // Create reset link
-    const resetLink = `${process.env.FRONTEND_URL}reset-password?token=${resetToken}`;
-
-    // ✅ JUST CALL TEMPLATE (NO HTML HERE)
-    await this.mailService.sendForgotPasswordEmail(
+    await this.mailService.sendOtpVerificationEmail(
       user.email,
-      resetLink,
+      user.firstName,
+      otp,
+      otp_expiry_time,
     );
 
     return {
-      message: 'Password reset email sent successfully',
+      statusCode: 200,
+      message: 'OTP sent successfully',
+      email: user.email,
     };
   }
 
+  // ================= WEB FLOW (RESET LINK ONLY) =================
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  user.resetPasswordToken = resetToken;
+  user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000);
+  await user.save();
 
+  const resetLink = `${process.env.FRONTEND_URL}reset-password?token=${resetToken}`;
 
+  await this.mailService.sendForgotPasswordEmail(
+    user.email,
+    resetLink,
+  );
+
+  return {
+    statusCode: 200,
+    message: 'Password reset email sent successfully',
+    email: user.email,
+  };
+}
 
 
   // ===================== RESET PASSWORD =====================
-  async resetPassword(token: string, newPassword: string) {
-    const user = await this.usersService.findByResetToken(token);
+async resetPassword(token: string, newPassword: string) {
+  const user = await this.usersService.findByResetToken(token);
 
-    if (
-      !user ||
-      !user.resetPasswordExpires ||
-      user.resetPasswordExpires < new Date()
-    ) {
-      throw new BadRequestException('Invalid or expired reset token');
-    }
-
-    user.password = await bcrypt.hash(newPassword, 10);
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpires = undefined;
-
-    await user.save();
-
-    return { message: 'Password reset successful' };
+  if (
+    !user ||
+    !user.resetPasswordExpires ||
+    user.resetPasswordExpires < new Date()
+  ) {
+    throw new BadRequestException({
+      statusCode: 400,
+      message: 'Invalid or expired reset token',
+    });
   }
+
+  user.password = await bcrypt.hash(newPassword, 10);
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpires = undefined;
+
+  await user.save();
+
+  return {
+    statusCode: 200,
+    message: 'Password reset successful',
+  };
+}
+
   
 
  async verifyOtp(email: string, otp: string) {
@@ -220,7 +287,7 @@ const access_token = this.jwtService.sign(payload); // expiry already applied by
 
 
 
-  async verifyOtpForgetPassword(email: string, otp: string) {
+  async verifyOtpForgetPassword(email: string, otp: string , type?: string) {
     const user = await this.usersService.findByEmail(email);
 
     if (!user) {
@@ -270,18 +337,19 @@ const access_token = this.jwtService.sign(payload); // expiry already applied by
     const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
 
     // 📧 Send reset password email
-    await this.mailService.sendForgotPasswordEmail(
-      user.email,
-      resetLink,
-    );
-
+    if (type !== 'mobile') {
+      await this.mailService.sendForgotPasswordEmail(
+        user.email,
+        resetLink,
+      );
+    }
     return {
-      statusCode: 200,
-      message: 'OTP verified. Password reset link sent to email.',
-      resetToken: resetToken,
-    };
+  statusCode: 200,
+  message:
+    type === 'mobile'
+      ? 'OTP verified. Reset token generated.'
+      : 'OTP verified. Password reset link sent to email.',
+  resetToken,
+};
   }
-
-
-
 }

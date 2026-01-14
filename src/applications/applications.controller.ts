@@ -173,6 +173,4 @@ deleteAdditionalDocument(
   return this.service.deleteAdditionalDocument(id, userId, fileUrl);
 }
 
-
-
 }
