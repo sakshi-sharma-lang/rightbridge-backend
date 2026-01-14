@@ -177,26 +177,28 @@ export class ApplicationsService {
   }
 
   /* ================= UPDATE ================= */
-  async update(id: string, body: any, userId: string): Promise<Application> {
-    const updated = await this.applicationModel.findOneAndUpdate(
-      { _id: id, userId },
-      {
-        $set: {
-          ...body,
-          isDraft: false,
+  // async update(id: string, body: any, userId: string): Promise<Application> {
+  //   const updated = await this.applicationModel.findOneAndUpdate(
+  //     { _id: id, userId },
+  //     {
+  //       $set: {
+  //         ...body,
+  //         isDraft: false,
 
-        },
-      },
-      { new: true },
-    );
+  //       },
+  //     },
+  //     { new: true },
+  //   );
 
-    if (!updated) {
-      throw new ForbiddenException(
-        'You are not authorized to update this application',
-      );
-    }
-    return updated;
-  }
+  //   if (!updated) {
+  //     throw new ForbiddenException(
+  //       'You are not authorized to update this application',
+  //     );
+  //   }
+  //   return updated;
+  // }
+
+
 
   // Update appliaction details frontend api application tabs
   async updateApplicationDetails(
@@ -204,9 +206,6 @@ export class ApplicationsService {
   body: any,
   userId: string,
 ): Promise<Application> {
-
-    console.log('UPDATE BODY:', body);
-
 
   const updated = await this.applicationModel.findOneAndUpdate(
     { _id: id, userId },

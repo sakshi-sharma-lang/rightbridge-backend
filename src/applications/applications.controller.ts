@@ -107,19 +107,19 @@ create(
     return this.service.findUserApplicationByIdForAdmin(id);
   }
 
-  @Patch('applications/:id')
-  update(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+  // @Patch('applications/:id')
+  // update(@Req() req: any, @Param('id') id: string, @Body() body: any) {
 
-    const userId = req.user?.userId;
-    if (!userId) {
-      throw new UnauthorizedException('Invalid or missing token');
-    }
-    return this.service.update(id, body, userId);
-  }
+  //   const userId = req.user?.userId;
+  //   if (!userId) {
+  //     throw new UnauthorizedException('Invalid or missing token');
+  //   }
+  //   return this.service.update(id, body, userId);
+  // }
 
 
   // Update appliaction details frontend api application tabs
-@Patch('applications/:id/update-details')
+@Patch('applications/:id')
 @UseInterceptors(AnyFilesInterceptor())
 updateApplicationDetails(
   @Req() req: any,
