@@ -215,45 +215,41 @@ export class AdminService {
       this.adminModel.countDocuments({ role: 'underwriter' }),
     ]);
 
-    return {
-      // 🔹 DASHBOARD CARDS
-      stats: {
-        totalUsers,
-        activeUsers,
-        admins: adminCount,
-        underwriters: underwriterCount,
-      },
+ return {
+  // 🔹 FLAT PAGINATION (as you requested)
+  total,
+  page: Number(page),
+  limit: Number(limit),
 
-      // 🔹 TABLE META
-      pagination: {
-        total,
-        page: Number(page),
-        limit: Number(limit),
-      },
+  // 🔹 DASHBOARD CARDS
+  stats: {
+    totalUsers,
+    activeUsers,
+    admins: adminCount,
+    underwriters: underwriterCount,
+  },
 
-      // 🔹 TABLE DATA
-      data: users.map((u) => ({
-         id: u._id,              // ✅ MongoDB ObjectId
-        userId: u.appId,
-        name: u.fullName,
-        email: u.email,
-        role: u.role,
-        status: u.status,
-      lastLogin: u.lastLogin
-    ? new Date(u.lastLogin).toLocaleString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      })
-    : 'Never',
+  // 🔹 TABLE DATA
+  data: users.map((u) => ({
+    id: u._id,
+    userId: u.appId,
+    name: u.fullName,
+    email: u.email,
+    role: u.role,
+    status: u.status,
+    lastLogin: u.lastLogin
+      ? new Date(u.lastLogin).toLocaleString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        })
+      : 'Never',
+  })),
+};
 
-
-    
-      })),
-    };
   }
 
   async updateUserByAdmin(userId: string, data: any ,  jwtUser: any) {
