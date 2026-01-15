@@ -201,30 +201,133 @@ export class ApplicationsService {
 
 
   // Update appliaction details frontend api application tabs
+//   async updateApplicationDetails(
+//   id: string,
+//   body: any,
+//   userId: string,
+// ): Promise<Application> {
+
+//   const updated = await this.applicationModel.findOneAndUpdate(
+//     { _id: id, userId },
+//     {
+//       $set: {
+//         ...body,
+//         isDraft: false,
+//       },
+//     },
+//     { new: true },
+//   );
+
+//   if (!updated) {
+//     throw new ForbiddenException(
+//       'You are not authorized to update this application',
+//     );
+//   }
+//   return updated;
+// }
+
+
+
   async updateApplicationDetails(
   id: string,
   body: any,
   userId: string,
 ): Promise<Application> {
+  try {
+    // 🔹 STEP 1: Check DB first (application must exist)
+    const existingApplication = await this.applicationModel.findOne({
+      _id: id,
+      userId,
+    });
 
-  const updated = await this.applicationModel.findOneAndUpdate(
-    { _id: id, userId },
-    {
-      $set: {
-        ...body,
-        isDraft: false,
-      },
-    },
-    { new: true },
-  );
+    if (!existingApplication) {
+      throw new ForbiddenException(
+        'You are not authorized to update this application',
+      );
+    }
 
-  if (!updated) {
-    throw new ForbiddenException(
-      'You are not authorized to update this application',
+    // 🔹 STEP 2: Resolve values (Body → DB fallback)
+    const loanAmount = Number(
+      body?.loanRequirements?.loanAmount ??
+      body?.['loanRequirements.loanAmount'] ??
+      existingApplication?.loanRequirements?.loanAmount
     );
-  }
-  return updated;
+
+    const propertyValue = Number(
+      body?.property?.estimatedValue ??
+      body?.['property.estimatedValue'] ??
+      existingApplication?.property?.estimatedValue
+    );
+
+  
+
+    // 🔴 STEP 3: If BOTH body + DB values are missing → BLOCK UPDATE
+    if (
+      isNaN(loanAmount) ||
+      isNaN(propertyValue) ||
+      propertyValue <= 0
+    ) {
+      throw new BadRequestException(
+        'Loan amount and property value are required to update application',
+      );
+    }
+
+    // 🔹 STEP 4: LTV calculation
+    let statusUpdate: any = {};
+    const ltv = (loanAmount / propertyValue) * 100;
+
+    if (ltv > 75) {
+      statusUpdate = {
+        status: 'AUTO_REJECTED',
+        rejectReason: 'LTV_EXCEEDED',
+      };
+    }
+    else {
+  statusUpdate = {
+    rejectReason: null, // ✅ clear previous reject reason
+  };
 }
+
+    // 🔹 STEP 5: ORIGINAL UPDATE (UNCHANGED, ONLY ADDITIONS)
+    const updated = await this.applicationModel.findOneAndUpdate(
+      { _id: id, userId },
+      {
+        $set: {
+          ...body,
+          isDraft: false,
+          ...statusUpdate, // ✅ added only
+        },
+      },
+      { new: true },
+    );
+
+    // 🔴 Safety check (TS + runtime)
+    if (!updated) {
+      throw new ForbiddenException(
+        'You are not authorized to update this application',
+      );
+    }
+
+    return updated;
+
+  } catch (error) {
+    // 🔹 Known HTTP errors → rethrow
+    if (
+      error instanceof BadRequestException ||
+      error instanceof ForbiddenException ||
+      error instanceof NotFoundException
+    ) {
+      throw error;
+    }
+
+    // 🔹 Unknown errors
+    throw new InternalServerErrorException({
+      message: 'Failed to update application',
+      error: error?.message ?? 'Internal Server Error',
+    });
+  }
+}
+
   /* ================= APP ID GENERATOR ================= */
   private async generateAppId(): Promise<string> {
     const year = new Date().getFullYear();

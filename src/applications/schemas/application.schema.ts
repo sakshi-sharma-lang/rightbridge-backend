@@ -13,7 +13,7 @@ export class Application extends Document {
     applicationType: String,
     purposeOfLoan: String,
     fundUrgency: String,
-
+    brokerReferralCode: String,
   }))
   loanType: Record<string, any>;
 
@@ -157,9 +157,17 @@ previousAddress: {
   @Prop({
   type: String,
   enum: Object.values(ApplicationStatus),
-  default: null,
+    required: true,
+
 })
 status: ApplicationStatus;
+
+@Prop({
+  type: String,
+  default: null,
+})
+rejectReason?: string;
+
 
 
 // @Prop({

@@ -33,11 +33,13 @@ export class SurveyorsController {
   }
 
   // 🔍 Get Single Surveyor
-  @Get(':id')
+@Get('by-application/:applicationId')
+async findByApplication(
+  @Param('applicationId') applicationId: string,
+) {
+  return this.service.findByApplication(applicationId);
+}
 
-  findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
-  }
 
   // ✏️ Update Surveyor
   @Patch(':id')
@@ -50,7 +52,7 @@ export class SurveyorsController {
   }
 
   // ❌ Soft Delete Surveyor
-  @Delete(':id')
+  @Delete('delete/:id')
   @UseGuards(AdminJwtGuard)
   remove(@Param('id') id: string) {
     return this.service.delete(id);

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException  , InternalServerErrorException ,BadRequestException} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model  , Types} from 'mongoose';
 import { Surveyor, SurveyorDocument } from './schemas/surveyor.schema';
@@ -13,6 +13,7 @@ export class SurveyorsService {
   ) {}
 
   async create(dto: CreateSurveyorDto) {
+    console.log("hersss");
   const payload = {
     ...dto,
     applicationIds: dto.applicationIds.map(
@@ -64,13 +65,45 @@ export class SurveyorsService {
     };
   }
 
-  async findOne(id: string) {
-    const surveyor = await this.surveyorModel.findById(id);
-    if (!surveyor) {
-      throw new NotFoundException('Surveyor not found');
+
+
+async findByApplication(applicationId: string) {
+  try {
+    // 1️⃣ Validate applicationId
+    if (!Types.ObjectId.isValid(applicationId)) {
+      throw new BadRequestException('Invalid application id');
     }
-    return surveyor;
+
+    // 2️⃣ Find surveyors linked to this application
+    const surveyors = await this.surveyorModel.find({
+      applicationIds: new Types.ObjectId(applicationId),
+      isActive: true,
+    });
+
+    // 3️⃣ No surveyor found
+    if (!surveyors.length) {
+      throw new NotFoundException(
+        'No surveyor found for this application',
+      );
+    }
+
+    // 4️⃣ Success response (NO data key)
+    return {
+      statusCode: 200,
+      message: 'Surveyors fetched successfully',
+      surveyors,
+    };
+  } catch (error) {
+    if (error.status) throw error;
+
+    throw new InternalServerErrorException(
+      'Failed to fetch surveyors',
+    );
   }
+}
+
+
+
 
   async update(id: string, dto: UpdateSurveyorDto) {
     const surveyor = await this.surveyorModel.findByIdAndUpdate(
