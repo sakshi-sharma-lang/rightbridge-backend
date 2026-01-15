@@ -168,32 +168,6 @@ status: ApplicationStatus;
 })
 rejectReason?: string;
 
-
-
-// @Prop({
-//   type: String,
-//   enum: [
-//     'welcome_stage',
-//     'dip_stage',
-//     'kyc_stage',
-//     'valuation_stage',
-//     'underwriting_stage',
-//     'offersent_stage',
-//     'completed_stage',
-//     'decline',
-//   ],
-//   default: null,
-// })
-// status:
-//   | 'welcome_stage'
-//   | 'dip_stage'
-//   | 'kyc_stage'
-//   | 'valuation_stage'
-//   | 'underwriting_stage'
-//   | 'offersent_stage'
-//   | 'completed_stage'
-//   | 'decline';
-
   @Prop({ default: true })
   isDraft: boolean;
 
@@ -220,6 +194,13 @@ rejectReason?: string;
   default: [],
 })
 application_stage_management: string[];
+
+@Prop({
+  type: Number,
+  default: 500,
+})
+commitment_fee: number;
+
 
 
 @Prop({

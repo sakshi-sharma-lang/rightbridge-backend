@@ -9,6 +9,8 @@ import { ApplicationsModule } from './applications/applications.module';
 import { AdminModule } from './admin/admin.module';
 import { MailModule } from './mail/mail.module';
 import { SurveyorsModule } from './surveyors/surveyors.module';
+import { PaymentsModule } from './payments/payments.module';
+
 
 @Module({
   imports: [
@@ -44,6 +46,8 @@ import { SurveyorsModule } from './surveyors/surveyors.module';
     AdminModule,
     MailModule,
     SurveyorsModule,
+    PaymentsModule, // 👈 THIS WAS MISSING
+
   ],
 })
 export class AppModule {}

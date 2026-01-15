@@ -12,17 +12,52 @@ export class SurveyorsService {
     private readonly surveyorModel: Model<SurveyorDocument>,
   ) {}
 
-  async create(dto: CreateSurveyorDto) {
-    console.log("hersss");
+async create(dto: CreateSurveyorDto) {
+  const applicationObjectIds = dto.applicationIds.map(
+    (id) => new Types.ObjectId(id),
+  );
+
+  // 🔍 Check how many surveyors already assigned per application
+  const existingAssignments = await this.surveyorModel.aggregate([
+    {
+      $match: {
+        applicationIds: { $in: applicationObjectIds },
+      },
+    },
+    {
+      $unwind: '$applicationIds',
+    },
+    {
+      $match: {
+        applicationIds: { $in: applicationObjectIds },
+      },
+    },
+    {
+      $group: {
+        _id: '$applicationIds',
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  // ❌ Validate max 3 surveyors per application
+  for (const record of existingAssignments) {
+    if (record.count >= 3) {
+      throw new BadRequestException(
+        `Application ${record._id} already has 3 surveyors assigned`,
+      );
+    }
+  }
+
+  // ✅ Safe to create
   const payload = {
     ...dto,
-    applicationIds: dto.applicationIds.map(
-      (id) => new Types.ObjectId(id),
-    ),
+    applicationIds: applicationObjectIds,
   };
 
-  return this.surveyorModel.create(payload);
+  return await this.surveyorModel.create(payload);
 }
+
 
   async findAll(query: any) {
     const {
