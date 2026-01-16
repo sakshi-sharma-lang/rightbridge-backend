@@ -12,6 +12,12 @@ import { SurveyorsModule } from './surveyors/surveyors.module';
 import { PaymentsModule } from './payments/payments.module';
 
 
+
+
+import { SumsubModule } from './sumsub/sumsub.module';
+
+
+
 @Module({
   imports: [
     // 🔹 Global config
@@ -46,8 +52,8 @@ import { PaymentsModule } from './payments/payments.module';
     AdminModule,
     MailModule,
     SurveyorsModule,
-    PaymentsModule, // 👈 THIS WAS MISSING
-
+    PaymentsModule,
+    SumsubModule,
   ],
 })
 export class AppModule {}

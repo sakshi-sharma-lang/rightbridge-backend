@@ -13,6 +13,9 @@ import {
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
+
+
+
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly service: PaymentsService) {}
@@ -38,8 +41,7 @@ export class PaymentsController {
   }
 
   /* ================= STRIPE WEBHOOK ================= */
-  @Post('webhook')
-  @HttpCode(200)
+ @Post('webhook')
   async stripeWebhook(
     @Req() req: any,
     @Res() res: any,
@@ -47,4 +49,18 @@ export class PaymentsController {
   ) {
     return this.service.handleStripeWebhook(req, signature, res);
   }
+
+
+    @Post('confirm')
+  @UseGuards(JwtAuthGuard)
+  async confirmPayment(
+    @Body('paymentIntentId') paymentIntentId: string,
+    @Req() req: any,
+  ) {
+    return this.service.confirmPayment(paymentIntentId, req.user.userId);
+  }
+
+
+
+
 }
