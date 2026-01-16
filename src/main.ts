@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 
 import * as bodyParser from 'body-parser';
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
@@ -23,11 +24,10 @@ async function bootstrap() {
   //   }),
   // );
 
- app.use(
+app.use(
   '/payments/webhook',
   bodyParser.raw({ type: 'application/json' }),
 );
-
 
   app.useGlobalPipes(
   new ValidationPipe({

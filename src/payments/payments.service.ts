@@ -115,88 +115,139 @@ async getApplicationPaymentDetails(applicationId: string, userId: string) {
  
  
 async handleStripeWebhook(req: any, signature: string, res: any) {
+  console.log('🔔 Stripe webhook hit');
+  console.log('Headers signature:', signature);
+  console.log('Raw body type:', typeof req.body);
+
   let event: Stripe.Event;
 
-  // 🔐 STRIPE SIGNATURE VERIFICATION (TEST MODE)
+  // 🔐 STRIPE SIGNATURE VERIFICATION
   try {
     event = this.stripe.webhooks.constructEvent(
-      req.body, // RAW buffer
+      req.body, // MUST be raw buffer
       signature,
       process.env.STRIPE_WEBHOOK_SECRET as string,
     );
-  } catch (err) {
-    console.error('Webhook signature verification failed:', err.message);
+  } catch (err: any) {
+    console.error('❌ Webhook signature verification failed');
+    console.error('Error message:', err.message);
     return res.status(400).json({ message: 'Invalid signature' });
   }
 
+  console.log('✅ Webhook verified');
+  console.log('Event ID:', event.id);
+  console.log('Event Type:', event.type);
+  console.log('Event Created:', new Date(event.created * 1000));
+
   const intent = event.data.object as Stripe.PaymentIntent;
 
-  console.log('Stripe webhook event:', event.type);
-  console.log('PaymentIntent:', intent.id);
+  console.log('🔹 PaymentIntent Debug');
+  console.log('Intent ID:', intent.id);
+  console.log('Status:', intent.status);
+  console.log('Amount:', intent.amount);
+  console.log('Currency:', intent.currency);
+  console.log('Metadata:', intent.metadata);
 
-  switch (event.type) {
-    case 'payment_intent.created':
-      await this.paymentModel.updateOne(
-        { stripePaymentIntentId: intent.id },
-        {
-          $set: {
-            applicationId: intent.metadata?.applicationId,
-            userId: intent.metadata?.userId,
-            amount: intent.amount / 100,
-            status: 'PENDING',
+  try {
+    switch (event.type) {
+      case 'payment_intent.created': {
+        console.log('➡️ Handling payment_intent.created');
+
+        const result = await this.paymentModel.updateOne(
+          { stripePaymentIntentId: intent.id },
+          {
+            $set: {
+              applicationId: intent.metadata?.applicationId,
+              userId: intent.metadata?.userId,
+              amount: intent.amount / 100,
+              status: 'PENDING',
+            },
           },
-        },
-        { upsert: true },
-      );
-      break;
+          { upsert: true },
+        );
 
-    case 'payment_intent.processing':
-      await this.paymentModel.updateOne(
-        { stripePaymentIntentId: intent.id },
-        { $set: { status: 'PROCESSING' } },
-      );
-      break;
+        console.log('DB result:', result);
+        break;
+      }
 
-    case 'payment_intent.succeeded':
-      await this.paymentModel.updateOne(
-        { stripePaymentIntentId: intent.id },
-        {
-          $set: {
-            applicationId: intent.metadata?.applicationId,
-            userId: intent.metadata?.userId,
-            amount: intent.amount / 100,
-            status: 'PAID',
+      case 'payment_intent.processing': {
+        console.log('➡️ Handling payment_intent.processing');
+
+        const result = await this.paymentModel.updateOne(
+          { stripePaymentIntentId: intent.id },
+          { $set: { status: 'PROCESSING' } },
+        );
+
+        console.log('DB result:', result);
+        break;
+      }
+
+      case 'payment_intent.succeeded': {
+        console.log('➡️ Handling payment_intent.succeeded');
+
+        const result = await this.paymentModel.updateOne(
+          { stripePaymentIntentId: intent.id },
+          {
+            $set: {
+              applicationId: intent.metadata?.applicationId,
+              userId: intent.metadata?.userId,
+              amount: intent.amount / 100,
+              status: 'PAID',
+            },
           },
-        },
-        { upsert: true },
-      );
-      break;
+          { upsert: true },
+        );
 
-    case 'payment_intent.payment_failed':
-      await this.paymentModel.updateOne(
-        { stripePaymentIntentId: intent.id },
-        {
-          $set: {
-            applicationId: intent.metadata?.applicationId,
-            userId: intent.metadata?.userId,
-            amount: intent.amount / 100,
-            status: 'FAILED',
+        console.log('DB result:', result);
+        break;
+      }
+
+      case 'payment_intent.payment_failed': {
+        console.log('➡️ Handling payment_intent.payment_failed');
+        console.log('Failure reason:', intent.last_payment_error);
+
+        const result = await this.paymentModel.updateOne(
+          { stripePaymentIntentId: intent.id },
+          {
+            $set: {
+              applicationId: intent.metadata?.applicationId,
+              userId: intent.metadata?.userId,
+              amount: intent.amount / 100,
+              status: 'FAILED',
+            },
           },
-        },
-        { upsert: true },
-      );
-      break;
+          { upsert: true },
+        );
 
-    case 'payment_intent.canceled':
-      await this.paymentModel.updateOne(
-        { stripePaymentIntentId: intent.id },
-        { $set: { status: 'CANCELED' } },
-      );
-      break;
+        console.log('DB result:', result);
+        break;
+      }
+
+      case 'payment_intent.canceled': {
+        console.log('➡️ Handling payment_intent.canceled');
+
+        const result = await this.paymentModel.updateOne(
+          { stripePaymentIntentId: intent.id },
+          { $set: { status: 'CANCELED' } },
+        );
+
+        console.log('DB result:', result);
+        break;
+      }
+
+      default:
+        console.warn('⚠️ Unhandled Stripe event type:', event.type);
+    }
+  } catch (dbError) {
+    console.error('❌ Error while processing webhook event');
+    console.error(dbError);
+    return res.status(500).json({ message: 'Webhook processing failed' });
   }
 
+  console.log('✅ Webhook processed successfully');
   return res.json({ received: true });
 }
+
 
 
 async confirmPayment(paymentIntentId: string, userId: string) {
