@@ -160,8 +160,7 @@ async handleStripeWebhook(req: any, signature: string, res: any) {
               applicationId: intent.metadata?.applicationId,
               userId: intent.metadata?.userId,
               amount: intent.amount / 100,
-             status: 'WEBHOOK_TEST  created 1',
-
+              status: 'PENDING',
             },
           },
           { upsert: true },
@@ -176,7 +175,7 @@ async handleStripeWebhook(req: any, signature: string, res: any) {
 
         const result = await this.paymentModel.updateOne(
           { stripePaymentIntentId: intent.id },
-          { $set: {   status: 'WEBHOOK_TEST processing 2', } },
+          { $set: { status: 'PROCESSING' } },
         );
 
         console.log('DB result:', result);
@@ -193,7 +192,7 @@ async handleStripeWebhook(req: any, signature: string, res: any) {
               applicationId: intent.metadata?.applicationId,
               userId: intent.metadata?.userId,
               amount: intent.amount / 100,
-              status: 'PAID 3',
+              status: 'PAID',
             },
           },
           { upsert: true },
