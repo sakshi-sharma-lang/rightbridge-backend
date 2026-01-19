@@ -23,6 +23,11 @@ export class ApplicationsService {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
+
+private getPrimaryApplicant(app: any) {
+  return app?.applicants?.[0] ?? null;
+}
+
   /* ================= CREATE ================= */
  async create(body: any, userId: string , files: Express.Multer.File[] = []): Promise<Application> {
   try {
@@ -30,7 +35,6 @@ export class ApplicationsService {
       userId,
       status: 'welcome_stage',
     });
-
     if (existingApplication) {
       throw new BadRequestException(
         'You cannot create an application. Your application is already in progress.',
@@ -59,7 +63,6 @@ export class ApplicationsService {
           userId,
           additionalInformationFileHashes: fileHash,
         });
-
         if (duplicate) {
           fs.unlinkSync(file.path);
           throw new BadRequestException(
@@ -72,28 +75,41 @@ export class ApplicationsService {
         documentUrls.push(`/${finalPath.replace(/\\/g, '/')}`);
       }
     }
-    const applicant = body.applicant || {};
+    //const applicant = body.applicant || {};
     const property = body.property || {};
     const loanRequirements = body.loanRequirements || {};
     const financialProfile = body.financialProfile || {};
     const solicitor = body.solicitor || {};
     const additionalInfo = body.additionalInfo || {};
-
+    const applicants = Array.isArray(body.applicants)
+  ? body.applicants.map(a => ({
+      applyingAs: a.applyingAs ?? '',
+      firstName: a.firstName ?? '',
+      lastName: a.lastName ?? '',
+      email: a.email ?? '',
+      mobile: a.mobile ?? '',
+      phoneNumber: a.phoneNumber ?? '',
+      dateOfBirth: a.dateOfBirth ?? '',
+      nationality: a.nationality ?? '',
+      address: a.address ?? '',
+      postcode: a.postcode ?? '',
+      ownershipShare: a.ownershipShare ?? '',
+      ownershipRole: a.ownershipRole ?? '',
+      timeAtAddress: a.timeAtAddress ?? '',
+      numberOfApplicants: a.numberOfApplicants ?? '1',
+      previousAddress: {
+        previousResidentialAddress:
+          a.previousAddress?.previousResidentialAddress ?? '',
+        previousPostcode:
+          a.previousAddress?.previousPostcode ?? '',
+      },
+      companyAddress: a.companyAddress ?? '',
+      companyRegistrationNumber: a.companyRegistrationNumber ?? '',
+    }))
+  : [];
     const application = new this.applicationModel({
       ...body, // keep as-is
-      applicant: {
-        applyingAs: applicant.applyingAs ?? '',
-        firstName: applicant.firstName ?? '',
-        lastName: applicant.lastName ?? '',
-        email: applicant.email ?? '',
-        mobile: applicant.mobile ?? '',
-        address: applicant.address ?? '',
-        postcode: applicant.postcode ?? '',
-        timeAtAddress: applicant.timeAtAddress ?? '',
-        phoneNumber: applicant.phoneNumber ?? '',
-        dateOfBirth: applicant.dateOfBirth ?? '',
-        nationality: applicant.nationality ?? '',
-      },
+      applicants, 
       property: {
         address: property.address ?? '',
         city: property.city ?? '',
@@ -152,17 +168,20 @@ export class ApplicationsService {
     return await application.save();
   } 
   catch (error) {
-    // ✅ SIMPLE ENUM ERROR HANDLING
-    if (
-      error?.name === 'ValidationError' &&
-      error?.errors?.status
-    ) {
-      throw new BadRequestException('Invalid application status. Please select a valid status.');
+  // ✅ HANDLE MONGOOSE VALIDATION ERRORS CLEANLY
+  if (error?.name === 'ValidationError') {
+    const messages = Object.values(error.errors).map(
+      (err: any) => err.message,
+    );
 
-    }
-
-    throw error; // other errors unchanged
+    throw new BadRequestException({
+      message: 'Validation failed',
+      errors: messages,
+    });
   }
+
+  throw error;
+}
 }
   /* ================= GET ================= */
   async findById(id: string, userId: string): Promise<Application> {
@@ -245,16 +264,12 @@ async updateApplicationDetails(
         'You are not authorized to update this application',
       );
     }
-
-
-
     // 🔹 STEP 2: Resolve values (Body → DB fallback)
     const loanAmount = Number(
       body?.loanRequirements?.loanAmount ??
         body?.['loanRequirements.loanAmount'] ??
         existingApplication?.loanRequirements?.loanAmount
     );
-
     const propertyValue = Number(
       body?.property?.estimatedValue ??
         body?.['property.estimatedValue'] ??
@@ -431,25 +446,25 @@ if (search) {
   const raw = search.trim();
   const parts = raw.split(/\s+/);
 
-  const orConditions: any[] = [
+  filter.$or = [
     { appId: { $regex: raw, $options: 'i' } },
     { 'property.address': { $regex: raw, $options: 'i' } },
-    { 'applicant.firstName': { $regex: raw, $options: 'i' } },
-    { 'applicant.lastName': { $regex: raw, $options: 'i' } },
+    { 'applicants.firstName': { $regex: raw, $options: 'i' } },
+    { 'applicants.lastName': { $regex: raw, $options: 'i' } },
   ];
 
-  // 🔹 Full name search: "John Smith"
+  // ✅ Full name search: "John11 Smith1111"
   if (parts.length >= 2) {
-    orConditions.push({
+    filter.$or.push({
       $and: [
         {
-          'applicant.firstName': {
+          'applicants.firstName': {
             $regex: parts.slice(0, -1).join(' '),
             $options: 'i',
           },
         },
         {
-          'applicant.lastName': {
+          'applicants.lastName': {
             $regex: parts[parts.length - 1],
             $options: 'i',
           },
@@ -457,15 +472,6 @@ if (search) {
       ],
     });
   }
-
-  // 🔹 Loan amount search (numeric)
-  if (!isNaN(Number(raw))) {
-    orConditions.push({
-      'loanRequirements.loanAmount': Number(raw),
-    });
-  }
-
-  filter.$or = orConditions;
 }
 
   const skip = (Number(page) - 1) * Number(limit);
@@ -494,14 +500,15 @@ if (search) {
     this.applicationModel
       .find(filter)
       .select({
-        appId: 1,
-        status: 1,
-        updatedAt: 1,
-        'applicant.firstName': 1,
-        'applicant.lastName': 1,
-        'loanRequirements.loanAmount': 1,
-        'property.address': 1,
-      })
+  appId: 1,
+  status: 1,
+  updatedAt: 1,
+  'applicants.firstName': 1,
+  'applicants.lastName': 1,
+  'loanRequirements.loanAmount': 1,
+  'property.address': 1,
+})
+
       .sort({ updatedAt: -1 })
       .skip(skip)
       .limit(Number(limit))
@@ -541,10 +548,28 @@ if (search) {
   // ================= FINAL CALCULATION =================
   const thisMonthChange = thisMonthCount - lastMonthCount;
 
+
   // ================= FORMAT TABLE =================
   const data = rows.map((item) => ({
+  // applicant data is already inside item
+  // const firstName = item?.applicant?.firstName ?? '';
+  // const lastName = item?.applicant?.lastName ?? '';
+
+ // const primaryApplicant = item?.applicants?.[0];
+
+  // const firstName = primaryApplicant?.firstName ?? '';
+  // const lastName = primaryApplicant?.lastName ?? '';
+
+  // ✅ console if you want
+
+
     appId: item.appId,
-    applicantName: `${item.applicant?.firstName ?? ''} ${item.applicant?.lastName ?? ''}`.trim(),
+  
+  applicantName: `${item?.applicants?.[0]?.firstName ?? ''} ${item?.applicants?.[0]?.lastName ?? ''}`.trim(),
+
+
+
+   // applicantName: `${applicant?.firstName ?? ''} ${applicant?.lastName ?? ''}`.trim(),
     loanAmount: item.loanRequirements?.loanAmount ?? 0,
     propertyAddress: item.property?.address ?? '',
     status: STATUS_LABEL_MAP[item.status] || item.status,   // 👈 UI label
@@ -588,10 +613,9 @@ if (search) {
         updatedAt:1,
 
         // Applicant
-        'applicant.firstName': 1,
-        'applicant.lastName': 1,
-        'applicant.email': 1,
-
+        'applicants.firstName': 1,
+         'applicants.lastName': 1,
+        'applicants.email': 1,   
         // Loan
         'loanRequirements.loanAmount': 1,
 
@@ -625,9 +649,15 @@ if (search) {
       //createdat: createdAt,
 
       applicant: {
-        name: `${application.applicant?.firstName ?? ''} ${application.applicant?.lastName ?? ''}`.trim(),
-        email: application.applicant?.email ?? '',
+        name: `${
+          application?.applicants?.[0]?.firstName ?? ''
+        } ${
+          application?.applicants?.[0]?.lastName ?? ''
+        }`.trim(),
+        email: application?.applicants?.[0]?.email ?? '',
       },
+
+
 
       loan: {
         amount: loanAmount,
@@ -710,14 +740,37 @@ if (search) {
     endOfLastMonth.setMilliseconds(-1);
 
     // ================= SEARCH =================
-    if (search) {
-      filter.$or = [
-        { appId: { $regex: search, $options: 'i' } },
-        { 'applicant.firstName': { $regex: search, $options: 'i' } },
-        { 'applicant.lastName': { $regex: search, $options: 'i' } },
-        { 'property.address': { $regex: search, $options: 'i' } },
-      ];
-    }
+ // ================= SEARCH =================
+if (search) {
+  const raw = search.trim();
+  const parts = raw.split(/\s+/);
+
+  filter.$or = [
+    { appId: { $regex: raw, $options: 'i' } },
+    { 'property.address': { $regex: raw, $options: 'i' } },
+    { 'applicants.firstName': { $regex: raw, $options: 'i' } },
+    { 'applicants.lastName': { $regex: raw, $options: 'i' } },
+  ];
+
+  // ✅ Full name search (same applicant)
+  if (parts.length >= 2) {
+    filter.$or.push({
+      applicants: {
+        $elemMatch: {
+          firstName: {
+            $regex: parts.slice(0, -1).join(' '),
+            $options: 'i',
+          },
+          lastName: {
+            $regex: parts[parts.length - 1],
+            $options: 'i',
+          },
+        },
+      },
+    });
+  }
+}
+
 
     const skip = (Number(page) - 1) * Number(limit);
 
@@ -749,8 +802,8 @@ if (search) {
           appId: 1,
           status: 1,
           updatedAt: 1,
-          'applicant.firstName': 1,
-          'applicant.lastName': 1,
+          'applicants.firstName': 1,
+         'applicants.lastName': 1,
           'loanRequirements.loanAmount': 1,
           'property.address': 1,
         })
@@ -796,7 +849,9 @@ if (search) {
     // ================= FORMAT TABLE =================
     const data = rows.map((item) => ({
       appId: item.appId,
-      applicantName: `${item.applicant?.firstName ?? ''} ${item.applicant?.lastName ?? ''}`.trim(),
+    //  applicantName: `${item.applicant?.firstName ?? ''} ${item.applicant?.lastName ?? ''}`.trim(),
+      applicantName: `${item?.applicants?.[0]?.firstName ?? ''} ${item?.applicants?.[0]?.lastName ?? ''}`.trim(),
+
       loanAmount: item.loanRequirements?.loanAmount ?? 0,
       propertyAddress: item.property?.address ?? '',
       status: item.status,
@@ -895,6 +950,7 @@ if (search) {
     }
 
 // ================= SEARCH =================
+// ================= SEARCH =================
 if (search) {
   const raw = search.trim();
   const parts = raw.split(/\s+/);
@@ -902,27 +958,25 @@ if (search) {
   const orConditions: any[] = [
     { appId: { $regex: raw, $options: 'i' } },
     { 'property.address': { $regex: raw, $options: 'i' } },
-    { 'applicant.firstName': { $regex: raw, $options: 'i' } },
-    { 'applicant.lastName': { $regex: raw, $options: 'i' } },
+    { 'applicants.firstName': { $regex: raw, $options: 'i' } },
+    { 'applicants.lastName': { $regex: raw, $options: 'i' } },
   ];
 
-  // 🔹 Full name search: "John Smith"
+  // ✅ Full name search (same applicant)
   if (parts.length >= 2) {
     orConditions.push({
-      $and: [
-        {
-          'applicant.firstName': {
+      applicants: {
+        $elemMatch: {
+          firstName: {
             $regex: parts.slice(0, -1).join(' '),
             $options: 'i',
           },
-        },
-        {
-          'applicant.lastName': {
+          lastName: {
             $regex: parts[parts.length - 1],
             $options: 'i',
           },
         },
-      ],
+      },
     });
   }
 
@@ -935,6 +989,7 @@ if (search) {
 
   filter.$or = orConditions;
 }
+
 
 
     // ================= SORT =================
@@ -972,8 +1027,9 @@ if (search) {
           status: 1,
           priority: 1,
           updatedAt: 1,
-          'applicant.firstName': 1,
-          'applicant.lastName': 1,
+          'applicants.firstName': 1,
+'applicants.lastName': 1,
+
           'loanRequirements.loanAmount': 1,
           'property.address': 1,
         })
@@ -1018,7 +1074,8 @@ if (search) {
     const data = rows.map((item) => ({
       id: item._id,
       appId: item.appId,
-      applicantName: `${item.applicant?.firstName ?? ''} ${item.applicant?.lastName ?? ''}`.trim(),
+      applicantName: `${item?.applicants?.[0]?.firstName ?? ''} ${item?.applicants?.[0]?.lastName ?? ''}`.trim(),
+     // applicantName: `${item.applicant?.firstName ?? ''} ${item.applicant?.lastName ?? ''}`.trim(),
       loanAmount: item.loanRequirements?.loanAmount ?? 0,
       propertyAddress: item.property?.address ?? '',
       status: STATUS_LABEL_MAP[item.status] || item.status,

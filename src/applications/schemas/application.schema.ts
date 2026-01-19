@@ -18,37 +18,49 @@ export class Application extends Document {
   loanType: Record<string, any>;
 
   /* ================= POPUP + FORM: APPLICANT ================= */
-  @Prop(raw({
-    applyingAs: String,
-    firstName: String,
-    lastName: String,
-    email: String,
-    mobile: String,
-    phoneNumber: String,
-    dateOfBirth: String,
-    nationality: String,
-    address: String,
-    postcode: String,
-    timeAtAddress: {
-    type: String,
-    required: true,
+@Prop({
+  type: [
+    {
+      applyingAs: { type: String, required: true },
+      firstName: { type: String, required: true },
+      lastName: { type: String, required: true },
+      email: { type: String, required: true },
+      mobile: { type: String, required: true },
+      phoneNumber: { type: String, required: true },
+      dateOfBirth: { type: String, required: true },
+      nationality: { type: String, required: true },
+      address: { type: String, required: true },
+      postcode: { type: String, required: true },
+    ownershipShare: { type: Number, required: true }, 
+      ownershipRole: { type: String, required: true },  
+      
+      timeAtAddress: {
+        type: String,
+        required: true,
+        enum: ['Under 3 years', '3 years or more'],
+      },
+
+      numberOfApplicants: {
+        type: String,
+        required: false,
+      },
+
+      previousAddress: {
+        previousResidentialAddress: { type: String },
+        previousPostcode: { type: String },
+      },
+
+      companyAddress: { type: String },
+      companyRegistrationNumber: { type: String },
+    },
+  ],
+  required: true,
+  validate: {
+    validator: (v: any[]) => Array.isArray(v) && v.length > 0,
+    message: 'At least one applicant is required',
   },
-
-previousAddress: {
-  previousResidentialAddress: {
-    type: String,
-    required: false,
-  },
-  previousPostcode: {
-    type: String,
-    required: false,
-  },
-},
-
-
-  }))
-  applicant: Record<string, any>;
-
+})
+applicants: Record<string, any>[];
   /* ================= POPUP + FORM: PROPERTY ================= */
   @Prop(raw({
     address: String,
@@ -78,10 +90,7 @@ previousAddress: {
 
   }))
 
-
   property: Record<string, any>;
-
-
 
   /* ================= POPUP + FORM: LOAN ================= */
   @Prop(raw({
