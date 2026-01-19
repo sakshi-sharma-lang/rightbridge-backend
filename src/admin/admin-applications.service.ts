@@ -66,9 +66,12 @@ async updateStageManagment(appId: string, stage: string, email: string) {
     }
 
     // ✅ Save stage
-    app.application_stage_management.push(stage);
-    await app.save();
+    if (!Array.isArray(app.application_stage_management)) {
+  app.application_stage_management = [];
+}
 
+app.application_stage_management.push(stage);
+await app.save();
     // 📧 Send email
     await this.mailService.sendStageEmail(email, stage, appId);
 

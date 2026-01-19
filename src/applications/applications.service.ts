@@ -228,7 +228,7 @@ export class ApplicationsService {
 
 
 
-  async updateApplicationDetails(
+async updateApplicationDetails(
   id: string,
   body: any,
   userId: string,
@@ -246,27 +246,23 @@ export class ApplicationsService {
       );
     }
 
+
+
     // 🔹 STEP 2: Resolve values (Body → DB fallback)
     const loanAmount = Number(
       body?.loanRequirements?.loanAmount ??
-      body?.['loanRequirements.loanAmount'] ??
-      existingApplication?.loanRequirements?.loanAmount
+        body?.['loanRequirements.loanAmount'] ??
+        existingApplication?.loanRequirements?.loanAmount
     );
 
     const propertyValue = Number(
       body?.property?.estimatedValue ??
-      body?.['property.estimatedValue'] ??
-      existingApplication?.property?.estimatedValue
+        body?.['property.estimatedValue'] ??
+        existingApplication?.property?.estimatedValue
     );
 
-  
-
     // 🔴 STEP 3: If BOTH body + DB values are missing → BLOCK UPDATE
-    if (
-      isNaN(loanAmount) ||
-      isNaN(propertyValue) ||
-      propertyValue <= 0
-    ) {
+    if (isNaN(loanAmount) || isNaN(propertyValue) || propertyValue <= 0) {
       throw new BadRequestException(
         'Loan amount and property value are required to update application',
       );
@@ -276,26 +272,36 @@ export class ApplicationsService {
     let statusUpdate: any = {};
     const ltv = (loanAmount / propertyValue) * 100;
 
-    if (ltv > 75) {
-      statusUpdate = {
-        status: 'AUTO_REJECTED',
-        rejectReason: 'LTV_EXCEEDED',
-      };
-    }
-    else {
+
+if (ltv > 75) {
   statusUpdate = {
-    rejectReason: null, // ✅ clear previous reject reason
+    status: 'AUTO_REJECTED',
+    rejectReason: 'LTV_EXCEEDED',
+  };
+} else if (body?.status === 'dip_stage') {
+  statusUpdate = {
+    status: 'dip_stage',
+    application_stage_management: 'dip_approved',
   };
 }
+    // 🔹 STEP 5: Sanitize body (DO NOT allow system fields)
+    const safeBody = { ...body };
 
-    // 🔹 STEP 5: ORIGINAL UPDATE (UNCHANGED, ONLY ADDITIONS)
+    delete safeBody.application_stage_management;
+    delete safeBody.status;
+    delete safeBody.rejectReason;
+    delete safeBody.isDraft;
+    delete safeBody.userId;
+    delete safeBody.appId;
+
+    // 🔹 STEP 6: ORIGINAL UPDATE (UNCHANGED STRUCTURE)
     const updated = await this.applicationModel.findOneAndUpdate(
       { _id: id, userId },
       {
         $set: {
-          ...body,
+          ...safeBody,
           isDraft: false,
-          ...statusUpdate, // ✅ added only
+          ...statusUpdate, // applied ONLY if LTV > 75
         },
       },
       { new: true },
@@ -309,7 +315,6 @@ export class ApplicationsService {
     }
 
     return updated;
-
   } catch (error) {
     // 🔹 Known HTTP errors → rethrow
     if (
@@ -327,6 +332,7 @@ export class ApplicationsService {
     });
   }
 }
+
 
   /* ================= APP ID GENERATOR ================= */
   private async generateAppId(): Promise<string> {

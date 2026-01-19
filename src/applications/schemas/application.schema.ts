@@ -152,7 +152,6 @@ previousAddress: {
   consents: { key: string; value: boolean }[];
 
   /* ================= STATUS ================= */
- /* ================= STATUS ================= */
 
   @Prop({
   type: String,
@@ -197,7 +196,7 @@ application_stage_management: string[];
 
 @Prop({
   type: Number,
-  default: 500,
+  default: '',
 })
 commitment_fee: number;
 
