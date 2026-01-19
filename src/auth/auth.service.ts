@@ -40,6 +40,7 @@ export class AuthService {
   }
 
 async login(user: any) {
+
     const payload = { email: user.email, sub: user._id };
 
   
@@ -63,10 +64,11 @@ async login(user: any) {
 
 const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN');
 
+
 const access_token = this.jwtService.sign(payload); // expiry already applied by JwtModule
 
 
-  console.log('access_token', access_token, 'expiresIn', expiresIn);
+  //console.log('access_token', access_token, 'expiresIn', expiresIn);
 
 
   // 📧 Send OTP verification email
@@ -91,6 +93,7 @@ const access_token = this.jwtService.sign(payload); // expiry already applied by
    
 const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN');
 const access_token = this.jwtService.sign(payload); // expiry already applied by JwtModule
+console.log("access_token",access_token);
 
   await this.usersService.updateLastLogin(user._id);
 
@@ -108,7 +111,7 @@ const access_token = this.jwtService.sign(payload); // expiry already applied by
       error: null,
       statusCode: 200,
     access_token: this.jwtService.sign(payload),
-    expiresIn:expiresIn,
+    expiresIn: '6h',
     user,
 
     applicationId: isBlocked ? null : application._id,
