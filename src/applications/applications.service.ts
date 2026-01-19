@@ -282,6 +282,7 @@ if (ltv > 75) {
   statusUpdate = {
     status: 'dip_stage',
     application_stage_management: 'dip_approved',
+    rejectReason:''
   };
 }
     // 🔹 STEP 5: Sanitize body (DO NOT allow system fields)
