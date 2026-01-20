@@ -177,6 +177,14 @@ applicants: Record<string, any>[];
 })
 status: ApplicationStatus;
 
+
+
+  @Prop({
+    type: [String],
+    default: [],
+  })
+  applicationStatus: string[];
+
 @Prop({
   type: String,
   default: null,

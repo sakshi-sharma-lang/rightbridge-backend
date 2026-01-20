@@ -253,7 +253,9 @@ async updateApplicationDetails(
   userId: string,
 ): Promise<Application> {
   try {
+
     // 🔹 STEP 1: Check DB first (application must exist)
+    let pushStatusManagement: string | null = null;
     const existingApplication = await this.applicationModel.findOne({
       _id: id,
       userId,
@@ -309,8 +311,15 @@ if (ltv > 75) {
     delete safeBody.isDraft;
     delete safeBody.userId;
     delete safeBody.appId;
+    delete safeBody.applicationStatus; 
 
     // 🔹 STEP 6: ORIGINAL UPDATE (UNCHANGED STRUCTURE)
+
+
+    console.log("applicationStatus",body?.applicationStatus);
+    if (body?.applicationStatus) {
+      pushStatusManagement = body.applicationStatus;
+    }
     const updated = await this.applicationModel.findOneAndUpdate(
       { _id: id, userId },
       {
@@ -319,11 +328,16 @@ if (ltv > 75) {
           isDraft: false,
           ...statusUpdate, // applied ONLY if LTV > 75
         },
+
+          ...(pushStatusManagement && {
+      $push: {
+        applicationStatus: pushStatusManagement,
+      },
+    }),
       },
       { new: true },
     );
 
-    // 🔴 Safety check (TS + runtime)
     if (!updated) {
       throw new ForbiddenException(
         'You are not authorized to update this application',
