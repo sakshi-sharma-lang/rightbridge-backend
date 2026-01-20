@@ -9,7 +9,6 @@ export class Application extends Document {
 
   /* ================= POPUP: LOAN TYPE ================= */
   @Prop(raw({
-    referralCode: String,
     applicationType: String,
     purposeOfLoan: String,
     fundUrgency: String,
@@ -34,11 +33,11 @@ export class Application extends Document {
       email: { type: String, required: true },
       mobile: { type: String, required: true },
       phoneNumber: { type: String, required: true },
-      dateOfBirth: { type: String, required: true },
-      nationality: { type: String, required: true },
+      dateOfBirth: { type: String, required: false },
+      nationality: { type: String, required: false },
       address: { type: String, required: true },
       postcode: { type: String, required: true },
-    ownershipShare: { type: Number, required: true }, 
+      ownershipShare: { type: Number, required: true }, 
       ownershipRole: { type: String, required: true },  
       
       timeAtAddress: {
