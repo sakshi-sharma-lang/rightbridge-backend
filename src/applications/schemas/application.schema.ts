@@ -31,7 +31,7 @@ export class Application extends Document {
       firstName: { type: String, required: true },
       lastName: { type: String, required: true },
       email: { type: String, required: true },
-      mobile: { type: String, required: true },
+      // mobile: { type: String, required: true },
       phoneNumber: { type: String, required: true },
       dateOfBirth: { type: String, required: false },
       nationality: { type: String, required: false },
@@ -217,10 +217,9 @@ rejectReason?: string;
 })
 application_stage_management: string[];
 
-@Prop({
-  type: Number,
-  default: '',
-})
+
+
+
 commitment_fee: number;
 
 
