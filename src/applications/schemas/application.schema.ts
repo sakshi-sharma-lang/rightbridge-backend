@@ -17,6 +17,13 @@ export class Application extends Document {
   }))
   loanType: Record<string, any>;
 
+   @Prop({
+    type: Number,
+    required: false,
+    min: 1,
+  })
+  numberOfApplicants: number;
+
   /* ================= POPUP + FORM: APPLICANT ================= */
 @Prop({
   type: [
@@ -40,10 +47,10 @@ export class Application extends Document {
         enum: ['Under 3 years', '3 years or more'],
       },
 
-      numberOfApplicants: {
-        type: String,
-        required: false,
-      },
+      // numberOfApplicants: {
+      //   type: String,
+      //   required: false,
+      // },
 
       previousAddress: {
         previousResidentialAddress: { type: String },
