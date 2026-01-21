@@ -1,3 +1,7 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document } from 'mongoose';
+import { KycStatus } from '../enums/kyc-status.enum';
+
 @Schema({ timestamps: true })
 export class Kyc extends Document {
 
@@ -52,7 +56,8 @@ export class Kyc extends Document {
   })
   riskLevel: string;
 
-  // ===== RAW WEBHOOK =====
   @Prop({ type: Object })
   rawWebhookPayload: Record<string, any>;
 }
+
+export const KycSchema = SchemaFactory.createForClass(Kyc);

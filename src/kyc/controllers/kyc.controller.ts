@@ -1,4 +1,13 @@
-import { Controller, Post, Get, Body, Query  ,InternalServerErrorException ,NotFoundException ,BadRequestException} from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Query,
+  InternalServerErrorException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { SumsubService } from '../services/sumsub.service';
@@ -17,6 +26,10 @@ export class KycController {
   async createApplicant(@Body() body: any) {
     const { UserId, email } = body;
 
+    if (!UserId) {
+      throw new BadRequestException('UserId is required');
+    }
+
     const applicant = await this.sumsubService.createApplicant(
       UserId,
       email,
@@ -24,39 +37,28 @@ export class KycController {
 
     await this.kycModel.create({
       UserId,
-      applicantId: applicant.id,
+      applicantId: applicant.applicantId,
+      levelName: applicant.levelName,
       status: KycStatus.PENDING,
     });
 
     return {
-      applicantId: applicant.id,
+      applicantId: applicant.applicantId,
     };
   }
 
-@Get('sdk-token')
-async getSdkToken(@Query('UserId') UserId: string) {
-  try {
-    // ✅ Validation
-    if (!UserId || typeof UserId !== 'string') {
-      throw new BadRequestException('UserId is required and must be a string');
+  @Get('sdk-token')
+  async getSdkToken(@Query('UserId') UserId: string) {
+    if (!UserId) {
+      throw new BadRequestException('UserId is required');
     }
 
-    // ✅ Fetch KYC record
     const kyc = await this.kycModel.findOne({ UserId }).lean();
     if (!kyc) {
       throw new NotFoundException('KYC record not found for this UserId');
     }
 
-    if (!kyc.applicantId) {
-      throw new BadRequestException(
-        'ApplicantId is missing for this UserId',
-      );
-    }
-
-    // ✅ Generate SDK token
-    const token = await this.sumsubService.generateSdkToken(
-      kyc.applicantId,
-    );
+    const token = await this.sumsubService.generateSdkToken(UserId);
 
     if (!token) {
       throw new InternalServerErrorException(
@@ -68,24 +70,5 @@ async getSdkToken(@Query('UserId') UserId: string) {
       success: true,
       token,
     };
-  } catch (error) {
-    // 🔒 Preserve HTTP exceptions
-    if (
-      error instanceof BadRequestException ||
-      error instanceof NotFoundException ||
-      error instanceof InternalServerErrorException
-    ) {
-      throw error;
-    }
-
-    // 🔥 Fallback for unexpected errors
-    throw new InternalServerErrorException(
-      error?.message || 'Something went wrong while generating SDK token',
-    );
   }
 }
-}
-
-
-
-
