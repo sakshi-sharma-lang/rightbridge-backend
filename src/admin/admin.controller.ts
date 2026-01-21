@@ -23,15 +23,23 @@ export class AdminController {
     return this.adminService.login(dto.email, dto.password);
   }
 
-  @Post('forgot-password')
-  forgot(@Body() dto: ForgotPasswordDto) {
-    return this.adminService.forgotPassword(dto.email);
-  }
+     @Post('reset-password')
+async resetPassword(
+  @Query('token') token: string,
+  @Body() dto: ResetPasswordDto,
+) {
+  return this.adminService.resetPassword(
+    token,
+    dto.password,
 
-  @Post('reset-password/:token')
-  reset(@Param('token') token: string, @Body() dto: ResetPasswordDto) {
-    return this.adminService.resetPassword(token, dto.password);
-  }
+  );
+}
+
+
+  // @Post('reset-password/:token')
+  // reset(@Param('token') token: string, @Body() dto: ResetPasswordDto) {
+  //   return this.adminService.resetPassword(token, dto.password);
+  // }
 @UseGuards(AdminJwtGuard)
 @Get('users')
 getUsersForAdmin(

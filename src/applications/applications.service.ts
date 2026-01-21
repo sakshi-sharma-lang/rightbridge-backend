@@ -29,7 +29,16 @@ private getPrimaryApplicant(app: any) {
 }
 
   /* ================= CREATE ================= */
- async create(body: any, userId: string , files: Express.Multer.File[] = []): Promise<Application> {
+async create(
+  body: any,
+  userId: string,
+  files: Express.Multer.File[] = [],
+): Promise<{
+  success: boolean;
+  message: string;
+  data: Application;
+}> {
+
   try {
     const existingApplication = await this.applicationModel.findOne({
       userId,
@@ -165,13 +174,15 @@ private getPrimaryApplicant(app: any) {
       isDraft: true,
     });
 
-    const savedApplication = await application.save();
+const savedApplication = await application.save();
 
 return {
-  statusCode: 201,
-  message: 'Application saved successfully',
+  success: true,
+  message: 'Application created successfully',
   data: savedApplication,
 };
+
+
   } 
   catch (error) {
   // ✅ HANDLE MONGOOSE VALIDATION ERRORS CLEANLY
