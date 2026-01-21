@@ -165,7 +165,13 @@ private getPrimaryApplicant(app: any) {
       isDraft: true,
     });
 
-    return await application.save();
+    const savedApplication = await application.save();
+
+return {
+  statusCode: 201,
+  message: 'Application saved successfully',
+  data: savedApplication,
+};
   } 
   catch (error) {
   // ✅ HANDLE MONGOOSE VALIDATION ERRORS CLEANLY
