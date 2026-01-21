@@ -143,7 +143,7 @@ applicants: Record<string, any>[];
     country: String,
     postcode: String,
     solicitorFirmConfirmation: {
-      type: Boolean,
+      type: String,
       required: true,
     },
   }))
