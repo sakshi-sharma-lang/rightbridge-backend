@@ -143,7 +143,7 @@ applicants: Record<string, any>[];
     country: String,
     postcode: String,
     solicitorFirmConfirmation: {
-      type: String,
+      type: Boolean,
       required: true,
     },
   }))
@@ -241,8 +241,29 @@ additionalInformationDocuments: string[];
 additionalInformationText: string;
 
 
+@Prop({
+  type: {
+    creditCheckConsent: { type: Boolean, required: true },
+    amlKycConsent: { type: Boolean, required: true },
+    privacyPolicyConsent: { type: Boolean, required: true },
+    marketingEmailConsent: { type: Boolean, default: false },
+    marketingSmsConsent: { type: Boolean, default: false },
+  },
+})
+declarationsAndConsent: {
+  creditCheckConsent: boolean;
+  amlKycConsent: boolean;
+  privacyPolicyConsent: boolean;
+  marketingEmailConsent?: boolean;
+  marketingSmsConsent?: boolean;
+};
+
+
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true })
   userId: any;
+
+
+
 }
 
 export const ApplicationSchema =
