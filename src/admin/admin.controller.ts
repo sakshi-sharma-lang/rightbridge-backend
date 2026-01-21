@@ -1,13 +1,35 @@
-import { Controller, Post, Body, Param, Query ,Get  ,UseGuards ,Patch,Req} from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Param,
+  Query,
+  Get,
+  UseGuards,
+  Patch,
+  Req,
+  Put,
+} from '@nestjs/common';
 
 import { AdminService } from './admin.service';
 import { AdminJwtGuard } from '../auth/admin-jwt.guard';
+
 import {
   RegisterAdminDto,
   LoginAdminDto,
   ForgotPasswordDto,
   ResetPasswordDto,
+  UpdateAdminProfileDto,
+  ChangePasswordDto,
 } from './dto';
+
+// import {
+//   RegisterAdminDto,
+//   LoginAdminDto,
+//   ForgotPasswordDto,
+//   ResetPasswordDto,
+//   UpdateAdminProfileDto,
+// } from './dto';
 
 @Controller('admin/auth')
 export class AdminController {
@@ -58,5 +80,28 @@ updateUserByAdmin(
 ) {
   return this.adminService.updateUserByAdmin(id, body, req.user);
 }
+
+
+@Put('profile')
+@UseGuards(AdminJwtGuard)
+updateProfile(@Req() req, @Body() dto: UpdateAdminProfileDto) {
+  return this.adminService.updateProfile(req.user.adminId, dto);
+}
+
+
+@Put('change-password')
+@UseGuards(AdminJwtGuard)
+changePassword(
+  @Req() req,
+  @Body() dto: ChangePasswordDto,
+) {
+  return this.adminService.changePassword(
+    req.user.adminId, // from JWT
+    dto,
+  );
+}
+
+
+
 
 }

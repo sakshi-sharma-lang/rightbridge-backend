@@ -7,9 +7,20 @@ import { JwtService } from '@nestjs/jwt';
 import { Admin, AdminDocument } from './schemas/admin.schema';
 import { MailService } from '../mail/mail.service';
 import { ConfigService } from '@nestjs/config';
-import { RegisterAdminDto } from './dto/register-admin.dto';
+// import { RegisterAdminDto } from './dto/register-admin.dto';
 import { Counter } from '../applications/schemas/counter.schema';
 import { AdminJwtGuard } from '../auth/admin-jwt.guard';
+
+import {
+  RegisterAdminDto,
+  LoginAdminDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  UpdateAdminProfileDto,
+  ChangePasswordDto,  
+} from './dto';
+
+
 
 @Injectable()
 export class AdminService {
@@ -305,5 +316,86 @@ export class AdminService {
       data: updatedUser,
     };
   }
+
+async updateProfile(adminId: string, dto: UpdateAdminProfileDto) {
+  const admin = await this.adminModel.findById(adminId);
+  if (!admin) {
+    throw new NotFoundException('Admin not found');
+  }
+
+  // ✅ Update fullName ONLY if provided
+  if (dto.fullName && dto.fullName.trim()) {
+    admin.fullName = dto.fullName.trim();
+  }
+
+  // ✅ Update email ONLY if provided AND changed
+  if (dto.email && dto.email !== admin.email) {
+    const emailExists = await this.adminModel.findOne({
+      email: dto.email,
+      _id: { $ne: adminId },
+    });
+
+    if (emailExists) {
+      throw new BadRequestException('Email already in use');
+    }
+
+    admin.email = dto.email;
+  }
+
+  await admin.save();
+
+  return {
+    success: true,
+    message: 'Profile updated successfully',
+  };
+}
+
+
+async changePassword(adminId: string, dto: ChangePasswordDto) {
+  const { currentPassword, newPassword, confirmPassword } = dto;
+
+  const admin = await this.adminModel
+    .findById(adminId)
+    .select('+password'); // important
+
+  if (!admin) {
+    throw new NotFoundException('Admin not found');
+  }
+
+  // ✅ Check current password
+  const isMatch = await bcrypt.compare(
+    currentPassword,
+    admin.password,
+  );
+
+  if (!isMatch) {
+    throw new BadRequestException('Current password is incorrect');
+  }
+
+  // ✅ Check confirm password
+  if (newPassword !== confirmPassword) {
+    throw new BadRequestException('Passwords do not match');
+  }
+
+  // ✅ Prevent reusing same password
+  const isSame = await bcrypt.compare(newPassword, admin.password);
+  if (isSame) {
+    throw new BadRequestException(
+      'New password must be different from current password',
+    );
+  }
+
+  // ✅ Hash & save
+  admin.password = await bcrypt.hash(newPassword, 10);
+  await admin.save();
+
+  return {
+    success: true,
+    message: 'Password changed successfully',
+  };
+}
+
+
+
 
 }
