@@ -142,6 +142,10 @@ applicants: Record<string, any>[];
     city: String,
     country: String,
     postcode: String,
+    solicitorFirmConfirmation: {
+      type: Boolean,
+      required: true,
+    },
   }))
   solicitor: Record<string, any>;
 
