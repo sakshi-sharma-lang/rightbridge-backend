@@ -11,6 +11,9 @@ import { MailModule } from './mail/mail.module';
 import { SurveyorsModule } from './surveyors/surveyors.module';
 import { PaymentsModule } from './payments/payments.module';
 
+import { KycModule } from './kyc/kyc.module';
+
+
 
 @Module({
   imports: [
@@ -46,7 +49,8 @@ import { PaymentsModule } from './payments/payments.module';
     AdminModule,
     MailModule,
     SurveyorsModule,
-    PaymentsModule,
+    PaymentsModule,  
+    KycModule,    
 
   ],
 })

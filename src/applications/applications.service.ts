@@ -298,7 +298,7 @@ if (ltv > 75) {
 } else if (body?.status === 'dip_stage') {
   statusUpdate = {
     status: 'dip_stage',
-    application_stage_management: 'dip_approved',
+    application_stage_management: 'dip_submitted',
     rejectReason:''
   };
 }
