@@ -346,6 +346,7 @@ async uploadAdminDocument(
     'uploads',
     'application-documents',
     applicationId,
+    'admin',
   );
 
   if (!fs.existsSync(targetDir)) {
@@ -355,30 +356,34 @@ async uploadAdminDocument(
   const targetPath = join(targetDir, file.filename);
   fs.renameSync(file.path, targetPath);
 
-  const relativePath = `uploads/application-documents/${applicationId}/${file.filename}`;
+  const relativePath = `uploads/application-documents/${applicationId}/admin/${file.filename}`;
 
   const newDoc: DocumentItem = {
-
-    type,
+    type, // credit_report or internal_document
     filePath: relativePath,
     originalName: file.originalname,
     size: file.size,
-    uploadedBy: 'admin', // ✅ admin upload
+    uploadedBy: 'admin',
     createdAt: new Date(),
   };
 
-  const result = await this.documentModel.findOneAndUpdate(
-    { applicationId, userId },
-    { $push: { documents: newDoc } },
-    { upsert: true, new: true },
-  );
+ const result = await this.documentModel.findOneAndUpdate(
+  { applicationId, userId },
+  {
+    $push: {
+      [`adminDocumentUpload.${type}`]: newDoc, // ✅ dynamic array push
+    },
+  },
+  { upsert: true, new: true },
+);
+
 
   return {
-    statusCode: 200,
     message: 'Admin document uploaded successfully',
     data: newDoc,
   };
 }
+
 
 
 

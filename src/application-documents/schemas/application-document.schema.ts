@@ -32,6 +32,20 @@ export class ApplicationDocument extends Document {
 
   @Prop({ type: [DocumentItem], default: [] })
   documents: DocumentItem[];
+
+@Prop({
+  type: {
+    internal_document: { type: [Object], default: [] },
+    credit_report: { type: [Object], default: [] },
+  },
+  default: {},
+})
+adminDocumentUpload: {
+  internal_document: DocumentItem[];
+  credit_report: DocumentItem[];
+};
+
+
 }
 
 export const ApplicationDocumentSchema =
