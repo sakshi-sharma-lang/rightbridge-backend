@@ -12,6 +12,7 @@ import { SurveyorsModule } from './surveyors/surveyors.module';
 import { PaymentsModule } from './payments/payments.module';
 
 import { KycModule } from './kyc/kyc.module';
+import { ApplicationDocumentsModule } from './application-documents/application-documents.module'; 
 
 
 
@@ -50,7 +51,8 @@ import { KycModule } from './kyc/kyc.module';
     MailModule,
     SurveyorsModule,
     PaymentsModule,  
-    KycModule,    
+    KycModule, 
+     ApplicationDocumentsModule,   
 
   ],
 })
