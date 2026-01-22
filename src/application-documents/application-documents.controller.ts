@@ -112,7 +112,7 @@ async adminDeleteDocument(
 }
 
 
- @Post(':applicationId/upload-document')
+ @Post('admin/upload-document/:applicationId')
 @UseGuards(AdminJwtGuard) // ✅ ADD THIS
 @UseInterceptors(FileInterceptor('file', applicationDocMulter)) // ✅ ADD MULTER
 async uploadAdminDocument(
