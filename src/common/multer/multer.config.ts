@@ -1,18 +1,24 @@
 import { diskStorage } from 'multer';
-import { extname } from 'path';
 import * as fs from 'fs';
-
-const tempDir = 'uploads/temp';
-
-if (!fs.existsSync(tempDir)) {
-  fs.mkdirSync(tempDir, { recursive: true });
-}
+import { join } from 'path';
 
 export const applicationDocMulter = {
   storage: diskStorage({
-    destination: tempDir,
+    destination: (req, file, cb) => {
+      const tempDir = join(process.cwd(), 'uploads', 'temp');
+
+      // ✅ Auto-create folder if not exists
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+
+      cb(null, tempDir);
+    },
+
     filename: (req, file, cb) => {
-      cb(null, Date.now() + extname(file.originalname));
+      const uniqueName =
+        Date.now() + '-' + Math.round(Math.random() * 1e9) + '-' + file.originalname;
+      cb(null, uniqueName);
     },
   }),
 };

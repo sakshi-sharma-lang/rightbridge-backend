@@ -4,6 +4,8 @@ import {
   UseInterceptors,
   UploadedFile,
   Body,
+  Get,
+  Param,
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -46,4 +48,14 @@ export class ApplicationDocumentsController {
       file,
     );
   }
+
+
+@Get(':applicationId')
+async getDocumentsByApplication(
+  @Param('applicationId') applicationId: string,
+) {
+  return this.service.getByApplication(applicationId);
+}
+
+
 }

@@ -1,16 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
-@Schema({ timestamps: true })
-export class ApplicationDocument extends Document {
-  @Prop({ required: true, index: true })
-  applicationId: string;
-
-  @Prop({ required: true, index: true })
-  userId: string;
-
+class DocumentItem {
   @Prop({ required: true })
-  type: string; // identity, address, etc.
+  type: string;
 
   @Prop({ required: true })
   filePath: string;
@@ -22,11 +15,23 @@ export class ApplicationDocument extends Document {
   size: number;
 }
 
+@Schema({ timestamps: true })
+export class ApplicationDocument extends Document {
+  @Prop({ required: true, index: true })
+  applicationId: string;
+
+  @Prop({ required: true, index: true })
+  userId: string;
+
+  @Prop({ type: [DocumentItem], default: [] })
+  documents: DocumentItem[];
+}
+
 export const ApplicationDocumentSchema =
   SchemaFactory.createForClass(ApplicationDocument);
 
-// Prevent duplicate document per application + type
+// ✅ One record per application + user
 ApplicationDocumentSchema.index(
-  { applicationId: 1, type: 1 },
+  { applicationId: 1, userId: 1 },
   { unique: true },
 );
