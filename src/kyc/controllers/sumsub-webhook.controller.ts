@@ -4,6 +4,7 @@ import {
   Body,
   Headers,
   UnauthorizedException,
+  Req,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -18,116 +19,124 @@ export class SumsubWebhookController {
     private readonly kycModel: Model<Kyc>,
   ) {}
 
-@Post('webhook')
-async handleWebhook(
-  @Body() body: any,
-  @Headers('x-signature') signature: string,
-  @Headers('x-timestamp') timestamp: string,
-) {
-  try {
-    console.log('================= SUMSUB WEBHOOK START =================');
-    console.log('🕒 Received at:', new Date().toISOString());
+  @Post('webhook')
+  async handleWebhook(
+    @Req() req: any,
+    @Body() body: any,
+    @Headers('x-sumsub-signature') signature: string,
+    @Headers('x-sumsub-timestamp') timestamp: string,
+  ) {
+    try {
+      const rawBody = req.rawBody;
 
-    // 🔐 Verify signature
-    this.verifySignature(body, signature, timestamp);
-    console.log('✅ Signature verification passed');
+      // ✅ Signature verification
+      this.verifySignature(rawBody, signature, timestamp);
 
-    const { type, applicantId, reviewResult, externalUserId } = body;
+      const { type, applicantId, reviewResult, externalUserId } = body;
 
-    // Ignore unrelated events
-    if (type !== 'applicantReviewed') {
-      return { ok: true };
-    }
+      if (!applicantId) return { ok: true };
 
-    if (!applicantId || !reviewResult) {
-      console.warn('⚠️ Invalid webhook payload');
-      return { ok: true };
-    }
+      // ✅ Handle lifecycle events (do not remove)
+      if (type !== 'applicantReviewed') {
+        await this.kycModel.findOneAndUpdate(
+          { applicantId },
+          {
+            lastWebhookType: type,
+            rawWebhookPayload: body,
+          },
+          { upsert: true },
+        );
+        return { ok: true };
+      }
 
-    // ======================
-    // KYC RESULT
-    // ======================
-    const kycAnswer = reviewResult.reviewAnswer;
+      // ===== KYC RESULT =====
+      const kycAnswer = reviewResult?.reviewAnswer ?? null;
 
-    // ======================
-    // AML RESULT (CRITICAL)
-    // ======================
-    const aml = reviewResult?.amlCheckResult;
+      // ===== AML RESULT =====
+      const amlResult = reviewResult?.amlCheckResult?.result ?? null;
+      const amlStatus = amlResult ? 'COMPLETED' : 'NOT_STARTED';
 
-    const amlStatus = aml ? 'COMPLETED' : 'NOT_STARTED';
-    const amlResult = aml?.result ?? null; // GREEN | YELLOW | RED
-    const amlHits = aml?.matchedLists ?? [];
-    const riskLevel = aml?.riskLevel ?? null;
+      // ===== FINAL KYC + AML DECISION ENGINE =====
+      let finalStatus: KycStatus;
 
-    // ======================
-    // FINAL STATUS DECISION
-    // ======================
-    let status: KycStatus;
+      if (kycAnswer === 'GREEN' && amlResult !== 'RED') {
+        finalStatus = KycStatus.APPROVED;
+      } 
+      else if (kycAnswer === 'RED' || amlResult === 'RED') {
+        finalStatus = KycStatus.REJECTED;
+      }
+      else if (kycAnswer === 'YELLOW' || amlResult === 'YELLOW') {
+        finalStatus = KycStatus.MANUAL_REVIEW;
+      }
+      else {
+        finalStatus = KycStatus.PENDING;
+      }
 
-    if (kycAnswer === 'GREEN' && amlResult === 'GREEN') {
-      status = KycStatus.APPROVED;
-    } else if (kycAnswer === 'RED' || amlResult === 'RED') {
-      status = KycStatus.REJECTED;
-    } else {
-      status = KycStatus.PENDING;
-    }
-
-    // ======================
-    // UPSERT DATABASE
-    // ======================
-    await this.kycModel.findOneAndUpdate(
-      { applicantId },
-      {
-        $set: {
+      // ===== DATABASE UPDATE =====
+      await this.kycModel.findOneAndUpdate(
+        { applicantId },
+        {
+          // ✅ IMPORTANT: match your schema fields
           UserId: externalUserId ?? null,
+          externalUserId: externalUserId ?? null,
 
-          status,
+          status: finalStatus,
+
+          // KYC fields
           reviewAnswer: kycAnswer,
-          reviewRejectType: reviewResult.reviewRejectType ?? null,
-          reviewComment: reviewResult.reviewComment ?? null,
-          reviewedAt: reviewResult.reviewDate
+          reviewRejectType: reviewResult?.reviewRejectType ?? null,
+          reviewComment: reviewResult?.reviewComment ?? null,
+          reviewedAt: reviewResult?.reviewDate
             ? new Date(reviewResult.reviewDate)
             : new Date(),
 
-          // AML
+          // AML fields
           amlStatus,
           amlResult,
-          amlHits,
-          riskLevel,
+          riskLevel: reviewResult?.amlCheckResult?.riskLevel ?? null,
+          amlHits: Array.isArray(reviewResult?.amlCheckResult?.matchedLists)
+            ? reviewResult.amlCheckResult.matchedLists
+            : [],
 
+          // Debug & audit
+          lastWebhookType: type,
           rawWebhookPayload: body,
         },
-      },
-      { upsert: true, new: true },
-    );
+        { upsert: true, new: true },
+      );
 
-    console.log('✅ KYC + AML processed successfully');
-    console.log('================= SUMSUB WEBHOOK END =================');
-
-    return { ok: true };
-  } catch (error) {
-    console.error('❌ SUMSUB WEBHOOK ERROR:', error?.message);
-    return { ok: true }; // always 200 (Sumsub requirement)
+      return { ok: true };
+    } catch (error) {
+      console.error('SUMSUB WEBHOOK ERROR:', error?.message || error);
+      return { ok: true }; // ✅ Sumsub requires HTTP 200 always
+    }
   }
-}
-
-
 
   // 🔐 Signature verification (MANDATORY)
-  private verifySignature(
-    body: any,
-    signature: string,
-    timestamp: string,
-  ) {
+  private verifySignature(rawBody: string, signature: string, timestamp: string) {
     const secret = process.env.SUMSUB_WEBHOOK_SECRET!;
-    const payload = `${timestamp}.${JSON.stringify(body)}`;
+
+    if (!secret) {
+      throw new UnauthorizedException('Sumsub secret not configured');
+    }
+
+    const payload = timestamp + rawBody;
 
     const expected = crypto
       .createHmac('sha256', secret)
       .update(payload)
       .digest('hex');
 
-    if (expected !== signature) {
+    if (expected.length !== signature.length) {
+      throw new UnauthorizedException('Invalid Sumsub signature');
+    }
+
+    const isValid = crypto.timingSafeEqual(
+      Buffer.from(expected),
+      Buffer.from(signature),
+    );
+
+    if (!isValid) {
       throw new UnauthorizedException('Invalid Sumsub signature');
     }
   }

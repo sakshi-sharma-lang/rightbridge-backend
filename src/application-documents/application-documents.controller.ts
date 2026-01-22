@@ -22,45 +22,47 @@ import { AuthGuard } from '@nestjs/passport'; // ✅ ADD THIS
 export class ApplicationDocumentsController {
   constructor(private readonly service: ApplicationDocumentsService) {}
 
-  // ✅ USER UPLOAD API
-  @Post('upload')
-  @UseGuards(AuthGuard('jwt'))
-  @UseInterceptors(FileInterceptor('file', applicationDocMulter))
-  upload(
-    @UploadedFile() file: Express.Multer.File,
-    @Body('applicationId') applicationId: string,
-    @Body('type') type: string,
-    @Req() req,
-  ) {
-    if (!file) {
-      throw new BadRequestException('Document file is required');
-    }
 
-    if (!applicationId || !type) {
-      throw new BadRequestException(
-        'applicationId and type are required',
-      );
-    }
 
-    if (!REQUIRED_DOCUMENTS.includes(type as any)) {
-      throw new BadRequestException(
-        `Invalid document type. Allowed types: ${REQUIRED_DOCUMENTS.join(', ')}`,
-      );
-    }
+@Post('upload')
+@UseGuards(AuthGuard('jwt'))
+@UseInterceptors(FileInterceptor('file', applicationDocMulter))
+upload(
+  @UploadedFile() file: Express.Multer.File,
+  @Body() body: any,
+  @Req() req,
+) {
+  console.log('===== BODY DATA =====');
+  console.log(body); // ✅ FULL BODY
+  console.log('uploadedBy =>', body.uploadedBy); // ✅ SINGLE FIELD
+  console.log('applicationId =>', body.applicationId);
+  console.log('type =>', body.type);
+  console.log('====================');
 
-    const userId = req.user.userId; // ✅ YOUR JWT FORMAT
+  const { applicationId, type, uploadedBy } = body;
 
-    if (!userId) {
-      throw new BadRequestException('userId not found in JWT token');
-    }
-
-    return this.service.moveAndSave(
-      userId,
-      applicationId,
-      type,
-      file,
-    );
+  if (!file) {
+    throw new BadRequestException('Document file is required');
   }
+
+  if (!applicationId || !type) {
+    throw new BadRequestException('applicationId and type are required');
+  }
+
+  const userId = req.user.userId;
+
+  return this.service.moveAndSave(
+    userId,
+    applicationId,
+    type,
+    file,
+    uploadedBy,
+  );
+}
+
+
+
+
 
 
   @Get('admin/document/:applicationId')
@@ -107,6 +109,27 @@ async adminDeleteDocument(
   },
 ) {
   return this.service.adminDeleteDocument(body);
+}
+
+
+ @Post(':applicationId/upload-document')
+@UseGuards(AdminJwtGuard) // ✅ ADD THIS
+@UseInterceptors(FileInterceptor('file', applicationDocMulter)) // ✅ ADD MULTER
+async uploadAdminDocument(
+  @Param('applicationId') applicationId: string,
+  @Body('userId') userId: string,
+  @Body('type') type: string,
+  @UploadedFile() file: Express.Multer.File,
+) {
+  if (!file) {
+    throw new BadRequestException('File is required');
+  }
+
+  if (!userId || !type) {
+    throw new BadRequestException('userId and type are required');
+  }
+
+  return this.service.uploadAdminDocument(applicationId, userId, type, file);
 }
 
 

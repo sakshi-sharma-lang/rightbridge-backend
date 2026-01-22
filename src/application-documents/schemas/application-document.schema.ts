@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
-class DocumentItem {
+export class DocumentItem {
   @Prop({ required: true })
   type: string;
 
@@ -14,7 +14,11 @@ class DocumentItem {
   @Prop({ required: true })
   size: number;
 
-  @Prop({ default: Date.now }) // ✅ ADD THIS
+@Prop({ required: true })
+uploadedBy: string; 
+
+
+  @Prop({ default: Date.now })
   createdAt: Date;
 }
 
@@ -33,7 +37,6 @@ export class ApplicationDocument extends Document {
 export const ApplicationDocumentSchema =
   SchemaFactory.createForClass(ApplicationDocument);
 
-// ✅ One record per application + user
 ApplicationDocumentSchema.index(
   { applicationId: 1, userId: 1 },
   { unique: true },

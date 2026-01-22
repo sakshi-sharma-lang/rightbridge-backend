@@ -8,13 +8,19 @@ export function createSumsubSignature(
 ) {
   const secret = process.env.SUMSUB_SECRET_KEY!.trim();
 
-  const bodyString =
-    body && Object.keys(body).length
-      ? JSON.stringify(body)
-      : '';
+  let bodyString = '';
 
-  const stringToSign =
-    `${ts}${method.toUpperCase()}${path}${bodyString}`;
+  // ✅ FIX: handle string and object correctly
+  if (body) {
+    if (typeof body === 'string') {
+      bodyString = body;
+    } else {
+      bodyString = JSON.stringify(body);
+    }
+  }
+
+  // ✅ EXACT Sumsub format
+  const stringToSign = ts + method.toUpperCase() + path + bodyString;
 
   return crypto
     .createHmac('sha256', secret)
