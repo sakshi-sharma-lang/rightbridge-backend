@@ -23,6 +23,13 @@ export class Application extends Document {
   })
   numberOfApplicants: number;
 
+    @Prop({
+    type: Number,
+    required: false,
+    min: 1,
+  })
+  totalOwnershipShare: number;
+
   /* ================= POPUP + FORM: APPLICANT ================= */
 @Prop({
   type: [
@@ -46,6 +53,7 @@ export class Application extends Document {
         enum: ['Under 3 years', '3 years or more'],
       },
 
+  
       // numberOfApplicants: {
       //   type: String,
       //   required: false,
