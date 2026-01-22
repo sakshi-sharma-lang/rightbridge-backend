@@ -13,6 +13,9 @@ class DocumentItem {
 
   @Prop({ required: true })
   size: number;
+
+  @Prop({ default: Date.now }) // ✅ ADD THIS
+  createdAt: Date;
 }
 
 @Schema({ timestamps: true })
