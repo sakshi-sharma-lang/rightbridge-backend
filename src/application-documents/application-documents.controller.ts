@@ -32,13 +32,6 @@ upload(
   @Body() body: any,
   @Req() req,
 ) {
-  console.log('===== BODY DATA =====');
-  console.log(body); // ✅ FULL BODY
-  console.log('uploadedBy =>', body.uploadedBy); // ✅ SINGLE FIELD
-  console.log('applicationId =>', body.applicationId);
-  console.log('type =>', body.type);
-  console.log('====================');
-
   const { applicationId, type, uploadedBy } = body;
 
   if (!file) {
@@ -49,19 +42,17 @@ upload(
     throw new BadRequestException('applicationId and type are required');
   }
 
+  // ✅ BLOCK INVALID TYPES
+  if (!REQUIRED_DOCUMENTS.includes(type)) {
+    throw new BadRequestException(
+      `Invalid document type. Allowed types: ${REQUIRED_DOCUMENTS.join(', ')}`,
+    );
+  }
+
   const userId = req.user.userId;
 
-  return this.service.moveAndSave(
-    userId,
-    applicationId,
-    type,
-    file,
-    uploadedBy,
-  );
+  return this.service.moveAndSave(userId, applicationId, type, file, uploadedBy);
 }
-
-
-
 
 
 
@@ -99,17 +90,17 @@ adminRenameDocument(
   return this.service.adminRenameDocument(body);
 }
 
-
 @Put('admin/delete-document')
 @UseGuards(AdminJwtGuard)
 async adminDeleteDocument(
   @Body() body: {
     applicationId: string;
-    type: string;
+    filePath: string;
   },
 ) {
   return this.service.adminDeleteDocument(body);
 }
+
 
 
  @Post('admin/upload-document/:applicationId')

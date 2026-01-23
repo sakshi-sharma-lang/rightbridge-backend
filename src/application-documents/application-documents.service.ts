@@ -7,10 +7,11 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ApplicationDocument } from './schemas/application-document.schema';
 import { Application } from '../applications/schemas/application.schema';
-import { DOCUMENT_TYPE_MAP } from './document-types';
 import * as fs from 'fs';
 import { join } from 'path';
 import { DocumentItem } from './schemas/application-document.schema';
+import { DOCUMENT_TYPE_MAP, REQUIRED_DOCUMENTS } from './document-types';
+
 
 @Injectable()
 export class ApplicationDocumentsService {
@@ -45,6 +46,13 @@ async moveAndSave(
       throw new BadRequestException('Application not found');
     }
 
+    // ✅ ADD: Validate document type (NO OTHER TYPE ALLOWED)
+    if (!REQUIRED_DOCUMENTS.includes(type as any)) {
+      throw new BadRequestException(
+        `Invalid document type. Allowed types: ${REQUIRED_DOCUMENTS.join(', ')}`,
+      );
+    }
+
     const targetDir = join(
       process.cwd(),
       'uploads',
@@ -61,18 +69,14 @@ async moveAndSave(
 
     const relativePath = `uploads/application-documents/${applicationId}/${file.filename}`;
 
-
-    // ✅ FIX: convert body string to allowed type
-   
-const newDoc: DocumentItem = {
-  type,
-  filePath: relativePath,
-  originalName: file.originalname,
-  size: file.size,
-  uploadedBy: uploadedBy ?? 'user', // ✅ FIXED (always string)
-  createdAt: new Date(),
-};
-
+    const newDoc: DocumentItem = {
+      type, // ✅ only allowed types
+      filePath: relativePath,
+      originalName: file.originalname,
+      size: file.size,
+      uploadedBy: uploadedBy ?? 'user',
+      createdAt: new Date(),
+    };
 
     let record = await this.documentModel.findOne({
       applicationId,
@@ -119,6 +123,7 @@ const newDoc: DocumentItem = {
     throw new InternalServerErrorException('Document upload failed');
   }
 }
+
 
 
   // ✅ GET DOCUMENTS (ONLY by applicationId)
@@ -193,47 +198,43 @@ const newDoc: DocumentItem = {
   }
 
 
-  async getDocumentsForAdmin(applicationId: string) {
-  if (!Types.ObjectId.isValid(applicationId)) {
-    throw new BadRequestException('Invalid applicationId');
-  }
+async getDocumentsForAdmin(applicationId: string) {
+  try {
+    if (!applicationId) {
+      throw new BadRequestException('applicationId is required');
+    }
 
-  const application = await this.applicationModel.findById(applicationId);
+    const record = await this.documentModel.findOne({ applicationId });
 
-  if (!application) {
-    throw new BadRequestException('Application not found');
-  }
-
-  const record = await this.documentModel.findOne({ applicationId });
-
-  const uploadedDocs = record?.documents || [];
-
-  const uploadedMap = new Map(
-    uploadedDocs.map(doc => [doc.type, doc]),
-  );
-
-  const documents = Object.keys(DOCUMENT_TYPE_MAP).map(type => {
-    const doc = uploadedMap.get(type);
+    if (!record) {
+      return {
+        applicationId,
+        adminDocumentUpload: {
+          credit_report: [],
+          internal_document: [],
+        },
+        documents: [],
+      };
+    }
 
     return {
-      type,
-      label: this.humanizeType(type),
-      status: doc ? 'uploaded' : 'pending',
-      fileName: doc?.originalName || null,
-      filePath: doc?.filePath || null,
-      uploadedAt: doc?.createdAt || null,
-      size: doc?.size || null,
+      applicationId,
+      adminDocumentUpload: {
+        credit_report: record.adminDocumentUpload?.credit_report || [],
+        internal_document: record.adminDocumentUpload?.internal_document || [],
+      },
+      documents: record.documents || [],
     };
-  });
-
-  return {
-    applicationId,
-    totalRequired: documents.length,
-    totalUploaded: uploadedDocs.length,
-    progressText: `${uploadedDocs.length} of ${documents.length} documents uploaded`,
-    documents,
-  };
+  } catch (error) {
+    console.error('GET DOCUMENTS FOR ADMIN ERROR:', error);
+    throw new InternalServerErrorException('Failed to fetch documents');
+  }
 }
+
+
+
+
+
 
 
 async adminRenameDocument(body: {
@@ -244,7 +245,11 @@ async adminRenameDocument(body: {
   try {
     const { applicationId, type, newName } = body;
 
-    const result = await this.documentModel.findOneAndUpdate(
+    let result: ApplicationDocument | null = null;
+    let updatedDoc: any = null;
+
+    // ✅ 1) USER documents[]
+    result = await this.documentModel.findOneAndUpdate(
       {
         applicationId,
         'documents.type': type,
@@ -257,16 +262,66 @@ async adminRenameDocument(body: {
       { new: true },
     );
 
-    if (!result) {
-      throw new BadRequestException('Document not found');
+    if (result && result.documents) {
+      updatedDoc = result.documents.find(d => d.type === type);
+
+      return {
+        message: 'Document renamed successfully (user document)',
+        document: updatedDoc,
+      };
     }
 
-    const updatedDoc = result.documents.find(d => d.type === type);
+    // ✅ 2) ADMIN credit_report[]
+    result = await this.documentModel.findOneAndUpdate(
+      {
+        applicationId,
+        'adminDocumentUpload.credit_report.type': type,
+      },
+      {
+        $set: {
+          'adminDocumentUpload.credit_report.$.originalName': newName,
+        },
+      },
+      { new: true },
+    );
 
-    return {
-      message: 'Document renamed successfully',
-      document: updatedDoc,
-    };
+    if (result && result.adminDocumentUpload?.credit_report) {
+      updatedDoc = result.adminDocumentUpload.credit_report.find(
+        d => d.type === type,
+      );
+
+      return {
+        message: 'Document renamed successfully (credit_report)',
+        document: updatedDoc,
+      };
+    }
+
+    // ✅ 3) ADMIN internal_document[]
+    result = await this.documentModel.findOneAndUpdate(
+      {
+        applicationId,
+        'adminDocumentUpload.internal_document.type': type,
+      },
+      {
+        $set: {
+          'adminDocumentUpload.internal_document.$.originalName': newName,
+        },
+      },
+      { new: true },
+    );
+
+    if (result && result.adminDocumentUpload?.internal_document) {
+      updatedDoc = result.adminDocumentUpload.internal_document.find(
+        d => d.type === type,
+      );
+
+      return {
+        message: 'Document renamed successfully (internal_document)',
+        document: updatedDoc,
+      };
+    }
+
+    throw new BadRequestException('Document not found');
   } catch (error) {
     if (error instanceof BadRequestException) throw error;
 
@@ -277,54 +332,78 @@ async adminRenameDocument(body: {
 
 
 
+
 async adminDeleteDocument(body: {
   applicationId: string;
-  type: string;
+  filePath: string;
 }) {
   try {
-    const { applicationId, type } = body;
+    const { applicationId, filePath } = body;
 
-    if (!applicationId || !type) {
-      throw new BadRequestException('applicationId and type are required');
+    if (!applicationId || !filePath) {
+      throw new BadRequestException('applicationId and filePath are required');
     }
 
     const record = await this.documentModel.findOne({ applicationId });
 
     if (!record) {
-      throw new BadRequestException('Application document record not found');
+      throw new BadRequestException('Record not found');
     }
 
-    const index = record.documents.findIndex(d => d.type === type);
+    let deletedFrom = '';
 
-    if (index === -1) {
-      throw new BadRequestException('Document type not found');
+    // ✅ credit_report
+    const creditIndex = record.adminDocumentUpload?.credit_report?.findIndex(
+      d => d.filePath === filePath,
+    );
+    if (creditIndex > -1) {
+      record.adminDocumentUpload.credit_report.splice(creditIndex, 1);
+      deletedFrom = 'credit_report';
     }
 
-    // ✅ Delete file from disk
-    const filePath = record.documents[index].filePath;
+    // ✅ internal_document
+    const internalIndex = record.adminDocumentUpload?.internal_document?.findIndex(
+      d => d.filePath === filePath,
+    );
+    if (!deletedFrom && internalIndex > -1) {
+      record.adminDocumentUpload.internal_document.splice(internalIndex, 1);
+      deletedFrom = 'internal_document';
+    }
+
+    // ✅ user documents
+    const userIndex = record.documents?.findIndex(
+      d => d.filePath === filePath,
+    );
+    if (!deletedFrom && userIndex > -1) {
+      record.documents.splice(userIndex, 1);
+      deletedFrom = 'documents';
+    }
+
+    if (!deletedFrom) {
+      throw new BadRequestException('Document not found');
+    }
+
     const fullPath = join(process.cwd(), filePath);
-
     if (fs.existsSync(fullPath)) {
       fs.unlinkSync(fullPath);
     }
 
-    // ✅ Remove from array
-    record.documents.splice(index, 1);
-
     await record.save();
 
     return {
-      message: 'Document deleted successfully',
+      message: `Document deleted successfully from ${deletedFrom}`,
     };
   } catch (error) {
-    if (error instanceof BadRequestException) {
-      throw error;
-    }
-
     console.error('ADMIN DELETE DOCUMENT ERROR:', error);
+
+    if (error instanceof BadRequestException) throw error;
+
     throw new InternalServerErrorException('Failed to delete document');
   }
 }
+
+
+
 
 
 async uploadAdminDocument(
