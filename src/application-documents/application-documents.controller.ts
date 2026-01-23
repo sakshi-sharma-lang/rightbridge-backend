@@ -16,13 +16,11 @@ import { applicationDocMulter } from '../common/multer/multer.config';
 import { ApplicationDocumentsService } from './application-documents.service';
 import { REQUIRED_DOCUMENTS } from './document-types';
 import { AdminJwtGuard } from '../auth/admin-jwt.guard';
-import { AuthGuard } from '@nestjs/passport'; // ✅ ADD THIS
+import { AuthGuard } from '@nestjs/passport'; 
 
 @Controller('application-documents')
 export class ApplicationDocumentsController {
   constructor(private readonly service: ApplicationDocumentsService) {}
-
-
 
 @Post('upload')
 @UseGuards(AuthGuard('jwt'))
@@ -42,7 +40,7 @@ upload(
     throw new BadRequestException('applicationId and type are required');
   }
 
-  // ✅ BLOCK INVALID TYPES
+
   if (!REQUIRED_DOCUMENTS.includes(type)) {
     throw new BadRequestException(
       `Invalid document type. Allowed types: ${REQUIRED_DOCUMENTS.join(', ')}`,
@@ -54,8 +52,6 @@ upload(
   return this.service.moveAndSave(userId, applicationId, type, file, uploadedBy);
 }
 
-
-
   @Get('admin/document/:applicationId')
   @UseGuards(AdminJwtGuard)
   async getDocumentsForAdmin(
@@ -63,7 +59,6 @@ upload(
   ) {
     return this.service.getDocumentsForAdmin(applicationId);
   }
-
 
 @Get(':applicationId')
 @UseGuards(AuthGuard('jwt'))
@@ -101,10 +96,8 @@ async adminDeleteDocument(
   return this.service.adminDeleteDocument(body);
 }
 
-
-
  @Post('admin/upload-document/:applicationId')
-@UseGuards(AdminJwtGuard) // ✅ ADD THIS
+@UseGuards(AdminJwtGuard) 
 @UseInterceptors(FileInterceptor('file', applicationDocMulter)) // ✅ ADD MULTER
 async uploadAdminDocument(
   @Param('applicationId') applicationId: string,
@@ -122,7 +115,4 @@ async uploadAdminDocument(
 
   return this.service.uploadAdminDocument(applicationId, userId, type, file);
 }
-
-
-
 }

@@ -23,7 +23,6 @@ export class ApplicationDocumentsService {
     private applicationModel: Model<Application>,
   ) {}
 
-  // ✅ UPLOAD / REPLACE DOCUMENT (applicationId + userId)
 async moveAndSave(
   userId: string,
   applicationId: string,
@@ -123,10 +122,6 @@ async moveAndSave(
     throw new InternalServerErrorException('Document upload failed');
   }
 }
-
-
-
-  // ✅ GET DOCUMENTS (ONLY by applicationId)
  async getByApplication(applicationId: string, userId: string) {
   try {
     if (!Types.ObjectId.isValid(applicationId)) {
@@ -190,14 +185,11 @@ async moveAndSave(
   }
 }
 
-
   private humanizeType(type: string): string {
     return type
       .replace(/_/g, ' ')
       .replace(/\b\w/g, c => c.toUpperCase());
   }
-
-
 async getDocumentsForAdmin(applicationId: string) {
   try {
     if (!applicationId) {
@@ -230,13 +222,6 @@ async getDocumentsForAdmin(applicationId: string) {
     throw new InternalServerErrorException('Failed to fetch documents');
   }
 }
-
-
-
-
-
-
-
 async adminRenameDocument(body: {
   applicationId: string;
   type: string;
@@ -330,9 +315,6 @@ async adminRenameDocument(body: {
   }
 }
 
-
-
-
 async adminDeleteDocument(body: {
   applicationId: string;
   filePath: string;
@@ -402,10 +384,6 @@ async adminDeleteDocument(body: {
   }
 }
 
-
-
-
-
 async uploadAdminDocument(
   applicationId: string,
   userId: string,
@@ -450,7 +428,7 @@ async uploadAdminDocument(
   { applicationId, userId },
   {
     $push: {
-      [`adminDocumentUpload.${type}`]: newDoc, // ✅ dynamic array push
+      [`adminDocumentUpload.${type}`]: newDoc, 
     },
   },
   { upsert: true, new: true },
