@@ -132,7 +132,6 @@ async moveAndSave(
       throw new BadRequestException('userId is required');
     }
 
-    // ✅ Check application belongs to user
     const application = await this.applicationModel.findOne({
       _id: applicationId,
       userId,
@@ -162,6 +161,7 @@ async moveAndSave(
         type,
         label: this.humanizeType(type),
         uploaded: !!doc,
+        uid: doc?.uid || null, // ✅ only added uid
         fileName: doc?.originalName || null,
         filePath: doc?.filePath || null,
         size: doc?.size || null,
@@ -184,6 +184,8 @@ async moveAndSave(
     throw new InternalServerErrorException('Something went wrong');
   }
 }
+
+
 
   private humanizeType(type: string): string {
     return type
@@ -222,108 +224,91 @@ async getDocumentsForAdmin(applicationId: string) {
     throw new InternalServerErrorException('Failed to fetch documents');
   }
 }
+
+
+
+
+
 async adminRenameDocument(body: {
   applicationId: string;
   type: string;
+  uid: string;
   newName: string;
 }) {
   try {
-    const { applicationId, type, newName } = body;
+    const { applicationId, type, uid, newName } = body;
 
-    let result: ApplicationDocument | null = null;
+    if (!applicationId || !type || !uid || !newName) {
+      throw new BadRequestException(
+        'applicationId, type, uid and newName are required',
+      );
+    }
+
+    const record = await this.documentModel.findOne({ applicationId });
+
+    if (!record) {
+      throw new BadRequestException('Record not found');
+    }
+
+    let updatedFrom = '';
     let updatedDoc: any = null;
 
-    // ✅ 1) USER documents[]
-    result = await this.documentModel.findOneAndUpdate(
-      {
-        applicationId,
-        'documents.type': type,
-      },
-      {
-        $set: {
-          'documents.$.originalName': newName,
-        },
-      },
-      { new: true },
-    );
-
-    if (result && result.documents) {
-      updatedDoc = result.documents.find(d => d.type === type);
-
-      return {
-        message: 'Document renamed successfully (user document)',
-        document: updatedDoc,
-      };
-    }
-
-    // ✅ 2) ADMIN credit_report[]
-    result = await this.documentModel.findOneAndUpdate(
-      {
-        applicationId,
-        'adminDocumentUpload.credit_report.type': type,
-      },
-      {
-        $set: {
-          'adminDocumentUpload.credit_report.$.originalName': newName,
-        },
-      },
-      { new: true },
-    );
-
-    if (result && result.adminDocumentUpload?.credit_report) {
-      updatedDoc = result.adminDocumentUpload.credit_report.find(
-        d => d.type === type,
+    // ✅ ADMIN DOCUMENTS
+    if (type === 'credit_report' || type === 'internal_document') {
+      updatedDoc = record.adminDocumentUpload?.[type]?.find(
+        d => d.uid === uid,
       );
 
-      return {
-        message: 'Document renamed successfully (credit_report)',
-        document: updatedDoc,
-      };
+      if (updatedDoc) {
+        updatedDoc.originalName = newName;
+        updatedFrom = type;
+      }
     }
 
-    // ✅ 3) ADMIN internal_document[]
-    result = await this.documentModel.findOneAndUpdate(
-      {
-        applicationId,
-        'adminDocumentUpload.internal_document.type': type,
-      },
-      {
-        $set: {
-          'adminDocumentUpload.internal_document.$.originalName': newName,
-        },
-      },
-      { new: true },
-    );
-
-    if (result && result.adminDocumentUpload?.internal_document) {
-      updatedDoc = result.adminDocumentUpload.internal_document.find(
-        d => d.type === type,
+    // ✅ USER DOCUMENTS
+    if (!updatedFrom) {
+      updatedDoc = record.documents?.find(
+        d => d.uid === uid && d.type === type,
       );
 
-      return {
-        message: 'Document renamed successfully (internal_document)',
-        document: updatedDoc,
-      };
+      if (updatedDoc) {
+        updatedDoc.originalName = newName;
+        updatedFrom = 'documents';
+      }
     }
 
-    throw new BadRequestException('Document not found');
+    if (!updatedFrom) {
+      throw new BadRequestException('Document not found');
+    }
+
+    await record.save();
+
+    return {
+      message: `Document renamed successfully in ${updatedFrom}`,
+      uid,
+      newName,
+    };
   } catch (error) {
+    console.error('RENAME DOCUMENT ERROR:', error);
+
     if (error instanceof BadRequestException) throw error;
 
-    console.error('ADMIN RENAME ERROR:', error);
-    throw new InternalServerErrorException('Rename failed');
+    throw new InternalServerErrorException('Failed to rename document');
   }
 }
 
+
+
 async adminDeleteDocument(body: {
   applicationId: string;
-  filePath: string;
+  type: string;
+  uid: string;
 }) {
   try {
-    const { applicationId, filePath } = body;
+    const { applicationId, type, uid } = body;
 
-    if (!applicationId || !filePath) {
-      throw new BadRequestException('applicationId and filePath are required');
+    if (!applicationId || !type || !uid) {
+      throw new BadRequestException('applicationId, type and uid are required');
     }
 
     const record = await this.documentModel.findOne({ applicationId });
@@ -333,38 +318,39 @@ async adminDeleteDocument(body: {
     }
 
     let deletedFrom = '';
+    let filePath = '';
 
-    // ✅ credit_report
-    const creditIndex = record.adminDocumentUpload?.credit_report?.findIndex(
-      d => d.filePath === filePath,
-    );
-    if (creditIndex > -1) {
-      record.adminDocumentUpload.credit_report.splice(creditIndex, 1);
-      deletedFrom = 'credit_report';
+    // ✅ ADMIN DOCUMENTS
+    if (type === 'credit_report' || type === 'internal_document') {
+      const index = record.adminDocumentUpload?.[type]?.findIndex(
+        d => d.uid === uid,
+      );
+
+      if (index > -1) {
+        filePath = record.adminDocumentUpload[type][index].filePath;
+        record.adminDocumentUpload[type].splice(index, 1);
+        deletedFrom = type;
+      }
     }
 
-    // ✅ internal_document
-    const internalIndex = record.adminDocumentUpload?.internal_document?.findIndex(
-      d => d.filePath === filePath,
-    );
-    if (!deletedFrom && internalIndex > -1) {
-      record.adminDocumentUpload.internal_document.splice(internalIndex, 1);
-      deletedFrom = 'internal_document';
-    }
+    // ✅ USER DOCUMENTS
+    if (!deletedFrom) {
+      const index = record.documents?.findIndex(
+        d => d.uid === uid && d.type === type,
+      );
 
-    // ✅ user documents
-    const userIndex = record.documents?.findIndex(
-      d => d.filePath === filePath,
-    );
-    if (!deletedFrom && userIndex > -1) {
-      record.documents.splice(userIndex, 1);
-      deletedFrom = 'documents';
+      if (index > -1) {
+        filePath = record.documents[index].filePath;
+        record.documents.splice(index, 1);
+        deletedFrom = 'documents';
+      }
     }
 
     if (!deletedFrom) {
       throw new BadRequestException('Document not found');
     }
 
+    // ✅ delete file from disk
     const fullPath = join(process.cwd(), filePath);
     if (fs.existsSync(fullPath)) {
       fs.unlinkSync(fullPath);
@@ -376,13 +362,16 @@ async adminDeleteDocument(body: {
       message: `Document deleted successfully from ${deletedFrom}`,
     };
   } catch (error) {
-    console.error('ADMIN DELETE DOCUMENT ERROR:', error);
+    console.error('DELETE DOCUMENT ERROR:', error);
 
     if (error instanceof BadRequestException) throw error;
 
     throw new InternalServerErrorException('Failed to delete document');
   }
 }
+
+
+
 
 async uploadAdminDocument(
   applicationId: string,

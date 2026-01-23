@@ -73,28 +73,31 @@ getUserDocuments(
 }
 
 
-@Put('admin/rename-document')
-@UseGuards(AdminJwtGuard)
-adminRenameDocument(
-  @Body() body: {
-    applicationId: string;
-    type: string;
-    newName: string;
-  },
-) {
-  return this.service.adminRenameDocument(body);
-}
+  @Put('admin/rename-document')
+  @UseGuards(AdminJwtGuard)
+  async adminRenameDocument(
+    @Body() body: {
+      applicationId: string;
+      type: string;
+      uid: string;
+      newName: string;
+    },
+  ) {
+    return this.service.adminRenameDocument(body);
+  }
 
-@Put('admin/delete-document')
-@UseGuards(AdminJwtGuard)
-async adminDeleteDocument(
-  @Body() body: {
-    applicationId: string;
-    filePath: string;
-  },
-) {
-  return this.service.adminDeleteDocument(body);
-}
+  @Put('admin/delete-document')
+  @UseGuards(AdminJwtGuard)
+  async adminDeleteDocument(
+    @Body() body: {
+      applicationId: string;
+      type: string;
+      uid: string;
+    },
+  ) {
+    return this.service.adminDeleteDocument(body);
+  }
+
 
  @Post('admin/upload-document/:applicationId')
 @UseGuards(AdminJwtGuard) 
@@ -115,4 +118,6 @@ async uploadAdminDocument(
 
   return this.service.uploadAdminDocument(applicationId, userId, type, file);
 }
+
+
 }
