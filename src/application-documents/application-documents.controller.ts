@@ -10,6 +10,7 @@ import {
   Req,
   Put,
   UseGuards,
+  Delete,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { applicationDocMulter } from '../common/multer/multer.config';
@@ -86,17 +87,17 @@ getUserDocuments(
     return this.service.adminRenameDocument(body);
   }
 
-  @Put('admin/delete-document')
-  @UseGuards(AdminJwtGuard)
-  async adminDeleteDocument(
-    @Body() body: {
-      applicationId: string;
-      type: string;
-      uid: string;
-    },
-  ) {
-    return this.service.adminDeleteDocument(body);
-  }
+ @Delete('admin/delete-document')
+@UseGuards(AdminJwtGuard)
+async adminDeleteDocument(
+  @Body() body: {
+    applicationId: string;
+    type: string;
+    uid: string;
+  },
+) {
+  return this.service.adminDeleteDocument(body);
+}
 
 
  @Post('admin/upload-document/:applicationId')
