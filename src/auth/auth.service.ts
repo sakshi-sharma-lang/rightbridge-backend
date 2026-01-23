@@ -197,15 +197,12 @@ async forgotPassword(email: string, type?: string) {
   // ================= WEB FLOW (RESET LINK ONLY) =================
   const resetToken = crypto.randomBytes(32).toString('hex');
   user.resetPasswordToken = resetToken;
-  user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000);
+  user.resetPasswordExpires = new Date(Date.now() + 1 * 60 * 1000);
   await user.save();
 
   const resetLink = `${process.env.FRONTEND_URL}reset-password?token=${resetToken}`;
 
-  await this.mailService.sendForgotPasswordEmail(
-    user.email,
-    resetLink,
-  );
+  await this.mailService.sendForgotPasswordEmail(user.email, resetLink);
 
   return {
     statusCode: 200,
@@ -215,32 +212,45 @@ async forgotPassword(email: string, type?: string) {
 }
 
 
+
   // ===================== RESET PASSWORD =====================
 async resetPassword(token: string, newPassword: string) {
-  const user = await this.usersService.findByResetToken(token);
+  try {
+    const user = await this.usersService.findByResetToken(token);
 
-  if (
-    !user ||
-    !user.resetPasswordExpires ||
-    user.resetPasswordExpires < new Date()
-  ) {
+    if (!user) {
+      throw new BadRequestException({
+        statusCode: 400,
+        message: 'Invalid or expired reset token',
+      });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+
+    // ✅ FIXED HERE
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+
+    await user.save();
+
+    return {
+      statusCode: 200,
+      message: 'Password reset successful',
+    };
+  } catch (error) {
+    if (error instanceof BadRequestException) {
+      throw error;
+    }
+
     throw new BadRequestException({
-      statusCode: 400,
-      message: 'Invalid or expired reset token',
+      statusCode: 500,
+      message: 'Something went wrong while resetting password',
+      error: error.message,
     });
   }
-
-  user.password = await bcrypt.hash(newPassword, 10);
-  user.resetPasswordToken = undefined;
-  user.resetPasswordExpires = undefined;
-
-  await user.save();
-
-  return {
-    statusCode: 200,
-    message: 'Password reset successful',
-  };
 }
+
+
 
   
 

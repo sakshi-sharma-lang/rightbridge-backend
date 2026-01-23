@@ -28,9 +28,7 @@ export class UsersService {
   async findByPhoneNumber(phoneNumber: string): Promise<User | null> {
     return this.userModel.findOne({ phoneNumber }).exec();
   }
-  async findByResetToken(token: string) {
-  return this.userModel.findOne({ resetPasswordToken: token });
-}
+
 
 async updateLastLogin(userId: string): Promise<void> {
   await this.userModel.updateOne(
@@ -67,6 +65,14 @@ async update(id: string, data: any) {
   Object.assign(user, data);
   return user.save();
 }
+
+async findByResetToken(token: string) {
+  return this.userModel.findOne({
+    resetPasswordToken: token,
+    resetPasswordExpires: { $gt: new Date() },
+  });
+}
+
 
 
 }
