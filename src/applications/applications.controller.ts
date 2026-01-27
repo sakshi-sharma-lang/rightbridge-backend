@@ -13,6 +13,7 @@ import {
   BadRequestException,
   UploadedFiles,
   Delete,  
+  Put,
 
 } from '@nestjs/common';
 import { ApplicationsService } from './applications.service';
@@ -174,5 +175,15 @@ deleteAdditionalDocument(
   const userId = req.user.userId;
   return this.service.deleteAdditionalDocument(id, userId, fileUrl);
 }
+
+@UseGuards(AdminJwtGuard)
+@Put('admin/update-priority/:id')
+async updatePriority(
+  @Param('id') applicationId: string,
+  @Body() body: { priority: string },
+) {
+  return this.service.updatePriority(applicationId, body.priority); 
+}
+
 
 }
