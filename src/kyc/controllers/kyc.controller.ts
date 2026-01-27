@@ -9,15 +9,14 @@ import {
   BadRequestException,
   Req,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { SumsubService } from '../services/sumsub.service';
 import { Kyc } from '../schemas/kyc.schema';
 import { KycStatus } from '../enums/kyc-status.enum';
-import { UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../../auth/jwt-auth.guard'; // adjust path
-
+import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 
 @Controller('kyc')
 export class KycController {
@@ -116,19 +115,17 @@ export class KycController {
 
   // ================= SDK TOKEN =================
   @UseGuards(JwtAuthGuard)
-@Get('sdk-token')
-async getSdkToken(
-  @Query('externalUserId') externalUserId: string,
-  @Req() req: any,
-) {
+  @Get('sdk-token')
+  async getSdkToken(
+    @Query('externalUserId') externalUserId: string,
+    @Req() req: any,
+  ) {
     try {
       if (!externalUserId || typeof externalUserId !== 'string') {
         throw new BadRequestException(
           'externalUserId is required and must be a string',
         );
       }
-       console.log('AUTH HEADER:', req.headers.authorization);
-  console.log('REQ.USER:', req.user);
 
       const jwtUserId = req.user?.userId;
 
@@ -154,9 +151,9 @@ async getSdkToken(
         );
       }
 
-      // ✅ FIX: use applicantId (NOT externalUserId)
+      // ✅ CORRECT: use externalUserId (NOT applicantId)
       const token = await this.sumsubService.generateSdkToken(
-        kyc.applicantId,
+        kyc.externalUserId,
       );
 
       if (!token || typeof token !== 'string') {

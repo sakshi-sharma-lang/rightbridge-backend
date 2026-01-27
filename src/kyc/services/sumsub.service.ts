@@ -6,7 +6,7 @@ import { URL } from 'url';
 
 @Injectable()
 export class SumsubService {
-  private readonly baseUrl = process.env.SUMSUB_BASE_URL!;
+  private readonly baseUrl = process.env.SUMSUB_BASE_URL!.trim();
   private readonly appToken = process.env.SUMSUB_APP_TOKEN!.trim();
   private readonly levelName = process.env.SUMSUB_LEVEL_NAME!.trim();
 
@@ -19,7 +19,7 @@ export class SumsubService {
     };
   }
 
-  // ✅ externalUserId = appId_userId_index
+  // ================= CREATE APPLICANT =================
   async createApplicant(externalUserId: string, email?: string) {
     try {
       if (!this.baseUrl || !this.appToken || !this.levelName) {
@@ -27,21 +27,24 @@ export class SumsubService {
       }
 
       const ts = Math.floor(Date.now() / 1000);
-      const url = `/resources/applicants?levelName=${this.levelName}`;
+      const path = `/resources/applicants?levelName=${this.levelName}`;
 
       const body: any = { externalUserId };
       if (email) body.email = email;
 
+      // ✅ IMPORTANT: raw JSON body (signature must match request body exactly)
+      const rawBody = JSON.stringify(body);
+
       const signature = createSumsubSignature(
         'POST',
-        url,
+        path,
         ts,
-        JSON.stringify(body),
+        rawBody,
       );
 
       const res = await axios.post(
-        `${this.baseUrl}${url}`,
-        body,
+        `${this.baseUrl}${path}`,
+        rawBody, // ✅ send raw JSON string
         { headers: this.buildHeaders(signature, ts) },
       );
 
@@ -53,9 +56,9 @@ export class SumsubService {
       const status = err?.response?.status;
       const data = err?.response?.data;
 
-      console.log('SUMSUB ERROR:', data);
+      console.log('SUMSUB CREATE APPLICANT ERROR:', data);
 
-      // ✅ Applicant already exists
+      // ✅ Applicant already exists in Sumsub
       if (status === 409) {
         return {
           applicantId: data?.description?.match(/[a-f0-9]{24}/)?.[0] || null,
@@ -81,13 +84,11 @@ export class SumsubService {
     }
   }
 
-  // ✅ SDK token must use externalUserId
+  // ================= GENERATE SDK TOKEN =================
   async generateSdkToken(externalUserId: string): Promise<string> {
     try {
-      if (!this.levelName) {
-        throw new InternalServerErrorException(
-          'SUMSUB_LEVEL_NAME not configured',
-        );
+      if (!externalUserId) {
+        throw new InternalServerErrorException('externalUserId is required');
       }
 
       const ts = Math.floor(Date.now() / 1000);
@@ -109,7 +110,6 @@ export class SumsubService {
           'X-App-Token': this.appToken,
           'X-App-Access-Ts': ts,
           'X-App-Access-Sig': signature,
-          'Content-Length': '0',
           'Content-Type': 'application/json',
         },
       };
@@ -121,6 +121,7 @@ export class SumsubService {
           res.on('data', (chunk) => (data += chunk));
           res.on('end', () => {
             if (res.statusCode !== 200) {
+              console.error('SUMSUB SDK TOKEN ERROR:', data);
               return reject(
                 new InternalServerErrorException(
                   data || 'Failed to generate Sumsub SDK token',
@@ -141,13 +142,14 @@ export class SumsubService {
           });
         });
 
-        req.on('error', () =>
+        req.on('error', (err) => {
+          console.error('SUMSUB SDK REQUEST ERROR:', err);
           reject(
             new InternalServerErrorException(
               'Sumsub SDK request failed',
             ),
-          ),
-        );
+          );
+        });
 
         req.end();
       });

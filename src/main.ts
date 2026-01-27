@@ -30,16 +30,15 @@
     bodyParser.raw({ type: 'application/json' }),
   );
 
-    app.use(
+   app.use(
     '/sumsub/webhook',
     bodyParser.raw({
       type: 'application/json',
       verify: (req: any, res, buf) => {
-        req.rawBody = buf.toString(); // ✅ guarantee rawBody exists
+        req.rawBody = buf.toString();
       },
     }),
   );
-
 
 
 

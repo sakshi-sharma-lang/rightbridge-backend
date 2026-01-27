@@ -27,20 +27,14 @@ export class SumsubWebhookController {
     @Headers('x-sumsub-timestamp') timestamp: string,
   ) {
     try {
-      // ================= RAW BODY FIX =================
+      // ================= RAW BODY (CRITICAL) =================
       const rawBody =
-        typeof req.rawBody === 'string'
-          ? req.rawBody
-          : JSON.stringify(body);
+        req.rawBody ||
+        (typeof body === 'string' ? body : JSON.stringify(body));
 
-      // ================= DEBUG LOG =================
       console.log('================ SUMSUB WEBHOOK RECEIVED ================');
-      console.log('HEADERS:', {
-        signature,
-        timestamp,
-      });
+      console.log('HEADERS:', { signature, timestamp });
       console.log('RAW BODY:', rawBody);
-      console.log('PARSED BODY:', JSON.stringify(body, null, 2));
 
       // ================= SIGNATURE VERIFY =================
       if (signature && timestamp) {
@@ -57,9 +51,9 @@ export class SumsubWebhookController {
         return { ok: true };
       }
 
-      // ================= NON-REVIEW EVENTS =================
+      // ================= SAVE NON-REVIEW EVENTS =================
       if (type !== 'applicantReviewed') {
-        await this.kycModel.findOneAndUpdate(
+        await this.kycModel.updateOne(
           { applicantId },
           {
             lastWebhookType: type,
@@ -80,7 +74,7 @@ export class SumsubWebhookController {
       const amlStatus = amlResult ? 'COMPLETED' : 'NOT_STARTED';
 
       // ================= FINAL STATUS ENGINE =================
-      let finalStatus: KycStatus;
+      let finalStatus: KycStatus = KycStatus.PENDING;
 
       if (kycAnswer === 'GREEN' && amlResult !== 'RED') {
         finalStatus = KycStatus.APPROVED;
@@ -88,8 +82,6 @@ export class SumsubWebhookController {
         finalStatus = KycStatus.REJECTED;
       } else if (kycAnswer === 'YELLOW' || amlResult === 'YELLOW') {
         finalStatus = KycStatus.MANUAL_REVIEW;
-      } else {
-        finalStatus = KycStatus.PENDING;
       }
 
       console.log('✅ KYC FINAL STATUS:', finalStatus);
@@ -109,7 +101,6 @@ export class SumsubWebhookController {
           status: finalStatus,
 
           // ❗ NEVER overwrite IDs
-          UserId: existingKyc.UserId,
           externalUserId: existingKyc.externalUserId || externalUserId,
 
           // KYC fields
@@ -145,10 +136,10 @@ export class SumsubWebhookController {
 
   // ================= SIGNATURE VERIFICATION =================
   private verifySignature(rawBody: string, signature: string, timestamp: string) {
-    const secret = process.env.SUMSUB_WEBHOOK_SECRET!;
+    const secret = process.env.SUMSUB_WEBHOOK_SECRET?.trim();
 
     if (!secret) {
-      throw new UnauthorizedException('Sumsub secret not configured');
+      throw new UnauthorizedException('Sumsub webhook secret not configured');
     }
 
     const payload = timestamp + rawBody;
@@ -157,10 +148,6 @@ export class SumsubWebhookController {
       .createHmac('sha256', secret)
       .update(payload)
       .digest('hex');
-
-    if (expected.length !== signature.length) {
-      throw new UnauthorizedException('Invalid Sumsub signature');
-    }
 
     const isValid = crypto.timingSafeEqual(
       Buffer.from(expected),

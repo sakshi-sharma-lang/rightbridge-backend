@@ -14,8 +14,8 @@ export class Kyc extends Document {
   externalUserId: string;
 
   // ✅ Sumsub applicantId
-  @Prop({ required: true, unique: true })
-  applicantId: string;
+  @Prop({ required: true })
+  applicantId: string; // ❗ removed unique: true (safer)
 
   @Prop({ required: true })
   levelName: string;
@@ -66,5 +66,7 @@ export class Kyc extends Document {
   rawWebhookPayload: Record<string, any>;
 }
 
-
 export const KycSchema = SchemaFactory.createForClass(Kyc);
+
+// ✅ Add compound index (important for multi-applicant)
+KycSchema.index({ UserId: 1, externalUserId: 1 }, { unique: true });
