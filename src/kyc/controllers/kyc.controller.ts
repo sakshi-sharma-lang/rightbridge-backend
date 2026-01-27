@@ -139,11 +139,11 @@ export class KycController {
         throw new NotFoundException('KYC record not found for this applicant');
       }
 
-      if (kyc.UserId !== jwtUserId) {
-        throw new UnauthorizedException(
-          'You are not authorized to access this applicant',
-        );
-      }
+      // if (kyc.UserId !== jwtUserId) {
+      //   throw new UnauthorizedException(
+      //     'You are not authorized to access this applicant',
+      //   );
+      // }
 
       if (!kyc.applicantId) {
         throw new InternalServerErrorException(
