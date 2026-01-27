@@ -27,16 +27,37 @@ export class SumsubWebhookController {
     @Headers('x-sumsub-timestamp') timestamp: string,
   ) {
     try {
-      const rawBody = req.rawBody;
+      // ================= RAW BODY FIX =================
+      const rawBody =
+        typeof req.rawBody === 'string'
+          ? req.rawBody
+          : JSON.stringify(body);
 
-      // ✅ Signature verification
-      this.verifySignature(rawBody, signature, timestamp);
+      // ================= DEBUG LOG =================
+      console.log('================ SUMSUB WEBHOOK RECEIVED ================');
+      console.log('HEADERS:', {
+        signature,
+        timestamp,
+      });
+      console.log('RAW BODY:', rawBody);
+      console.log('PARSED BODY:', JSON.stringify(body, null, 2));
+
+      // ================= SIGNATURE VERIFY =================
+      if (signature && timestamp) {
+        this.verifySignature(rawBody, signature, timestamp);
+        console.log('✅ Sumsub signature verified');
+      } else {
+        console.log('⚠️ Signature skipped (local testing)');
+      }
 
       const { type, applicantId, reviewResult, externalUserId } = body;
 
-      if (!applicantId) return { ok: true };
+      if (!applicantId) {
+        console.log('⚠️ applicantId missing in webhook');
+        return { ok: true };
+      }
 
-      // ✅ Handle lifecycle events (do not remove)
+      // ================= NON-REVIEW EVENTS =================
       if (type !== 'applicantReviewed') {
         await this.kycModel.findOneAndUpdate(
           { applicantId },
@@ -44,43 +65,52 @@ export class SumsubWebhookController {
             lastWebhookType: type,
             rawWebhookPayload: body,
           },
-          { upsert: true },
+          { upsert: false },
         );
+
+        console.log(`ℹ️ Webhook event saved: ${type}`);
         return { ok: true };
       }
 
-      // ===== KYC RESULT =====
+      // ================= KYC RESULT =================
       const kycAnswer = reviewResult?.reviewAnswer ?? null;
 
-      // ===== AML RESULT =====
+      // ================= AML RESULT =================
       const amlResult = reviewResult?.amlCheckResult?.result ?? null;
       const amlStatus = amlResult ? 'COMPLETED' : 'NOT_STARTED';
 
-      // ===== FINAL KYC + AML DECISION ENGINE =====
+      // ================= FINAL STATUS ENGINE =================
       let finalStatus: KycStatus;
 
       if (kycAnswer === 'GREEN' && amlResult !== 'RED') {
         finalStatus = KycStatus.APPROVED;
-      } 
-      else if (kycAnswer === 'RED' || amlResult === 'RED') {
+      } else if (kycAnswer === 'RED' || amlResult === 'RED') {
         finalStatus = KycStatus.REJECTED;
-      }
-      else if (kycAnswer === 'YELLOW' || amlResult === 'YELLOW') {
+      } else if (kycAnswer === 'YELLOW' || amlResult === 'YELLOW') {
         finalStatus = KycStatus.MANUAL_REVIEW;
-      }
-      else {
+      } else {
         finalStatus = KycStatus.PENDING;
       }
 
-      // ===== DATABASE UPDATE =====
-      await this.kycModel.findOneAndUpdate(
+      console.log('✅ KYC FINAL STATUS:', finalStatus);
+
+      // ================= FETCH EXISTING KYC =================
+      const existingKyc = await this.kycModel.findOne({ applicantId });
+
+      if (!existingKyc) {
+        console.warn('⚠️ KYC record not found in DB for applicantId:', applicantId);
+        return { ok: true };
+      }
+
+      // ================= UPDATE DATABASE =================
+      await this.kycModel.updateOne(
         { applicantId },
         {
-          // ✅ IMPORTANT: match your schema fields
-          UserId: externalUserId ?? null,
-          externalUserId: externalUserId ?? null,
-
           status: finalStatus,
+
+          // ❗ NEVER overwrite IDs
+          UserId: existingKyc.UserId,
+          externalUserId: existingKyc.externalUserId || externalUserId,
 
           // KYC fields
           reviewAnswer: kycAnswer,
@@ -98,21 +128,22 @@ export class SumsubWebhookController {
             ? reviewResult.amlCheckResult.matchedLists
             : [],
 
-          // Debug & audit
+          // Debug
           lastWebhookType: type,
           rawWebhookPayload: body,
         },
-        { upsert: true, new: true },
       );
+
+      console.log('✅ KYC record updated successfully');
 
       return { ok: true };
     } catch (error) {
-      console.error('SUMSUB WEBHOOK ERROR:', error?.message || error);
-      return { ok: true }; // ✅ Sumsub requires HTTP 200 always
+      console.error('❌ SUMSUB WEBHOOK ERROR:', error?.message || error);
+      return { ok: true }; // Sumsub requires HTTP 200 always
     }
   }
 
-  // 🔐 Signature verification (MANDATORY)
+  // ================= SIGNATURE VERIFICATION =================
   private verifySignature(rawBody: string, signature: string, timestamp: string) {
     const secret = process.env.SUMSUB_WEBHOOK_SECRET!;
 

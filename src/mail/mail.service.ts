@@ -71,10 +71,6 @@ async sendWelcomeEmail(email: string, firstName: string) {
   });
 }
 
-
-
-
-
  async sendAdminRegistrationEmail(
   email: string,
   password: string,
@@ -103,7 +99,6 @@ async sendWelcomeEmail(email: string, firstName: string) {
   });
 }
 
-
  async sendOtpVerificationEmail(
   email: string,
   firstName: string,
@@ -123,8 +118,6 @@ async sendWelcomeEmail(email: string, firstName: string) {
     html,
   });
 }
-
-
 async sendDipDeclineEmail(
   email: string,
   name: string,
@@ -144,8 +137,6 @@ async sendDipDeclineEmail(
     html,
   });
 }
-
-
 
 async sendStageEmail(
   email: string,
@@ -210,15 +201,5 @@ async sendStageEmail(
     html,
   });
 }
-
-
-
-
-
-
-
-
-
-
 
 }

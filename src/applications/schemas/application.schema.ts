@@ -46,6 +46,8 @@ export class Application extends Document {
       postcode: { type: String, required: true },
       ownershipShare: { type: Number, required: true }, 
       ownershipRole: { type: String, required: true },  
+      externalUserId: { type: String, required: true },
+      
       
       timeAtAddress: {
         type: String,
@@ -269,7 +271,6 @@ declarationsAndConsent: {
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true })
   userId: any;
-
 
 
 }

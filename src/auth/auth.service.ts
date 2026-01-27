@@ -221,7 +221,7 @@ async resetPassword(token: string, newPassword: string) {
     if (!user) {
       throw new BadRequestException({
         statusCode: 400,
-        message: 'Invalid or expired reset token',
+        message: 'This reset link is no longer valid. Please generate a new one to reset your password.'
       });
     }
 

@@ -49,6 +49,8 @@ async create(
         'You cannot create an application. Your application is already in progress.',
       );
     }
+
+
     const appId = await this.generateAppId();
     const documentUrls: string[] = [];
     const uploadedHashes = new Set<string>();
@@ -91,7 +93,7 @@ async create(
     const solicitor = body.solicitor || {};
     const additionalInfo = body.additionalInfo || {};
     const applicants = Array.isArray(body.applicants)
-  ? body.applicants.map(a => ({
+ ? body.applicants.map((a, index) => ({
       applyingAs: a.applyingAs ?? '',
       firstName: a.firstName ?? '',
       lastName: a.lastName ?? '',
@@ -114,6 +116,8 @@ async create(
       },
       companyAddress: a.companyAddress ?? '',
       companyRegistrationNumber: a.companyRegistrationNumber ?? '',
+         userId: new Types.ObjectId(userId),
+       externalUserId: `${appId}_${userId}_${index + 1}`,
     }))
   : [];
     const application = new this.applicationModel({

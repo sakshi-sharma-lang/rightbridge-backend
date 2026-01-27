@@ -10,13 +10,9 @@ export function createSumsubSignature(
 
   let bodyString = '';
 
-  // ✅ FIX: handle string and object correctly
+  // ✅ SAFE handling (no double stringify)
   if (body) {
-    if (typeof body === 'string') {
-      bodyString = body;
-    } else {
-      bodyString = JSON.stringify(body);
-    }
+    bodyString = typeof body === 'string' ? body : JSON.stringify(body);
   }
 
   // ✅ EXACT Sumsub format

@@ -5,9 +5,15 @@ import { KycStatus } from '../enums/kyc-status.enum';
 @Schema({ timestamps: true })
 export class Kyc extends Document {
 
+  // ✅ Main user (JWT user)
   @Prop({ required: true, index: true })
   UserId: string;
 
+  // ✅ Applicant identity (VERY IMPORTANT)
+  @Prop({ required: true, index: true })
+  externalUserId: string;
+
+  // ✅ Sumsub applicantId
   @Prop({ required: true, unique: true })
   applicantId: string;
 
@@ -59,5 +65,6 @@ export class Kyc extends Document {
   @Prop({ type: Object })
   rawWebhookPayload: Record<string, any>;
 }
+
 
 export const KycSchema = SchemaFactory.createForClass(Kyc);
