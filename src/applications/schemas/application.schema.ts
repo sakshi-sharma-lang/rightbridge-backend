@@ -46,7 +46,7 @@ export class Application extends Document {
       postcode: { type: String, required: true },
       ownershipShare: { type: Number, required: true }, 
       ownershipRole: { type: String, required: true },  
-      externalUserId: { type: String, required: true },
+      externalUserId: { type: String, required: false },
       
       
       timeAtAddress: {
