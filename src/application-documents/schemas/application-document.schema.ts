@@ -1,14 +1,15 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 /* ===================== DOCUMENT ITEM ===================== */
 
 @Schema()
 export class DocumentItem {
 
-  @Prop({ default: () => uuidv4() })
-  uid?: string; // ✅ make optional in TS (IMPORTANT)
+  // ✅ FIX: use Node built-in UUID (no ESM issue)
+  @Prop({ default: () => randomUUID() })
+  uid?: string; // optional in TS
 
   @Prop({ required: true })
   type: string;
@@ -28,7 +29,6 @@ export class DocumentItem {
   @Prop({ default: Date.now })
   createdAt: Date;
 }
-
 
 export const DocumentItemSchema = SchemaFactory.createForClass(DocumentItem);
 
