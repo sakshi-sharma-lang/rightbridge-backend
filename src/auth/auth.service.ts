@@ -179,7 +179,7 @@ async forgotPassword(email: string, type?: string) {
   // ================= WEB FLOW (RESET LINK ONLY) =================
   const resetToken = crypto.randomBytes(32).toString('hex');
   user.resetPasswordToken = resetToken;
-  user.resetPasswordExpires = new Date(Date.now() + 1 * 60 * 1000);
+  user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000);
   await user.save();
 
   const resetLink = `${process.env.FRONTEND_URL}reset-password?token=${resetToken}`;

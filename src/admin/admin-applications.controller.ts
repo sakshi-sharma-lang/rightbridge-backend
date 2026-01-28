@@ -22,7 +22,7 @@ export class AdminApplicationsController {
 
   ) {}
 
-  // ✅ SIMPLE ADMIN GET API
+
   // GET /admin/applications
   @Get('admin/all/applications')
   getAllApplicationbyAdmin(@Query() query: any) {
