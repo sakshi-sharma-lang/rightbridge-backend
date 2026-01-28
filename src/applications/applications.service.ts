@@ -1222,47 +1222,47 @@ if (search) {
 
 // applications.service.ts
 
-// async updatePriority(applicationId: string, priority: string) {
-//   try {
-//     if (!Types.ObjectId.isValid(applicationId)) {
-//       throw new BadRequestException('Invalid application id');
-//     }
+async updatePriority(applicationId: string, priority: string) {
+  try {
+    if (!Types.ObjectId.isValid(applicationId)) {
+      throw new BadRequestException('Invalid application id');
+    }
 
-//     const allowedPriority = ['low', 'medium', 'high'];
+    const allowedPriority = ['low', 'medium', 'high'];
 
-//     if (!allowedPriority.includes(priority)) {
-//       throw new BadRequestException('Invalid priority value');
-//     }
+    if (!allowedPriority.includes(priority)) {
+      throw new BadRequestException('Invalid priority value');
+    }
 
-//     const updated = await this.applicationModel.findByIdAndUpdate(
-//       applicationId,
-//       { $set: { priority } },
-//       { new: true },
-//     );
+    const updated = await this.applicationModel.findByIdAndUpdate(
+      applicationId,
+      { $set: { priority } },
+      { new: true },
+    );
 
-//     if (!updated) {
-//       throw new NotFoundException('Application not found');
-//     }
+    if (!updated) {
+      throw new NotFoundException('Application not found');
+    }
 
-//     return {
-//       success: true,
-//       message: 'Priority updated successfully',
-//       data: updated,
-//     };
-//   } catch (error) {
-//     if (
-//       error instanceof BadRequestException ||
-//       error instanceof NotFoundException
-//     ) {
-//       throw error;
-//     }
+    return {
+      success: true,
+      message: 'Priority updated successfully',
+      data: updated,
+    };
+  } catch (error) {
+    if (
+      error instanceof BadRequestException ||
+      error instanceof NotFoundException
+    ) {
+      throw error;
+    }
 
-//     throw new InternalServerErrorException({
-//       message: 'Failed to update priority',
-//       error: error?.message || 'Internal Server Error',
-//     });
-//   }
-// }
+    throw new InternalServerErrorException({
+      message: 'Failed to update priority',
+      error: error?.message || 'Internal Server Error',
+    });
+  }
+}
 
 
 }
