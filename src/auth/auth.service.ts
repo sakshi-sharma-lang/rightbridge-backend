@@ -40,17 +40,14 @@ export class AuthService {
   }
 
 async login(user: any) {
-
-    const payload = { email: user.email, sub: user._id };
-
-  
+const payload = { email: user.email, sub: user._id };
  if (!user.isOtpVerified) {
 
   const now = new Date();
   let otp = user.otp;
   let otpExpiresAt = user.otpExpiresAt;
    const otp_expiry_time = 5;
-  // 🔁 Generate new OTP only if expired or missing
+
   if (!otp || !otpExpiresAt || otpExpiresAt < now) {
     otp = Math.floor(1000 + Math.random() * 9000).toString();
     otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -61,13 +58,8 @@ async login(user: any) {
       otpExpiresAt,
     });
   }
-
 const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN');
-
-
 const access_token = this.jwtService.sign(payload); // expiry already applied by JwtModule
-
-
   await this.mailService.sendOtpVerificationEmail(
     user.email,
     user.firstName,
@@ -85,12 +77,9 @@ const access_token = this.jwtService.sign(payload); // expiry already applied by
   });
 }
 
-
-   
 const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN');
 const access_token = this.jwtService.sign(payload); // expiry already applied by JwtModule
 console.log("access_token",access_token);
-
   await this.usersService.updateLastLogin(user._id);
 
   const application =
@@ -117,8 +106,6 @@ console.log("access_token",access_token);
 
   };
 }
-
-
 
   // ===================== FORGOT PASSWORD =====================
   // async forgotPassword(email: string) {
@@ -152,16 +139,13 @@ console.log("access_token",access_token);
 
 async forgotPassword(email: string, type?: string) {
   const user = await this.usersService.findByEmail(email);
-
   if (!user) {
     throw new BadRequestException({
       statusCode: 400,
       message: 'Email is not registered',
     });
   }
-
   const now = new Date();
-
   // ================= MOBILE FLOW (OTP ONLY) =================
   if (type === 'mobile') {
     let otp = user.otp;
@@ -195,7 +179,7 @@ async forgotPassword(email: string, type?: string) {
   // ================= WEB FLOW (RESET LINK ONLY) =================
   const resetToken = crypto.randomBytes(32).toString('hex');
   user.resetPasswordToken = resetToken;
-  user.resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000);
+  user.resetPasswordExpires = new Date(Date.now() + 1 * 60 * 1000);
   await user.save();
 
   const resetLink = `${process.env.FRONTEND_URL}reset-password?token=${resetToken}`;
@@ -209,9 +193,6 @@ async forgotPassword(email: string, type?: string) {
   };
 }
 
-
-
-  // ===================== RESET PASSWORD =====================
 async resetPassword(token: string, newPassword: string) {
   try {
     const user = await this.usersService.findByResetToken(token);
@@ -222,15 +203,10 @@ async resetPassword(token: string, newPassword: string) {
         message: 'This reset link is no longer valid. Please generate a new one to reset your password.'
       });
     }
-
     user.password = await bcrypt.hash(newPassword, 10);
-
-    // ✅ FIXED HERE
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
-
     await user.save();
-
     return {
       statusCode: 200,
       message: 'Password reset successful',
@@ -247,11 +223,6 @@ async resetPassword(token: string, newPassword: string) {
     });
   }
 }
-
-
-
-  
-
  async verifyOtp(email: string, otp: string) {
   const user = await this.usersService.findByEmail(email);
 
@@ -295,9 +266,6 @@ async resetPassword(token: string, newPassword: string) {
   };
 }
 
-
-
-
   async verifyOtpForgetPassword(email: string, otp: string , type?: string) {
     const user = await this.usersService.findByEmail(email);
 
@@ -333,7 +301,7 @@ async resetPassword(token: string, newPassword: string) {
       });
     }
 
-    // 🔑 Generate reset password token
+    //  Generate reset password token
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetPasswordExpires = new Date(Date.now() + 15 * 60 * 1000);
 

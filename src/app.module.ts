@@ -10,7 +10,6 @@ import { AdminModule } from './admin/admin.module';
 import { MailModule } from './mail/mail.module';
 import { SurveyorsModule } from './surveyors/surveyors.module';
 import { PaymentsModule } from './payments/payments.module';
-
 import { KycModule } from './kyc/kyc.module';
 import { ApplicationDocumentsModule } from './application-documents/application-documents.module'; 
 

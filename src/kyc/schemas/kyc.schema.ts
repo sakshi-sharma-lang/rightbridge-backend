@@ -5,19 +5,19 @@ import { KycStatus } from '../enums/kyc-status.enum';
 @Schema({ timestamps: true })
 export class Kyc extends Document {
 
-  // ✅ Main user (JWT user)
+
   // @Prop({ required: true, index: true })
   // UserId: string;
 
-  // ✅ Application ID (FROM FRONTEND) ⭐ VERY IMPORTANT
+
   @Prop({ required: true, index: true })
   applicationId: string;
 
-  // ✅ externalUserId = UserId + "_" + applicationId
+
   @Prop({ required: true, index: true })
   externalUserId: string;
 
-  // ✅ Sumsub applicantId
+
   @Prop({ required: true })
   applicantId: string;
 
@@ -72,7 +72,7 @@ export class Kyc extends Document {
 
 export const KycSchema = SchemaFactory.createForClass(Kyc);
 
-// ✅ UNIQUE RULE: 1 KYC per application per user
+
 KycSchema.index(
   { UserId: 1, applicationId: 1 },
   { unique: true },

@@ -7,7 +7,7 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { AuthGuard } from '@nestjs/passport';
 
 
-@Controller('auth') // prefix → /auth
+@Controller('auth') 
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
@@ -28,9 +28,8 @@ export class AuthController {
     return this.authService.forgotPassword(dto.email, dto.type);
   }
 
-
   // ===================== RESET PASSWORD =====================
-  @Post('reset-password') // POST /auth/reset-password
+  @Post('reset-password') 
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.newPassword);
   }
@@ -41,7 +40,6 @@ async verifyOtp(@Body() dto: VerifyOtpDto) {
   return this.authService.verifyOtp(dto.email, dto.otp);
 }
 
-
  @Post('/verify-otp/forget-password')
   verifyOtpForgetPassword(@Body() dto: VerifyOtpDto) {
     return this.authService.verifyOtpForgetPassword(
@@ -50,5 +48,4 @@ async verifyOtp(@Body() dto: VerifyOtpDto) {
       dto.type
     );
   }
-
 }

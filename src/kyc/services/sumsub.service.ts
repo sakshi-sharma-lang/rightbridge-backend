@@ -32,7 +32,7 @@ export class SumsubService {
       const body: any = { externalUserId };
       if (email) body.email = email;
 
-      // ✅ IMPORTANT: raw JSON body (signature must match request body exactly)
+   
       const rawBody = JSON.stringify(body);
 
       const signature = createSumsubSignature(
@@ -44,7 +44,7 @@ export class SumsubService {
 
       const res = await axios.post(
         `${this.baseUrl}${path}`,
-        rawBody, // ✅ send raw JSON string
+        rawBody, 
         { headers: this.buildHeaders(signature, ts) },
       );
 

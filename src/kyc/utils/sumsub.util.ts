@@ -12,7 +12,6 @@ export function createSumsubSignature(
     throw new Error('SUMSUB_SECRET_KEY is missing in environment variables');
   }
 
-  // ✅ IMPORTANT: body must be EXACT string sent to Sumsub
   const payload = ts + method.toUpperCase() + path + body;
 
   return crypto
