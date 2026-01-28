@@ -85,7 +85,7 @@ console.log("access_token",access_token);
   const application =
     await this.applicationsService.findApplicationByUserId(user._id);
 
-  const blockedStatuses = ['decline', 'completed_stage'];
+  const blockedStatuses = ['decline', 'completed_stage','AUTO_REJECTED'];
 
   const isBlocked =
     !application || blockedStatuses.includes(application.status);
