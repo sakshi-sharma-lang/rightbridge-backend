@@ -34,7 +34,7 @@ export class SumsubWebhookController {
 
       console.log('================ SUMSUB WEBHOOK RECEIVED ================');
       console.log('HEADERS:', { signature, timestamp });
-      console.log('RAW BODY:', rawBody);
+      console.log('BODY:', JSON.stringify(body, null, 2));
 
       // ================= SIGNATURE VERIFY =================
       if (signature && timestamp) {
@@ -44,10 +44,18 @@ export class SumsubWebhookController {
         console.log('⚠️ Signature skipped (local testing)');
       }
 
-      const { type, applicantId, reviewResult, externalUserId } = body;
+      const { type, applicantId, reviewResult } = body;
 
       if (!applicantId) {
         console.log('⚠️ applicantId missing in webhook');
+        return { ok: true };
+      }
+
+      // ================= FIND EXISTING KYC =================
+      const existingKyc = await this.kycModel.findOne({ applicantId });
+
+      if (!existingKyc) {
+        console.warn('⚠️ KYC record not found for applicantId:', applicantId);
         return { ok: true };
       }
 
@@ -59,7 +67,6 @@ export class SumsubWebhookController {
             lastWebhookType: type,
             rawWebhookPayload: body,
           },
-          { upsert: false },
         );
 
         console.log(`ℹ️ Webhook event saved: ${type}`);
@@ -70,7 +77,8 @@ export class SumsubWebhookController {
       const kycAnswer = reviewResult?.reviewAnswer ?? null;
 
       // ================= AML RESULT =================
-      const amlResult = reviewResult?.amlCheckResult?.result ?? null;
+      const amlCheck = reviewResult?.amlCheckResult || {};
+      const amlResult = amlCheck.result ?? null;
       const amlStatus = amlResult ? 'COMPLETED' : 'NOT_STARTED';
 
       // ================= FINAL STATUS ENGINE =================
@@ -84,15 +92,7 @@ export class SumsubWebhookController {
         finalStatus = KycStatus.MANUAL_REVIEW;
       }
 
-      console.log('✅ KYC FINAL STATUS:', finalStatus);
-
-      // ================= FETCH EXISTING KYC =================
-      const existingKyc = await this.kycModel.findOne({ applicantId });
-
-      if (!existingKyc) {
-        console.warn('⚠️ KYC record not found in DB for applicantId:', applicantId);
-        return { ok: true };
-      }
+      console.log('✅ FINAL KYC STATUS:', finalStatus);
 
       // ================= UPDATE DATABASE =================
       await this.kycModel.updateOne(
@@ -100,8 +100,10 @@ export class SumsubWebhookController {
         {
           status: finalStatus,
 
-          // ❗ NEVER overwrite IDs
-          externalUserId: existingKyc.externalUserId || externalUserId,
+          // ✅ NEVER overwrite these (CRITICAL)
+          UserId: existingKyc.UserId,
+          applicationId: existingKyc.applicationId,
+          externalUserId: existingKyc.externalUserId,
 
           // KYC fields
           reviewAnswer: kycAnswer,
@@ -114,9 +116,9 @@ export class SumsubWebhookController {
           // AML fields
           amlStatus,
           amlResult,
-          riskLevel: reviewResult?.amlCheckResult?.riskLevel ?? null,
-          amlHits: Array.isArray(reviewResult?.amlCheckResult?.matchedLists)
-            ? reviewResult.amlCheckResult.matchedLists
+          riskLevel: amlCheck.riskLevel ?? null,
+          amlHits: Array.isArray(amlCheck.matchedLists)
+            ? amlCheck.matchedLists
             : [],
 
           // Debug
@@ -125,7 +127,9 @@ export class SumsubWebhookController {
         },
       );
 
-      console.log('✅ KYC record updated successfully');
+      console.log(
+        `✅ KYC updated | user=${existingKyc.UserId} | app=${existingKyc.applicationId}`,
+      );
 
       return { ok: true };
     } catch (error) {
@@ -136,7 +140,7 @@ export class SumsubWebhookController {
 
   // ================= SIGNATURE VERIFICATION =================
   private verifySignature(rawBody: string, signature: string, timestamp: string) {
-    const secret = process.env.SUMSUB_WEBHOOK_SECRET?.trim();
+    const secret = process.env.SUMSUB_WEBHOOK_SECRET;
 
     if (!secret) {
       throw new UnauthorizedException('Sumsub webhook secret not configured');
@@ -145,8 +149,8 @@ export class SumsubWebhookController {
     const payload = timestamp + rawBody;
 
     const expected = crypto
-      .createHmac('sha256', secret)
-      .update(payload)
+      .createHmac('sha256', secret) // ❗ DO NOT trim secret
+      .update(payload, 'utf8')
       .digest('hex');
 
     const isValid = crypto.timingSafeEqual(

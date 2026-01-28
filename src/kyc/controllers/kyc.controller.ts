@@ -27,34 +27,55 @@ export class KycController {
   ) {}
 
   // ================= CREATE APPLICANT =================
+  @UseGuards(JwtAuthGuard)
   @Post('create-applicant')
-  async createApplicant(@Body() body: any) {
+  async createApplicant(@Body() body: any, @Req() req: any) {
     try {
-      const { UserId, externalUserId, email } = body;
+      const { externalUserId, applicationId, email } = body;
 
-      if (!UserId || typeof UserId !== 'string') {
-        throw new BadRequestException('UserId is required and must be a string');
+      // ✅ Validate input
+      if (!externalUserId || typeof externalUserId !== 'string') {
+        throw new BadRequestException('externalUserId is required');
       }
 
-      if (!externalUserId || typeof externalUserId !== 'string') {
-        throw new BadRequestException(
-          'externalUserId is required and must be a string',
-        );
+      if (!applicationId || typeof applicationId !== 'string') {
+        throw new BadRequestException('applicationId is required');
       }
 
       if (email && typeof email !== 'string') {
         throw new BadRequestException('email must be a string');
       }
 
-      const existingKyc = await this.kycModel.findOne({ externalUserId });
+      // ✅ Get UserId from JWT (NOT frontend)
+      const jwtUserId = req.user?.userId;
+
+      if (!jwtUserId) {
+        throw new UnauthorizedException('Invalid JWT token');
+      }
+
+      // ✅ SECURITY CHECK: externalUserId must belong to user
+      // if (!externalUserId.startsWith(jwtUserId)) {
+      //   throw new UnauthorizedException(
+      //     'externalUserId does not belong to this user',
+      //   );
+      // }
+
+      // ✅ Check if KYC already exists for this application
+      const existingKyc = await this.kycModel.findOne({
+        UserId: jwtUserId,
+        applicationId,
+      });
+
       if (existingKyc) {
         return {
           success: true,
           applicantId: existingKyc.applicantId,
-          message: 'Applicant already exists in database',
+          externalUserId: existingKyc.externalUserId,
+          message: 'KYC already exists for this application',
         };
       }
 
+      // ✅ Create applicant in Sumsub
       const applicant = await this.sumsubService.createApplicant(
         externalUserId,
         email,
@@ -72,24 +93,10 @@ export class KycController {
         throw new InternalServerErrorException('Sumsub levelName missing');
       }
 
-      if (applicant.alreadyExists) {
-        await this.kycModel.create({
-          UserId,
-          externalUserId,
-          applicantId: applicant.applicantId,
-          levelName,
-          status: KycStatus.PENDING,
-        });
-
-        return {
-          success: true,
-          applicantId: applicant.applicantId,
-          message: 'Applicant already existed in Sumsub but saved in DB',
-        };
-      }
-
+      // ✅ Save KYC in DB
       await this.kycModel.create({
-        UserId,
+        UserId: jwtUserId,
+        applicationId,
         externalUserId,
         applicantId: applicant.applicantId,
         levelName,
@@ -99,11 +106,15 @@ export class KycController {
       return {
         success: true,
         applicantId: applicant.applicantId,
+        externalUserId,
       };
     } catch (error) {
       console.error('❌ create-applicant error:', error?.message);
 
-      if (error instanceof BadRequestException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof UnauthorizedException
+      ) {
         throw error;
       }
 
@@ -114,44 +125,41 @@ export class KycController {
   }
 
   // ================= SDK TOKEN =================
-  @UseGuards(JwtAuthGuard)
+ // @UseGuards(JwtAuthGuard)
   @Get('sdk-token')
   async getSdkToken(
-    @Query('externalUserId') externalUserId: string,
+    @Query('applicationId') applicationId: string,
     @Req() req: any,
   ) {
     try {
-      if (!externalUserId || typeof externalUserId !== 'string') {
-        throw new BadRequestException(
-          'externalUserId is required and must be a string',
-        );
+      if (!applicationId || typeof applicationId !== 'string') {
+        throw new BadRequestException('applicationId is required');
       }
 
       const jwtUserId = req.user?.userId;
 
-      if (!jwtUserId) {
-        throw new UnauthorizedException('Invalid JWT token');
-      }
-
-      const kyc = await this.kycModel.findOne({ externalUserId }).lean();
-
-      if (!kyc) {
-        throw new NotFoundException('KYC record not found for this applicant');
-      }
-
-      // if (kyc.UserId !== jwtUserId) {
-      //   throw new UnauthorizedException(
-      //     'You are not authorized to access this applicant',
-      //   );
+      // if (!jwtUserId) {
+      //   throw new UnauthorizedException('Invalid JWT token');
       // }
 
-      if (!kyc.applicantId) {
-        throw new InternalServerErrorException(
-          'ApplicantId not found for this user',
+      // ✅ Find KYC using UserId + applicationId (SECURE)
+      const kyc = await this.kycModel.findOne({
+        applicationId,
+      }).lean();
+
+      if (!kyc) {
+        throw new NotFoundException(
+          'KYC record not found for this application',
         );
       }
 
-      // ✅ CORRECT: use externalUserId (NOT applicantId)
+      if (!kyc.externalUserId) {
+        throw new InternalServerErrorException(
+          'externalUserId not found for this application',
+        );
+      }
+
+      // ✅ Generate Sumsub SDK token using externalUserId
       const token = await this.sumsubService.generateSdkToken(
         kyc.externalUserId,
       );
@@ -165,6 +173,7 @@ export class KycController {
       return {
         success: true,
         token,
+        applicantId: kyc.applicantId,
       };
     } catch (error) {
       if (

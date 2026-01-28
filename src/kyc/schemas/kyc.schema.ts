@@ -9,13 +9,17 @@ export class Kyc extends Document {
   @Prop({ required: true, index: true })
   UserId: string;
 
-  // ✅ Applicant identity (VERY IMPORTANT)
+  // ✅ Application ID (FROM FRONTEND) ⭐ VERY IMPORTANT
+  @Prop({ required: true, index: true })
+  applicationId: string;
+
+  // ✅ externalUserId = UserId + "_" + applicationId
   @Prop({ required: true, index: true })
   externalUserId: string;
 
   // ✅ Sumsub applicantId
   @Prop({ required: true })
-  applicantId: string; // ❗ removed unique: true (safer)
+  applicantId: string;
 
   @Prop({ required: true })
   levelName: string;
@@ -68,5 +72,8 @@ export class Kyc extends Document {
 
 export const KycSchema = SchemaFactory.createForClass(Kyc);
 
-// ✅ Add compound index (important for multi-applicant)
-KycSchema.index({ UserId: 1, externalUserId: 1 }, { unique: true });
+// ✅ UNIQUE RULE: 1 KYC per application per user
+KycSchema.index(
+  { UserId: 1, applicationId: 1 },
+  { unique: true },
+);
