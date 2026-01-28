@@ -1137,9 +1137,11 @@ if (search) {
       data,
     };
   }
-  async findApplicationByUserId(userId: string) {
-    return this.applicationModel.findOne({ userId });
-  }
+ async findApplicationByUserId(userId: string) {
+  return this.applicationModel
+    .findOne({ userId: new Types.ObjectId(userId) })
+    .sort({ createdAt: -1 }); // latest application
+}
 
   async deleteAdditionalDocument(
   applicationId: string,
