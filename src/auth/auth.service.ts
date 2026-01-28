@@ -116,6 +116,8 @@ console.log("access_token",access_token);
 
     applicationId: isBlocked ? null : application._id,
     applicationStatus: isBlocked ? null : application.status,
+    applicationStageManagement:
+    application?.application_stage_management || [],
 
   };
 }
