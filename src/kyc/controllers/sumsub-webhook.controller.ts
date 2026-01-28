@@ -27,61 +27,56 @@ export class SumsubWebhookController {
     @Headers('x-sumsub-timestamp') timestamp: string,
   ) {
     try {
-      // ================= RAW BODY (CRITICAL) =================
+      // ================= RAW BODY =================
       const rawBody =
         req.rawBody ||
         (typeof body === 'string' ? body : JSON.stringify(body));
 
-      console.log('================ SUMSUB WEBHOOK RECEIVED ================');
-      console.log('HEADERS:', { signature, timestamp });
-      console.log('BODY:', JSON.stringify(body, null, 2));
+      console.log('===== SUMSUB WEBHOOK =====');
+      console.log('TYPE:', body?.type);
+      console.log('APPLICANT:', body?.applicantId);
 
       // ================= SIGNATURE VERIFY =================
       if (signature && timestamp) {
         this.verifySignature(rawBody, signature, timestamp);
-        console.log('✅ Sumsub signature verified');
-      } else {
-        console.log('⚠️ Signature skipped (local testing)');
       }
 
       const { type, applicantId, reviewResult } = body;
 
       if (!applicantId) {
-        console.log('⚠️ applicantId missing in webhook');
+        console.log('⚠️ applicantId missing');
         return { ok: true };
       }
 
-      // ================= FIND EXISTING KYC =================
+      // ================= FIND KYC =================
       const existingKyc = await this.kycModel.findOne({ applicantId });
 
       if (!existingKyc) {
-        console.warn('⚠️ KYC record not found for applicantId:', applicantId);
+        console.warn('⚠️ KYC not found:', applicantId);
         return { ok: true };
       }
 
-      // ================= SAVE NON-REVIEW EVENTS =================
+      // ================= NON-REVIEW EVENTS =================
       if (type !== 'applicantReviewed') {
         await this.kycModel.updateOne(
           { applicantId },
           {
-            lastWebhookType: type,
-            rawWebhookPayload: body,
+            $set: {
+              lastWebhookType: type,
+              rawWebhookPayload: body,
+            },
           },
         );
 
-        console.log(`ℹ️ Webhook event saved: ${type}`);
         return { ok: true };
       }
 
-      // ================= KYC RESULT =================
+      // ================= REVIEW RESULT =================
       const kycAnswer = reviewResult?.reviewAnswer ?? null;
 
-      // ================= AML RESULT =================
       const amlCheck = reviewResult?.amlCheckResult || {};
       const amlResult = amlCheck.result ?? null;
-      const amlStatus = amlResult ? 'COMPLETED' : 'NOT_STARTED';
 
-      // ================= FINAL STATUS ENGINE =================
       let finalStatus: KycStatus = KycStatus.PENDING;
 
       if (kycAnswer === 'GREEN' && amlResult !== 'RED') {
@@ -92,49 +87,44 @@ export class SumsubWebhookController {
         finalStatus = KycStatus.MANUAL_REVIEW;
       }
 
-      console.log('✅ FINAL KYC STATUS:', finalStatus);
+      console.log('✅ FINAL STATUS:', finalStatus);
 
-      // ================= UPDATE DATABASE =================
+      // ================= UPDATE KYC =================
       await this.kycModel.updateOne(
         { applicantId },
         {
-          status: finalStatus,
+          $set: {
+            status: finalStatus,
 
-          // ✅ NEVER overwrite these (CRITICAL)
-          UserId: existingKyc.UserId,
-          applicationId: existingKyc.applicationId,
-          externalUserId: existingKyc.externalUserId,
+            // ❗ keep immutable fields unchanged
+            reviewAnswer: kycAnswer,
+            reviewRejectType: reviewResult?.reviewRejectType ?? null,
+            reviewComment: reviewResult?.reviewComment ?? null,
+            reviewedAt: reviewResult?.reviewDate
+              ? new Date(reviewResult.reviewDate)
+              : new Date(),
 
-          // KYC fields
-          reviewAnswer: kycAnswer,
-          reviewRejectType: reviewResult?.reviewRejectType ?? null,
-          reviewComment: reviewResult?.reviewComment ?? null,
-          reviewedAt: reviewResult?.reviewDate
-            ? new Date(reviewResult.reviewDate)
-            : new Date(),
+            amlStatus: amlResult ? 'COMPLETED' : 'NOT_STARTED',
+            amlResult,
+            riskLevel: amlCheck.riskLevel ?? null,
+            amlHits: Array.isArray(amlCheck.matchedLists)
+              ? amlCheck.matchedLists
+              : [],
 
-          // AML fields
-          amlStatus,
-          amlResult,
-          riskLevel: amlCheck.riskLevel ?? null,
-          amlHits: Array.isArray(amlCheck.matchedLists)
-            ? amlCheck.matchedLists
-            : [],
-
-          // Debug
-          lastWebhookType: type,
-          rawWebhookPayload: body,
+            lastWebhookType: type,
+            rawWebhookPayload: body,
+          },
         },
       );
 
       console.log(
-        `✅ KYC updated | user=${existingKyc.UserId} | app=${existingKyc.applicationId}`,
+        `✅ KYC updated | app=${existingKyc.applicationId} | externalUserId=${existingKyc.externalUserId}`,
       );
 
       return { ok: true };
     } catch (error) {
       console.error('❌ SUMSUB WEBHOOK ERROR:', error?.message || error);
-      return { ok: true }; // Sumsub requires HTTP 200 always
+      return { ok: true }; // Sumsub requires 200 always
     }
   }
 
@@ -149,9 +139,14 @@ export class SumsubWebhookController {
     const payload = timestamp + rawBody;
 
     const expected = crypto
-      .createHmac('sha256', secret) // ❗ DO NOT trim secret
+      .createHmac('sha256', secret)
       .update(payload, 'utf8')
       .digest('hex');
+
+    // ✅ Prevent crash if lengths differ
+    if (expected.length !== signature.length) {
+      throw new UnauthorizedException('Invalid Sumsub signature');
+    }
 
     const isValid = crypto.timingSafeEqual(
       Buffer.from(expected),

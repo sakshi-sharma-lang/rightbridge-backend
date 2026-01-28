@@ -7,16 +7,12 @@ import {
   InternalServerErrorException,
   NotFoundException,
   BadRequestException,
-  Req,
-  UnauthorizedException,
-  UseGuards,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { SumsubService } from '../services/sumsub.service';
 import { Kyc } from '../schemas/kyc.schema';
 import { KycStatus } from '../enums/kyc-status.enum';
-import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 
 @Controller('kyc')
 export class KycController {
@@ -27,9 +23,8 @@ export class KycController {
   ) {}
 
   // ================= CREATE APPLICANT =================
-  @UseGuards(JwtAuthGuard)
   @Post('create-applicant')
-  async createApplicant(@Body() body: any, @Req() req: any) {
+  async createApplicant(@Body() body: any) {
     try {
       const { externalUserId, applicationId, email } = body;
 
@@ -46,24 +41,10 @@ export class KycController {
         throw new BadRequestException('email must be a string');
       }
 
-      // ✅ Get UserId from JWT (NOT frontend)
-      const jwtUserId = req.user?.userId;
-
-      if (!jwtUserId) {
-        throw new UnauthorizedException('Invalid JWT token');
-      }
-
-      // ✅ SECURITY CHECK: externalUserId must belong to user
-      // if (!externalUserId.startsWith(jwtUserId)) {
-      //   throw new UnauthorizedException(
-      //     'externalUserId does not belong to this user',
-      //   );
-      // }
-
-      // ✅ Check if KYC already exists for this application
+      // ✅ Check if KYC already exists for this application + externalUserId
       const existingKyc = await this.kycModel.findOne({
-        UserId: jwtUserId,
         applicationId,
+        externalUserId,
       });
 
       if (existingKyc) {
@@ -71,7 +52,7 @@ export class KycController {
           success: true,
           applicantId: existingKyc.applicantId,
           externalUserId: existingKyc.externalUserId,
-          message: 'KYC already exists for this application',
+          message: 'KYC already exists for this applicant',
         };
       }
 
@@ -95,7 +76,6 @@ export class KycController {
 
       // ✅ Save KYC in DB
       await this.kycModel.create({
-        UserId: jwtUserId,
         applicationId,
         externalUserId,
         applicantId: applicant.applicantId,
@@ -111,10 +91,7 @@ export class KycController {
     } catch (error) {
       console.error('❌ create-applicant error:', error?.message);
 
-      if (
-        error instanceof BadRequestException ||
-        error instanceof UnauthorizedException
-      ) {
+      if (error instanceof BadRequestException) {
         throw error;
       }
 
@@ -125,41 +102,39 @@ export class KycController {
   }
 
   // ================= SDK TOKEN =================
- // @UseGuards(JwtAuthGuard)
   @Get('sdk-token')
   async getSdkToken(
     @Query('applicationId') applicationId: string,
-    @Req() req: any,
+    @Query('externalUserId') externalUserId: string,
   ) {
     try {
       if (!applicationId || typeof applicationId !== 'string') {
         throw new BadRequestException('applicationId is required');
       }
 
-      const jwtUserId = req.user?.userId;
+      if (!externalUserId || typeof externalUserId !== 'string') {
+        throw new BadRequestException('externalUserId is required');
+      }
 
-      // if (!jwtUserId) {
-      //   throw new UnauthorizedException('Invalid JWT token');
-      // }
-
-      // ✅ Find KYC using UserId + applicationId (SECURE)
+      // ✅ Find KYC using applicationId + externalUserId
       const kyc = await this.kycModel.findOne({
         applicationId,
+        externalUserId,
       }).lean();
 
       if (!kyc) {
         throw new NotFoundException(
-          'KYC record not found for this application',
+          'KYC record not found for this applicant',
         );
       }
 
       if (!kyc.externalUserId) {
         throw new InternalServerErrorException(
-          'externalUserId not found for this application',
+          'externalUserId not found',
         );
       }
 
-      // ✅ Generate Sumsub SDK token using externalUserId
+      // ✅ Generate Sumsub SDK token
       const token = await this.sumsubService.generateSdkToken(
         kyc.externalUserId,
       );
@@ -178,8 +153,7 @@ export class KycController {
     } catch (error) {
       if (
         error instanceof BadRequestException ||
-        error instanceof NotFoundException ||
-        error instanceof UnauthorizedException
+        error instanceof NotFoundException
       ) {
         throw error;
       }

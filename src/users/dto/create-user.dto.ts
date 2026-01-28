@@ -41,8 +41,10 @@ export class CreateUserDto {
   countryCode?: string;
 
   @MinLength(6, { message: 'Password must be at least 6 characters long' })
-  @Matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*?&]{6,}$/, {
-    message: 'Password must contain at least one letter and one number',
-  })
-  password: string;
+@Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{6,}$/, {
+  message:
+    'Password must contain at least one letter and one number',
+})
+password: string;
+
 }

@@ -6,8 +6,8 @@ import { KycStatus } from '../enums/kyc-status.enum';
 export class Kyc extends Document {
 
   // ✅ Main user (JWT user)
-  @Prop({ required: true, index: true })
-  UserId: string;
+  // @Prop({ required: true, index: true })
+  // UserId: string;
 
   // ✅ Application ID (FROM FRONTEND) ⭐ VERY IMPORTANT
   @Prop({ required: true, index: true })
