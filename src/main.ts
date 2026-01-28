@@ -11,7 +11,7 @@
       // Enable CORS
     app.enableCors({
       //origin: process.env.FRONTEND_URL,
-      origin: ['http://localhost:3000', 'http://localhost:3093/','https://rightbridge.csdevhub.com', 'http://localhost:3001'],
+      origin: ['http://localhost:3000', 'http://localhost:3093/','https://rightbridgeapi.csdevhub.com', 'http://localhost:3001'],
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
