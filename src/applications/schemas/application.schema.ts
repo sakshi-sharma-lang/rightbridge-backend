@@ -251,6 +251,8 @@ additionalInformationDocuments: string[];
 additionalInformationText: string;
 
 
+
+
 @Prop({
   type: {
     creditCheckConsent: { type: Boolean, required: true },
@@ -267,6 +269,10 @@ declarationsAndConsent: {
   marketingEmailConsent?: boolean;
   marketingSmsConsent?: boolean;
 };
+
+
+@Prop({ type: Boolean, default: null })
+dipconditional?: boolean | null;
 
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true })

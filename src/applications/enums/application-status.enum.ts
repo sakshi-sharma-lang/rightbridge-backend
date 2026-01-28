@@ -7,6 +7,5 @@ export enum ApplicationStatus {
   OFFER_SENT = 'offersent_stage',
   COMPLETED = 'completed_stage',
   DECLINE = 'decline_stage',
-  Approved="approved_dip",
-  DipConditional="dip_conditional"
+  Approved="approved_dip"
 }
