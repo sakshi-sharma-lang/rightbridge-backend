@@ -68,10 +68,6 @@ const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN');
 const access_token = this.jwtService.sign(payload); // expiry already applied by JwtModule
 
 
-  //console.log('access_token', access_token, 'expiresIn', expiresIn);
-
-
-  // 📧 Send OTP verification email
   await this.mailService.sendOtpVerificationEmail(
     user.email,
     user.firstName,
