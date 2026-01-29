@@ -144,7 +144,9 @@ async startKyc(@Body() body: any) {
 
         // ================= BUILD KYC LINK =================
         //const link = `${process.env.FRONTEND_URL}/kyc?token=${token}&user=${externalUserId}&applicationId=${applicationId}`;
-      const link = `${process.env.FRONTEND_URL}/kyc#token=${token}&user=${externalUserId}&applicationId=${applicationId}`;
+     const link = `${process.env.FRONTEND_URL}/kyc?token=${token}&user=${externalUserId}&applicationId=${applicationId}`;
+
+
 
         // ================= SEND EMAIL =================
         try {
