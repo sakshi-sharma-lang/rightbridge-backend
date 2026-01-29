@@ -307,6 +307,8 @@ async updateApplicationDetails(
         existingApplication?.property?.estimatedValue
     );
 
+
+
     // 🔴 STEP 3: If BOTH body + DB values are missing → BLOCK UPDATE
     if (isNaN(loanAmount) || isNaN(propertyValue) || propertyValue <= 0) {
       throw new BadRequestException(
@@ -343,6 +345,19 @@ if (ltv > 75) {
     delete safeBody.applicationStatus; 
 
     // 🔹 STEP 6: ORIGINAL UPDATE (UNCHANGED STRUCTURE)
+
+if (safeBody.applicants && Array.isArray(safeBody.applicants)) {
+  safeBody.applicants = safeBody.applicants.map((applicant, index) => {
+    const existingApplicant = existingApplication.applicants?.[index];
+
+    if (existingApplicant?.externalUserId) {
+      applicant.externalUserId = existingApplicant.externalUserId;
+    }
+
+    return applicant;
+  });
+}
+
 
 
     console.log("applicationStatus",body?.applicationStatus);
