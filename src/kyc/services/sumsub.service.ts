@@ -78,18 +78,25 @@ export class SumsubService {
 
         const applicant = await this.getApplicantByExternalUserId(externalUserId);
 
-        if (!applicant?.id) {
-          console.error('❌ Applicant exists but cannot be fetched!');
-          throw new InternalServerErrorException('Failed to fetch existing applicant');
-        }
+             let applicantId =
+        applicant?.id ||
+        applicant?.list?.items?.[0]?.id || // ✅ Sumsub list response
+        null;
 
-        console.log('✅ EXISTING APPLICANT FOUND:', applicant);
+      if (!applicantId) {
+        console.error('❌ Applicant exists but cannot be fetched!');
+        console.error('FULL RESPONSE:', JSON.stringify(applicant, null, 2));
+        throw new InternalServerErrorException('Failed to fetch existing applicant');
+      }
 
-        return {
-          applicantId: applicant.id,
-          levelName: this.levelName,
-          alreadyExists: true,
-        };
+      console.log('✅ EXISTING APPLICANT ID FOUND:', applicantId);
+
+      return {
+        applicantId,
+        levelName: this.levelName,
+        alreadyExists: true,
+      };
+
       }
 
       throw new InternalServerErrorException(
