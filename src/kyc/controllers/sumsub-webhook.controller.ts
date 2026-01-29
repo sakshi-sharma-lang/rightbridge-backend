@@ -1,3 +1,4 @@
+// sumsub-webhook.controller.ts
 import {
   Controller,
   Post,
@@ -26,135 +27,77 @@ export class SumsubWebhookController {
     @Headers('x-sumsub-signature') signature: string,
     @Headers('x-sumsub-timestamp') timestamp: string,
   ) {
-    try {
-      // ================= RAW BODY =================
-      const rawBody =
-        req.rawBody ||
-        (typeof body === 'string' ? body : JSON.stringify(body));
+    const rawBody = req.rawBody || JSON.stringify(body);
 
-      console.log('===== SUMSUB WEBHOOK =====');
-      console.log('TYPE:', body?.type);
-      console.log('APPLICANT:', body?.applicantId);
-
-      // ================= SIGNATURE VERIFY =================
-      if (signature && timestamp) {
-        this.verifySignature(rawBody, signature, timestamp);
-      }
-
-      const { type, applicantId, reviewResult } = body;
-
-      if (!applicantId) {
-        console.log('⚠️ applicantId missing');
-        return { ok: true };
-      }
-
-      // ================= FIND KYC =================
-      const existingKyc = await this.kycModel.findOne({ applicantId });
-
-      if (!existingKyc) {
-        console.warn('⚠️ KYC not found:', applicantId);
-        return { ok: true };
-      }
-
-      // ================= NON-REVIEW EVENTS =================
-      if (type !== 'applicantReviewed') {
-        await this.kycModel.updateOne(
-          { applicantId },
-          {
-            $set: {
-              lastWebhookType: type,
-              rawWebhookPayload: body,
-            },
-          },
-        );
-
-        return { ok: true };
-      }
-
-      // ================= REVIEW RESULT =================
-      const kycAnswer = reviewResult?.reviewAnswer ?? null;
-
-      const amlCheck = reviewResult?.amlCheckResult || {};
-      const amlResult = amlCheck.result ?? null;
-
-      let finalStatus: KycStatus = KycStatus.PENDING;
-
-      if (kycAnswer === 'GREEN' && amlResult !== 'RED') {
-        finalStatus = KycStatus.APPROVED;
-      } else if (kycAnswer === 'RED' || amlResult === 'RED') {
-        finalStatus = KycStatus.REJECTED;
-      } else if (kycAnswer === 'YELLOW' || amlResult === 'YELLOW') {
-        finalStatus = KycStatus.MANUAL_REVIEW;
-      }
-
-      console.log('✅ FINAL STATUS:', finalStatus);
-
-      // ================= UPDATE KYC =================
-      await this.kycModel.updateOne(
-        { applicantId },
-        {
-          $set: {
-            status: finalStatus,
-
-            // ❗ keep immutable fields unchanged
-            reviewAnswer: kycAnswer,
-            reviewRejectType: reviewResult?.reviewRejectType ?? null,
-            reviewComment: reviewResult?.reviewComment ?? null,
-            reviewedAt: reviewResult?.reviewDate
-              ? new Date(reviewResult.reviewDate)
-              : new Date(),
-
-            amlStatus: amlResult ? 'COMPLETED' : 'NOT_STARTED',
-            amlResult,
-            riskLevel: amlCheck.riskLevel ?? null,
-            amlHits: Array.isArray(amlCheck.matchedLists)
-              ? amlCheck.matchedLists
-              : [],
-
-            lastWebhookType: type,
-            rawWebhookPayload: body,
-          },
-        },
-      );
-
-      console.log(
-        `✅ KYC updated | app=${existingKyc.applicationId} | externalUserId=${existingKyc.externalUserId}`,
-      );
-
-      return { ok: true };
-    } catch (error) {
-      console.error('❌ SUMSUB WEBHOOK ERROR:', error?.message || error);
-      return { ok: true }; // Sumsub requires 200 always
+    // ✅ Verify webhook signature
+    if (signature && timestamp) {
+      this.verifySignature(rawBody, signature, timestamp);
     }
+
+    const { applicantId, type, reviewResult } = body;
+
+    if (!applicantId) return { ok: true };
+
+    // ✅ Process only review events
+    if (!['applicantReviewed', 'applicantPending', 'applicantOnHold'].includes(type)) {
+      return { ok: true };
+    }
+
+    const kyc = await this.kycModel.findOne({ applicantId });
+    if (!kyc) return { ok: true };
+
+    // ✅ Extract KYC + AML result safely
+    const kycAnswer = reviewResult?.reviewAnswer || 'PENDING';
+
+    const amlResult =
+      reviewResult?.amlCheckResult?.overallResult ||
+      reviewResult?.amlCheckResult?.result ||
+      'UNKNOWN';
+
+    let status: KycStatus = KycStatus.IN_PROGRESS;
+
+    if (kycAnswer === 'GREEN' && amlResult !== 'RED') {
+      status = KycStatus.APPROVED;
+    } else if (kycAnswer === 'RED' || amlResult === 'RED') {
+      status = KycStatus.REJECTED;
+    } else if (kycAnswer === 'YELLOW' || amlResult === 'YELLOW') {
+      status = KycStatus.MANUAL_REVIEW;
+    }
+
+    // ✅ Prevent overwriting final status
+    if ([KycStatus.APPROVED, KycStatus.REJECTED].includes(kyc.status)) {
+      return { ok: true };
+    }
+
+    await this.kycModel.updateOne(
+      { applicantId },
+      {
+        status,
+        reviewAnswer: kycAnswer,
+        amlResult,
+        rawWebhookPayload: body,
+        reviewedAt: new Date(),
+      },
+    );
+
+    return { ok: true };
   }
 
-  // ================= SIGNATURE VERIFICATION =================
   private verifySignature(rawBody: string, signature: string, timestamp: string) {
-    const secret = process.env.SUMSUB_WEBHOOK_SECRET;
+    const secret = process.env.SUMSUB_WEBHOOK_SECRET?.trim();
 
-    if (!secret) {
-      throw new UnauthorizedException('Sumsub webhook secret not configured');
-    }
+    if (!secret) throw new UnauthorizedException('Webhook secret missing');
 
-    const payload = timestamp + rawBody;
+    // ✅ Correct Sumsub signature payload
+    const payload = timestamp + '.' + rawBody;
 
     const expected = crypto
       .createHmac('sha256', secret)
-      .update(payload, 'utf8')
+      .update(payload)
       .digest('hex');
 
-    // ✅ Prevent crash if lengths differ
-    if (expected.length !== signature.length) {
-      throw new UnauthorizedException('Invalid Sumsub signature');
-    }
-
-    const isValid = crypto.timingSafeEqual(
-      Buffer.from(expected),
-      Buffer.from(signature),
-    );
-
-    if (!isValid) {
-      throw new UnauthorizedException('Invalid Sumsub signature');
+    if (expected !== signature) {
+      throw new UnauthorizedException('Invalid Sumsub webhook signature');
     }
   }
 }

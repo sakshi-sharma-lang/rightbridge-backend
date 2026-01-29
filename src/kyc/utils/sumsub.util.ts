@@ -1,21 +1,25 @@
-import * as crypto from 'crypto';
+import crypto from 'crypto';
 
 export function createSumsubSignature(
+  ts: number,
   method: string,
   path: string,
-  ts: number,
-  body: string = '',
+  body: any = ''
 ) {
-  const secretKey = process.env.SUMSUB_SECRET_KEY;
+  const secretKey = process.env.SUMSUB_SECRET_KEY?.trim();
 
   if (!secretKey) {
-    throw new Error('SUMSUB_SECRET_KEY is missing in environment variables');
+    throw new Error('SUMSUB_SECRET_KEY is missing');
   }
 
-  const payload = ts + method.toUpperCase() + path + body;
+  const normalizedMethod = method.toUpperCase();
+  const normalizedBody =
+    typeof body === 'string' ? body : JSON.stringify(body || '');
+
+  const message = ts + normalizedMethod + path + normalizedBody;
 
   return crypto
-    .createHmac('sha256', secretKey) // ❗ do NOT trim secret key
-    .update(payload, 'utf8')
+    .createHmac('sha256', secretKey)
+    .update(message)
     .digest('hex');
 }

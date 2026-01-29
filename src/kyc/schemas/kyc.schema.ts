@@ -4,24 +4,19 @@ import { KycStatus } from '../enums/kyc-status.enum';
 
 @Schema({ timestamps: true })
 export class Kyc extends Document {
-
-
-  // @Prop({ required: true, index: true })
-  // UserId: string;
-
-
   @Prop({ required: true, index: true })
   applicationId: string;
-
 
   @Prop({ required: true, index: true })
   externalUserId: string;
 
-
   @Prop({ required: true })
+  email: string;
+
+  @Prop()
   applicantId: string;
 
-  @Prop({ required: true })
+  @Prop()
   levelName: string;
 
   @Prop({
@@ -31,40 +26,19 @@ export class Kyc extends Document {
   })
   status: KycStatus;
 
-  @Prop()
-  reviewAnswer: string;
-
-  @Prop()
-  reviewRejectType: string;
-
-  @Prop()
-  reviewComment: string;
-
-  @Prop()
-  reviewedAt: Date;
+  // ===== KYC =====
+  @Prop() reviewAnswer: string;
+  @Prop() reviewRejectType: string;
+  @Prop() reviewComment: string;
+  @Prop() reviewedAt: Date;
 
   // ===== AML =====
-  @Prop({
-    type: String,
-    enum: ['NOT_STARTED', 'PENDING', 'COMPLETED'],
-    default: 'NOT_STARTED',
-  })
+  @Prop({ default: 'NOT_STARTED' })
   amlStatus: string;
 
-  @Prop({
-    type: String,
-    enum: ['GREEN', 'YELLOW', 'RED'],
-  })
-  amlResult: string;
-
-  @Prop({ type: Array })
-  amlHits: any[];
-
-  @Prop({
-    type: String,
-    enum: ['LOW', 'MEDIUM', 'HIGH'],
-  })
-  riskLevel: string;
+  @Prop() amlResult: string;
+  @Prop({ type: Array }) amlHits: any[];
+  @Prop() riskLevel: string;
 
   @Prop({ type: Object })
   rawWebhookPayload: Record<string, any>;
@@ -72,8 +46,5 @@ export class Kyc extends Document {
 
 export const KycSchema = SchemaFactory.createForClass(Kyc);
 
-
-KycSchema.index(
-  { UserId: 1, applicationId: 1 },
-  { unique: true },
-);
+// prevent duplicate applicant
+KycSchema.index({ externalUserId: 1 }, { unique: true });

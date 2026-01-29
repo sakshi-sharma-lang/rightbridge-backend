@@ -1,18 +1,27 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import axios from 'axios';
-import { createSumsubSignature } from '../utils/sumsub.util';
-import * as https from 'https';
-import { URL } from 'url';
-
+import * as crypto from 'crypto';
+import https from 'https'
 @Injectable()
 export class SumsubService {
-  private readonly baseUrl = process.env.SUMSUB_BASE_URL!.trim();
-  private readonly appToken = process.env.SUMSUB_APP_TOKEN!.trim();
-  private readonly levelName = process.env.SUMSUB_LEVEL_NAME!.trim();
+  private readonly baseUrl = process.env.SUMSUB_BASE_URL!;
+  private readonly appToken = process.env.SUMSUB_APP_TOKEN!;
+  private readonly secretKey = process.env.SUMSUB_SECRET_KEY!;
+  private readonly levelName = process.env.SUMSUB_LEVEL_NAME!;
 
-  private buildHeaders(signature: string, ts: number) {
+  // ================= SIGNATURE =================
+  private createSignature(method: string, path: string, ts: number, body = '') {
+    const payload = ts + method.toUpperCase() + path + body;
+
+    return crypto
+      .createHmac('sha256', this.secretKey)
+      .update(payload)
+      .digest('hex');
+  }
+
+  private getHeaders(signature: string, ts: number) {
     return {
-      'X-App-Token': this.appToken,
+      'X-App-Token': this.appToken.trim(),
       'X-App-Access-Sig': signature,
       'X-App-Access-Ts': ts,
       'Content-Type': 'application/json',
@@ -22,60 +31,43 @@ export class SumsubService {
   // ================= CREATE APPLICANT =================
   async createApplicant(externalUserId: string, email?: string) {
     try {
-      if (!this.baseUrl || !this.appToken || !this.levelName) {
-        throw new InternalServerErrorException('Sumsub config missing');
-      }
+      externalUserId = externalUserId.trim();
 
       const ts = Math.floor(Date.now() / 1000);
       const path = `/resources/applicants?levelName=${this.levelName}`;
 
-      const body: any = { externalUserId };
-      if (email) body.email = email;
+      const bodyObj: any = { externalUserId };
+      if (email) bodyObj.email = email;
 
-   
-      const rawBody = JSON.stringify(body);
+      const body = JSON.stringify(bodyObj);
+      const signature = this.createSignature('POST', path, ts, body);
 
-      const signature = createSumsubSignature(
-        'POST',
-        path,
-        ts,
-        rawBody,
-      );
-
-      const res = await axios.post(
-        `${this.baseUrl}${path}`,
-        rawBody, 
-        { headers: this.buildHeaders(signature, ts) },
-      );
+      const res = await axios.post(this.baseUrl + path, body, {
+        headers: this.getHeaders(signature, ts),
+      });
 
       return {
         applicantId: res.data.id,
         levelName: this.levelName,
       };
     } catch (err: any) {
-      const status = err?.response?.status;
       const data = err?.response?.data;
 
-      console.log('SUMSUB CREATE APPLICANT ERROR:', data);
+      console.error('❌ SUMSUB CREATE APPLICANT ERROR:', data);
 
-      // ✅ Applicant already exists in Sumsub
-      if (status === 409) {
+      // ✅ If applicant already exists → fetch applicant by externalUserId
+      if (err?.response?.status === 409) {
+        const applicant = await this.getApplicantByExternalUserId(externalUserId);
+
+        if (!applicant?.id) {
+          throw new InternalServerErrorException('Failed to fetch existing applicant');
+        }
+
         return {
-          applicantId: data?.description?.match(/[a-f0-9]{24}/)?.[0] || null,
+          applicantId: applicant.id,
+          levelName: this.levelName,
           alreadyExists: true,
         };
-      }
-
-      if (status === 401) {
-        throw new InternalServerErrorException(
-          'Sumsub authentication failed (invalid signature or token)',
-        );
-      }
-
-      if (status === 404) {
-        throw new InternalServerErrorException(
-          `Sumsub level not found: ${this.levelName}`,
-        );
       }
 
       throw new InternalServerErrorException(
@@ -84,79 +76,95 @@ export class SumsubService {
     }
   }
 
-  // ================= GENERATE SDK TOKEN =================
-  async generateSdkToken(externalUserId: string): Promise<string> {
+  // ================= GET APPLICANT BY EXTERNAL USER ID =================
+  async getApplicantByExternalUserId(externalUserId: string) {
     try {
-      if (!externalUserId) {
-        throw new InternalServerErrorException('externalUserId is required');
-      }
-
       const ts = Math.floor(Date.now() / 1000);
+      const path = `/resources/applicants/-;externalUserId=${externalUserId}`;
 
-      const path =
-        `/resources/accessTokens?userId=${externalUserId}` +
-        `&levelName=${this.levelName}` +
-        `&ttlInSecs=600`;
+      const signature = this.createSignature('GET', path, ts, '');
 
-      const signature = createSumsubSignature('POST', path, ts, '');
-
-      const url = new URL(`${this.baseUrl}${path}`);
-
-      const options: https.RequestOptions = {
-        method: 'POST',
-        hostname: url.hostname,
-        path: url.pathname + url.search,
-        headers: {
-          'X-App-Token': this.appToken,
-          'X-App-Access-Ts': ts,
-          'X-App-Access-Sig': signature,
-          'Content-Type': 'application/json',
-        },
-      };
-
-      return new Promise((resolve, reject) => {
-        const req = https.request(options, (res) => {
-          let data = '';
-
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => {
-            if (res.statusCode !== 200) {
-              console.error('SUMSUB SDK TOKEN ERROR:', data);
-              return reject(
-                new InternalServerErrorException(
-                  data || 'Failed to generate Sumsub SDK token',
-                ),
-              );
-            }
-
-            try {
-              const parsed = JSON.parse(data);
-              resolve(parsed.token);
-            } catch {
-              reject(
-                new InternalServerErrorException(
-                  'Invalid Sumsub SDK response',
-                ),
-              );
-            }
-          });
-        });
-
-        req.on('error', (err) => {
-          console.error('SUMSUB SDK REQUEST ERROR:', err);
-          reject(
-            new InternalServerErrorException(
-              'Sumsub SDK request failed',
-            ),
-          );
-        });
-
-        req.end();
+      const res = await axios.get(this.baseUrl + path, {
+        headers: this.getHeaders(signature, ts),
       });
+
+      return res.data;
     } catch (err: any) {
-      throw new InternalServerErrorException(
-        err?.message || 'Failed to generate SDK token',
-      );
+      console.error('❌ GET APPLICANT ERROR:', err?.response?.data);
+      return null;
     }
   }
+
+  // ================= GENERATE SDK TOKEN (CORRECT WAY) =================
+async generateSdkToken(applicantId: string): Promise<string> {
+  try {
+    applicantId = applicantId.trim();
+
+    const ts = Math.floor(Date.now() / 1000);
+
+    // ✅ IMPORTANT: build query string once (order must match signature)
+    const query = `ttlInSecs=600&userId=${applicantId}&levelName=${this.levelName}`;
+    const path = `/resources/accessTokens?${query}`;
+
+    const signature = this.createSignature('POST', path, ts, '');
+
+    const url = this.baseUrl + path;
+
+    console.log('====== SUMSUB SDK TOKEN DEBUG ======');
+    console.log('URL:', url);
+    console.log('PATH:', path);
+    console.log('TIMESTAMP:', ts);
+    console.log('SIGNATURE:', signature);
+    console.log('APPLICANT ID:', applicantId);
+
+    return await new Promise((resolve, reject) => {
+      const req = https.request(
+        url,
+        {
+          method: 'POST',
+          headers: {
+            'X-App-Token': this.appToken.trim(),
+            'X-App-Access-Sig': signature,
+            'X-App-Access-Ts': ts.toString(),
+            // ❗ DO NOT send Content-Type or Content-Length
+          },
+        },
+        (res) => {
+          let data = '';
+          res.on('data', (chunk) => (data += chunk));
+          res.on('end', () => {
+            console.log('SUMSUB RESPONSE STATUS:', res.statusCode);
+            console.log('SUMSUB RESPONSE BODY:', data);
+
+            try {
+              const json = JSON.parse(data);
+
+              if (!json.token) {
+                return reject(json);
+              }
+
+              resolve(json.token);
+            } catch (e) {
+              reject(data);
+            }
+          });
+        },
+      );
+
+      req.on('error', (err) => {
+        console.error('HTTPS ERROR:', err);
+        reject(err);
+      });
+
+      req.end(); // ✅ send request with NO BODY
+    });
+  } catch (err: any) {
+    console.error('❌ SDK TOKEN ERROR:', err);
+
+    throw new InternalServerErrorException(
+      err?.description || err?.message || 'Failed to generate SDK token',
+    );
+  }
+}
+
 }

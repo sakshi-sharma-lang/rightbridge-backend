@@ -202,4 +202,19 @@ async sendStageEmail(
   });
 }
 
+async sendKycEmail(email: string, kycLink: string) {
+  const html = this.loadTemplate('kyc-verification.html', {
+    KYC_LINK: kycLink,
+  });
+
+  await this.transporter.sendMail({
+    from: `"RightBridge" <${this.configService.get('SMTP_FROM') || this.configService.get('SMTP_USER')}>`,
+    to: email,
+    subject: 'Complete Your KYC Verification',
+    html,
+  });
+}
+
+
+
 }
