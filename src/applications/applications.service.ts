@@ -214,7 +214,6 @@ async create(
   }
 }
 
-}
   /* ================= GET ================= */
   async findById(id: string, userId: string): Promise<Application> {
     const app = await this.applicationModel.findOne({ _id: id, userId });
