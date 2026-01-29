@@ -54,6 +54,11 @@ export class Application extends Document {
       //   required: false,
       // },
 
+      kycEmailSent: { type: Boolean, default: false },
+      kycEmailSentAt: { type: Date, default: null },
+      kycStarted: { type: Boolean, default: false },
+      kycVerified: { type: Boolean, default: false },
+
       previousAddress: {
         previousResidentialAddress: { type: String },
         previousPostcode: { type: String },

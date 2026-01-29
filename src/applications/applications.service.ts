@@ -49,78 +49,91 @@ async create(
         'You cannot create an application. Your application is already in progress.',
       );
     }
+
     const appId = await this.generateAppId();
     const documentUrls: string[] = [];
     const uploadedHashes = new Set<string>();
+
     if (files.length) {
       const path = require('path');
       const baseDir = path.join('additional-info/docs-uploads', appId);
       fs.mkdirSync(baseDir, { recursive: true });
+
       for (const file of files) {
-        // 🔐 Hash the uploaded file
         const fileHash = this.getFileHash(file.path);
-        // 🚫 Block duplicate inside same request
+
         if (uploadedHashes.has(fileHash)) {
           fs.unlinkSync(file.path);
           throw new BadRequestException(
             `Duplicate file detected: ${file.originalname}`,
           );
         }
+
         uploadedHashes.add(fileHash);
-        // 🚫 Block duplicate from DB (previous uploads)
+
         const duplicate = await this.applicationModel.findOne({
           userId,
           additionalInformationFileHashes: fileHash,
         });
+
         if (duplicate) {
           fs.unlinkSync(file.path);
           throw new BadRequestException(
             `This document was already uploaded for this application.`,
           );
         }
+
         const finalPath = path.join(baseDir, file.filename);
         fs.renameSync(file.path, finalPath);
 
         documentUrls.push(`/${finalPath.replace(/\\/g, '/')}`);
       }
     }
-    //const applicant = body.applicant || {};
+
     const property = body.property || {};
     const loanRequirements = body.loanRequirements || {};
     const financialProfile = body.financialProfile || {};
     const solicitor = body.solicitor || {};
     const additionalInfo = body.additionalInfo || {};
+
+    // ✅ ONLY ADD THIS LINE (IMPORTANT)
+    const { applicants: bodyApplicants, ...safeBody } = body;
+
     const applicants = Array.isArray(body.applicants)
- ? body.applicants.map((a, index) => ({
-      applyingAs: a.applyingAs ?? '',
-      firstName: a.firstName ?? '',
-      lastName: a.lastName ?? '',
-      email: a.email ?? '',
-      mobile: a.mobile ?? '',
-      phoneNumber: a.phoneNumber ?? '',
-      dateOfBirth: a.dateOfBirth ?? '',
-      nationality: a.nationality ?? '',
-      address: a.address ?? '',
-      postcode: a.postcode ?? '',
-      ownershipShare: a.ownershipShare ?? '',
-      ownershipRole: a.ownershipRole ?? '',
-      timeAtAddress: a.timeAtAddress ?? '',
-      numberOfApplicants: a.numberOfApplicants ?? '1',
-      previousAddress: {
-        previousResidentialAddress:
-          a.previousAddress?.previousResidentialAddress ?? '',
-        previousPostcode:
-          a.previousAddress?.previousPostcode ?? '',
-      },
-      companyAddress: a.companyAddress ?? '',
-      companyRegistrationNumber: a.companyRegistrationNumber ?? '',
-         userId: new Types.ObjectId(userId),
-       externalUserId: `${appId}_${userId}_${index + 1}`,
-    }))
-  : [];
+      ? body.applicants.map((a, index) => ({
+          applyingAs: a.applyingAs ?? '',
+          firstName: a.firstName ?? '',
+          lastName: a.lastName ?? '',
+          email: a.email ?? '',
+          mobile: a.mobile ?? '',
+          phoneNumber: a.phoneNumber ?? '',
+          dateOfBirth: a.dateOfBirth ?? '',
+          nationality: a.nationality ?? '',
+          address: a.address ?? '',
+          postcode: a.postcode ?? '',
+          ownershipShare: a.ownershipShare ?? '',
+          ownershipRole: a.ownershipRole ?? '',
+          timeAtAddress: a.timeAtAddress ?? '',
+          numberOfApplicants: a.numberOfApplicants ?? '1',
+          previousAddress: {
+            previousResidentialAddress:
+              a.previousAddress?.previousResidentialAddress ?? '',
+            previousPostcode:
+              a.previousAddress?.previousPostcode ?? '',
+          },
+          companyAddress: a.companyAddress ?? '',
+          companyRegistrationNumber: a.companyRegistrationNumber ?? '',
+          userId: new Types.ObjectId(userId),
+
+          // ✅ backend generated (not from frontend)
+          externalUserId: `${appId}_${userId}_${index + 1}`,
+        }))
+      : [];
+
     const application = new this.applicationModel({
-      ...body, // keep as-is
-      applicants, 
+      ...safeBody, // ✅ ONLY CHANGE HERE (was ...body)
+      applicants,
+
       property: {
         address: property.address ?? '',
         city: property.city ?? '',
@@ -169,37 +182,38 @@ async create(
         howDidYouHear: additionalInfo.howDidYouHear ?? '',
         additionalNotes: additionalInfo.additionalNotes ?? '',
       },
-       additionalInformationDocuments: documentUrls,
+      additionalInformationDocuments: documentUrls,
       additionalInformationText: body.additionalInformationText ?? '',
       appId,
       userId,
       isDraft: true,
     });
 
-const savedApplication = await application.save();
+    const savedApplication = await application.save();
 
-return {
-  success: true,
-  message: 'Application created successfully',
-  data: savedApplication,
-};
-
+    return {
+      success: true,
+      message: 'Application created successfully',
+      data: savedApplication,
+    };
 
   } 
   catch (error) {
-  if (error?.name === 'ValidationError') {
-    const messages = Object.values(error.errors).map(
-      (err: any) => err.message,
-    );
+    if (error?.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(
+        (err: any) => err.message,
+      );
 
-    throw new BadRequestException({
-      message: 'Validation failed',
-      errors: messages,
-    });
+      throw new BadRequestException({
+        message: 'Validation failed',
+        errors: messages,
+      });
+    }
+
+    throw error;
   }
-
-  throw error;
 }
+
 }
   /* ================= GET ================= */
   async findById(id: string, userId: string): Promise<Application> {
