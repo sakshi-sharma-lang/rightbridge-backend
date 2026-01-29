@@ -62,7 +62,8 @@ const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN');
 const access_token = this.jwtService.sign(payload); // expiry already applied by JwtModule
   await this.mailService.sendOtpVerificationEmail(
     user.email,
-    user.firstName,
+      `${user.firstName} ${user.lastName}`, // 👈 merged
+
     otp,
     otp_expiry_time
   );
@@ -165,7 +166,7 @@ async forgotPassword(email: string, type?: string) {
 
     await this.mailService.sendOtpVerificationEmail(
       user.email,
-      user.firstName,
+        `${user.firstName} ${user.lastName}`, // 👈 merged
       otp,
       otp_expiry_time,
     );
@@ -259,7 +260,8 @@ async resetPassword(token: string, newPassword: string) {
 
   await this.mailService.sendWelcomeEmail(
     user.email,
-    user.firstName,
+      `${user.firstName} ${user.lastName}`, // 👈 merged
+
   );
 
   return {

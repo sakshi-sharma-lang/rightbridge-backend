@@ -86,7 +86,7 @@ export class UsersController {
 
   await this.mailService.sendOtpVerificationEmail(
     user.email,
-    user.firstName,
+    `${user.firstName} ${user.lastName || ''}`,
     otp,
     otp_expiry_time,
   );
@@ -217,7 +217,7 @@ if (dto.type === 'FORGOT_PASSWORD') {
   // 📧 Send OTP email
   await this.mailService.sendOtpVerificationEmail(
     user.email,
-    user.firstName,
+    `${user.firstName} ${user.lastName || ''}`,
     otp,
     otp_expiry_time,
   );
