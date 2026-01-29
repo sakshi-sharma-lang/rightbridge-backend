@@ -35,264 +35,207 @@ export class KycController {
   ) {}
 
   // ================= START KYC FOR ALL APPLICANTS =================
- @Post('start-kyc')
-async startKyc(@Body() body: any) {
-  try {
-    const { applicationId } = body;
+  @Post('start-kyc')
+  async startKyc(@Body() body: any) {
+    try {
+      const { applicationId } = body;
 
-    // ================= VALIDATION =================
-    if (!applicationId || typeof applicationId !== 'string') {
-      throw new BadRequestException('applicationId is required and must be a string');
-    }
+      console.log('🚀 START KYC REQUEST:', body);
 
-    const application = await this.applicationModel.findById(applicationId);
-
-    if (!application) {
-      throw new NotFoundException(`Application not found for id: ${applicationId}`);
-    }
-
-    if (!Array.isArray(application.applicants) || application.applicants.length === 0) {
-      throw new NotFoundException(`No applicants found for applicationId: ${applicationId}`);
-    }
-
-    const results: any[] = [];
-
-    // ================= LOOP APPLICANTS =================
-    for (const applicant of application.applicants) {
-      const { externalUserId, email } = applicant;
-
-      // ---------- Applicant validation ----------
-      if (!externalUserId) {
-        results.push({
-          externalUserId: null,
-          email,
-          status: 'FAILED',
-          error: 'externalUserId missing',
-        });
-        continue;
+      if (!applicationId || typeof applicationId !== 'string') {
+        throw new BadRequestException('applicationId is required and must be a string');
       }
 
-      if (!email) {
-        results.push({
-          externalUserId,
-          email: null,
-          status: 'FAILED',
-          error: 'email missing',
-        });
-        continue;
+      const application = await this.applicationModel.findById(applicationId);
+
+      console.log('📦 APPLICATION FOUND:', application?._id);
+
+      if (!application) {
+        throw new NotFoundException(`Application not found for id: ${applicationId}`);
       }
 
-      console.log(`\n🔄 Processing applicant: ${externalUserId}`);
+      if (!Array.isArray(application.applicants) || application.applicants.length === 0) {
+        throw new NotFoundException(`No applicants found for applicationId: ${applicationId}`);
+      }
 
-      try {
-        // ================= FIND KYC =================
-        let kyc = await this.kycModel.findOne({ externalUserId });
+      console.log('👥 TOTAL APPLICANTS:', application.applicants.length);
 
-        // ================= CREATE SUMSUB APPLICANT =================
-        if (!kyc || !kyc.applicantId) {
-          console.log(`🆕 Creating Sumsub applicant for: ${externalUserId}`);
+      const results: any[] = [];
 
-          const created = await this.sumsubService.createApplicant(externalUserId, email);
+      for (const applicant of application.applicants) {
+        const { externalUserId, email } = applicant;
 
-          if (!created?.applicantId) {
-            throw new Error(`Sumsub applicant creation failed`);
+        console.log('\n==============================');
+        console.log('👤 APPLICANT OBJECT:', applicant);
+        console.log('🆔 externalUserId:', externalUserId);
+        console.log('📧 email:', email);
+
+        if (!externalUserId) {
+          results.push({
+            externalUserId: null,
+            email,
+            status: 'FAILED',
+            error: 'externalUserId missing',
+          });
+          continue;
+        }
+
+        if (!email) {
+          results.push({
+            externalUserId,
+            email: null,
+            status: 'FAILED',
+            error: 'email missing',
+          });
+          continue;
+        }
+
+        try {
+          // ✅ FIND APPLICATION USING externalUserId
+          console.log('🔍 Finding application by externalUserId...');
+          const appDoc = await this.applicationModel.findOne({
+            "applicants.externalUserId": externalUserId,
+          });
+
+          console.log('📄 appDoc FOUND:', appDoc?._id);
+
+          if (!appDoc) {
+            throw new Error(`Application not found for externalUserId: ${externalUserId}`);
           }
 
-          kyc = await this.kycModel.findOneAndUpdate(
-            { externalUserId },
-            {
-              applicationId,
-              externalUserId,
-              email,
-              applicantId: created.applicantId,
-              levelName: created.levelName,
-              status: KycStatus.CREATED,
-            },
-            { upsert: true, new: true },
-          );
+          const applicationIdFromDb = appDoc._id.toString();
+          const userId = appDoc.userId;
+
+          console.log('✅ applicationIdFromDb:', applicationIdFromDb);
+          console.log('✅ userId:', userId);
+
+          // ✅ FIND KYC
+          console.log('🔍 Finding KYC record...');
+          let kyc = await this.kycModel.findOne({
+            externalUserId,
+            applicationId: applicationIdFromDb,
+          });
+
+          console.log('📄 KYC FOUND:', kyc);
+
+          // ================= CREATE SUMSUB APPLICANT =================
+          if (!kyc || !kyc.applicantId) {
+            console.log('🆕 Creating Sumsub applicant...');
+
+            const created = await this.sumsubService.createApplicant(externalUserId, email);
+
+            console.log('🧾 SUMSUB CREATE RESPONSE:', created);
+
+            if (!created?.applicantId) {
+              throw new Error(`Sumsub applicant creation failed`);
+            }
+
+            console.log('💾 Saving KYC in DB...');
+            kyc = await this.kycModel.findOneAndUpdate(
+              { externalUserId, applicationId: applicationIdFromDb },
+              {
+                UserId: userId,
+                applicationId: applicationIdFromDb,
+                externalUserId,
+                email,
+                applicantId: created.applicantId,
+                levelName: created.levelName,
+                status: KycStatus.CREATED,
+              },
+              { upsert: true, new: true },
+            );
+
+            console.log('💾 KYC SAVED:', kyc);
+          }
+
+          if (!kyc || !kyc.applicantId) {
+            console.log('❌ KYC NOT FOUND AFTER UPSERT');
+            throw new Error(`Failed to fetch existing applicant`);
+          }
+
+          // ================= GENERATE SDK TOKEN =================
+          console.log('🔑 Generating SDK token...');
+          let token: string;
+          try {
+            token = await this.sumsubService.generateSdkToken(kyc.applicantId);
+          } catch (err: any) {
+            console.error('❌ SDK TOKEN ERROR:', err);
+            throw new Error(`SDK token failed: ${err?.message || 'unknown error'}`);
+          }
+
+          console.log('🎫 SDK TOKEN:', token);
+
+          if (!token) {
+            throw new Error(`SDK token is empty`);
+          }
+
+          // ✅ UPDATE STATUS
+          console.log('📝 Updating KYC status...');
+          if (
+            kyc.status === KycStatus.NOT_STARTED ||
+            kyc.status === KycStatus.CREATED
+          ) {
+            const updateResult = await this.kycModel.updateOne(
+              { externalUserId, applicationId: applicationIdFromDb },
+              { status: KycStatus.LINK_SENT },
+            );
+
+            console.log('📝 STATUS UPDATE RESULT:', updateResult);
+          }
+
+          const link = `${process.env.FRONTEND_URL}/kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}`;
+
+          console.log('🔗 KYC LINK:', link);
+
+          // ================= SEND EMAIL =================
+          try {
+            console.log('📧 Sending email...');
+            await this.mailService.sendKycEmail(email, link);
+            console.log('✅ Email sent successfully');
+          } catch (mailErr: any) {
+            console.error('❌ EMAIL ERROR:', mailErr);
+            throw new Error(`Email sending failed`);
+          }
+
+          results.push({
+            externalUserId,
+            email,
+            applicantId: kyc.applicantId,
+            link,
+            status: 'SUCCESS',
+          });
+
+        } catch (applicantError: any) {
+          console.error(`❌ Applicant failed: ${externalUserId}`);
+          console.error('🔥 ERROR STACK:', applicantError);
+
+          results.push({
+            externalUserId,
+            email,
+            applicantId: '',
+            link: '',
+            status: 'FAILED',
+            error: applicantError?.message,
+          });
         }
-
-        // ================= SAFETY CHECK =================
-        if (!kyc || !kyc.applicantId) {
-          throw new Error(`KYC record not found after creation`);
-        }
-
-        // ================= GENERATE SDK TOKEN =================
-        console.log(`🔑 Generating SDK token for applicantId: ${kyc.applicantId}`);
-
-        let token: string;
-        try {
-          token = await this.sumsubService.generateSdkToken(kyc.applicantId);
-        } catch (err: any) {
-          throw new Error(`SDK token failed: ${err?.message || 'unknown error'}`);
-        }
-
-        if (!token) {
-          throw new Error(`SDK token is empty`);
-        }
-
-        // ================= UPDATE STATUS =================
-        if (
-          kyc.status === KycStatus.NOT_STARTED ||
-          kyc.status === KycStatus.CREATED
-        ) {
-          await this.kycModel.updateOne(
-            { externalUserId },
-            { status: KycStatus.LINK_SENT },
-          );
-        }
-
-        // ================= BUILD KYC LINK =================
-        //const link = `${process.env.FRONTEND_URL}/kyc?token=${token}&user=${externalUserId}&applicationId=${applicationId}`;
-     const link = `${process.env.FRONTEND_URL}/kyc?token=${token}&user=${externalUserId}&applicationId=${applicationId}`;
-
-
-
-        // ================= SEND EMAIL =================
-        try {
-          await this.mailService.sendKycEmail(email, link);
-          console.log(`📧 KYC email sent to: ${email}`);
-        } catch (mailErr: any) {
-          console.error(`❌ Email failed for ${email}`, mailErr?.message);
-          throw new Error(`Email sending failed`);
-        }
-
-        // ================= SUCCESS RESULT =================
-        results.push({
-          externalUserId,
-          email,
-          applicantId: kyc.applicantId,
-          link,
-          status: 'SUCCESS',
-        });
-
-      } catch (applicantError: any) {
-        console.error(`❌ Applicant failed: ${externalUserId}`, applicantError?.message);
-
-        results.push({
-          externalUserId,
-          email,
-          applicantId: '',
-          link: '',
-          status: 'FAILED',
-          error: applicantError?.message,
-        });
       }
-    }
 
-    // ================= FINAL RESPONSE =================
-    return {
-      success: true,
-      applicationId,
-      totalApplicants: application.applicants.length,
-      successCount: results.filter(r => r.status === 'SUCCESS').length,
-      failedCount: results.filter(r => r.status === 'FAILED').length,
-      results,
-    };
+      console.log('📊 FINAL RESULT:', results);
 
-  } catch (error: any) {
-    console.error('❌ START KYC GLOBAL ERROR:', error);
-
-    throw new InternalServerErrorException(
-      error?.message || 'Failed to start KYC process',
-    );
-  }
-}
-
-  // ================= CREATE SINGLE APPLICANT =================
-@Post('create-applicant')
-async createApplicant(@Body() body: any) {
-  try {
-    const { externalUserId, applicationId, email } = body;
-
-    if (!externalUserId) throw new BadRequestException('externalUserId required');
-    if (!applicationId) throw new BadRequestException('applicationId required');
-    if (!email) throw new BadRequestException('email required');
-
-    let kyc = await this.kycModel.findOne({ externalUserId });
-
-    if (kyc?.applicantId) {
       return {
         success: true,
-        applicantId: kyc.applicantId,
-        externalUserId,
-        message: 'Applicant already exists',
-      };
-    }
-
-    const created = await this.sumsubService.createApplicant(externalUserId, email);
-
-    if (!created?.applicantId) {
-      throw new InternalServerErrorException('Sumsub applicant creation failed');
-    }
-
-    kyc = await this.kycModel.findOneAndUpdate(
-      { externalUserId },
-      {
         applicationId,
-        externalUserId,
-        email,
-        applicantId: created.applicantId,
-        levelName: created.levelName,
-        status: KycStatus.CREATED,
-      },
-      { upsert: true, new: true },
-    );
-
-    // ✅ IMPORTANT FIX (TypeScript safety)
-    if (!kyc) {
-      throw new InternalServerErrorException('Failed to create or fetch KYC record');
-    }
-
-    return {
-      success: true,
-      applicantId: kyc.applicantId,
-      externalUserId,
-    };
-  } catch (error) {
-    console.error('❌ create-applicant error:', error);
-
-    throw new InternalServerErrorException(
-      error?.response?.data || error?.message || 'Failed to create applicant',
-    );
-  }
-}
-
-  // ================= GET SDK TOKEN FOR SINGLE APPLICANT =================
-  @Get('sdk-token')
-  async getSdkToken(
-    @Query('applicationId') applicationId: string,
-    @Query('externalUserId') externalUserId: string,
-  ) {
-    try {
-      if (!applicationId) throw new BadRequestException('applicationId required');
-      if (!externalUserId) throw new BadRequestException('externalUserId required');
-
-      const kyc = await this.kycModel.findOne({ externalUserId });
-
-      if (!kyc) throw new NotFoundException('KYC record not found');
-
-      const token = await this.sumsubService.generateSdkToken(kyc.applicantId);
-
-      if (!token) {
-        throw new InternalServerErrorException('SDK token generation failed');
-      }
-
-      await this.kycModel.updateOne(
-        { externalUserId },
-        { status: KycStatus.IN_PROGRESS },
-      );
-
-      return {
-        success: true,
-        token,
-        applicantId: kyc.applicantId,
+        totalApplicants: application.applicants.length,
+        successCount: results.filter(r => r.status === 'SUCCESS').length,
+        failedCount: results.filter(r => r.status === 'FAILED').length,
+        results,
       };
-    } catch (error) {
-      console.error('❌ sdk-token error:', error);
+
+    } catch (error: any) {
+      console.error('❌ START KYC GLOBAL ERROR:', error);
 
       throw new InternalServerErrorException(
-        error?.message || 'Failed to generate SDK token',
+        error?.message || 'Failed to start KYC process',
       );
     }
   }
