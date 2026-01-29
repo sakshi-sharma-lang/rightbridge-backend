@@ -49,8 +49,6 @@ async create(
         'You cannot create an application. Your application is already in progress.',
       );
     }
-
-
     const appId = await this.generateAppId();
     const documentUrls: string[] = [];
     const uploadedHashes = new Set<string>();
@@ -189,7 +187,6 @@ return {
 
   } 
   catch (error) {
-  // ✅ HANDLE MONGOOSE VALIDATION ERRORS CLEANLY
   if (error?.name === 'ValidationError') {
     const messages = Object.values(error.errors).map(
       (err: any) => err.message,
@@ -265,8 +262,6 @@ return {
 //   }
 //   return updated;
 // }
-
-
 
 async updateApplicationDetails(
   id: string,
@@ -691,9 +686,6 @@ if (search) {
         }`.trim(),
         email: application?.applicants?.[0]?.email ?? '',
       },
-
-
-
       loan: {
         amount: loanAmount,
         propertyValue,

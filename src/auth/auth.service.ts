@@ -97,7 +97,7 @@ console.log("access_token",access_token);
       error: null,
       statusCode: 200,
     access_token: this.jwtService.sign(payload),
-    expiresIn: '8h',
+    expiresIn: '2m',
     user,
 
     applicationId: isBlocked ? null : application._id,

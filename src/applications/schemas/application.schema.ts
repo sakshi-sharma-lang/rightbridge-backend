@@ -2,8 +2,6 @@ import { Prop, Schema, SchemaFactory, raw } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import * as mongoose from 'mongoose';
 import { ApplicationStatus } from '../enums/application-status.enum';
-
-
 @Schema({ timestamps: true })
 export class Application extends Document {
 
@@ -29,7 +27,6 @@ export class Application extends Document {
     min: 1,
   })
   totalOwnershipShare: number;
-
   /* ================= POPUP + FORM: APPLICANT ================= */
 @Prop({
   type: [
@@ -47,15 +44,11 @@ export class Application extends Document {
       ownershipShare: { type: Number, required: true }, 
       ownershipRole: { type: String, required: true },  
       externalUserId: { type: String, required: false },
-      
-      
       timeAtAddress: {
         type: String,
         required: true,
         enum: ['Under 3 years', '3 years or more'],
       },
-
-  
       // numberOfApplicants: {
       //   type: String,
       //   required: false,
@@ -85,15 +78,15 @@ applicants: Record<string, any>[];
     postcode: String,
     propertyType: String,
     propertyStatus: String,
-    ownershipStatus: String,   // radio: owned by me / another entity / purchase
+    ownershipStatus: String,   
     estimatedValue: Number,
     rentalIncome: Number,
     purchasePrice: Number,
-    hasOutstandingMortgage: String,   // Yes / No
+    hasOutstandingMortgage: String,  
     existingMortgageDetails: {
     lenderName: String,
     amountOutstanding: Number,
-    paymentsUpToDate: String,       // Yes / No
+    paymentsUpToDate: String,     
     amountInArrears: Number,
   },
    entityDetails: {
@@ -107,7 +100,6 @@ applicants: Record<string, any>[];
   }))
 
   property: Record<string, any>;
-
   /* ================= POPUP + FORM: LOAN ================= */
   @Prop(raw({
     loanAmount: Number,
@@ -167,7 +159,6 @@ applicants: Record<string, any>[];
     additionalNotes: String,
   }))
   additionalInfo: Record<string, any>;
-
   /* ================= CONSENTS ================= */
   @Prop({
     type: [
@@ -181,7 +172,6 @@ applicants: Record<string, any>[];
   consents: { key: string; value: boolean }[];
 
   /* ================= STATUS ================= */
-
   @Prop({
   type: String,
   enum: Object.values(ApplicationStatus),
@@ -189,9 +179,6 @@ applicants: Record<string, any>[];
 
 })
 status: ApplicationStatus;
-
-
-
   @Prop({
     type: [String],
     default: [],
@@ -203,7 +190,6 @@ status: ApplicationStatus;
   default: null,
 })
 rejectReason?: string;
-
   @Prop({ default: true })
   isDraft: boolean;
 
@@ -212,7 +198,6 @@ rejectReason?: string;
 
       @Prop()
   createdAt: Date;
-
   @Prop()
   updatedAt: Date;
 
@@ -224,19 +209,13 @@ rejectReason?: string;
   priority: string;
   underwriter: string;
 
-
 @Prop({
   type: [String],
   default: [],
 })
 application_stage_management: string[];
 
-
-
-
 commitment_fee: number;
-
-
 
 @Prop({
   type: [String],      // stores only file URLs
@@ -249,8 +228,6 @@ additionalInformationDocuments: string[];
   default: '',
 })
 additionalInformationText: string;
-
-
 
 
 @Prop({
@@ -270,10 +247,8 @@ declarationsAndConsent: {
   marketingSmsConsent?: boolean;
 };
 
-
 @Prop({ type: Boolean, default: null })
 dipconditional?: boolean | null;
-
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true })
   userId: any;
