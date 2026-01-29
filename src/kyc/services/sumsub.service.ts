@@ -34,8 +34,11 @@ export class SumsubService {
     try {
       externalUserId = externalUserId.trim();
 
-      console.log('====== CREATE APPLICANT DEBUG ======');
+      console.log('\n================ CREATE APPLICANT =================');
       console.log('EXTERNAL USER ID:', externalUserId);
+      console.log('EMAIL:', email);
+      console.log('LEVEL NAME:', this.levelName);
+      console.log('BASE URL:', this.baseUrl);
 
       const ts = Math.floor(Date.now() / 1000);
       const path = `/resources/applicants?levelName=${this.levelName}`;
@@ -47,34 +50,40 @@ export class SumsubService {
       const signature = this.createSignature('POST', path, ts, body);
 
       console.log('PATH:', path);
-      console.log('SIGNATURE:', signature);
-      console.log('TS:', ts);
       console.log('BODY:', body);
+      console.log('SIGNATURE:', signature);
+      console.log('TIMESTAMP:', ts);
 
       const res = await axios.post(this.baseUrl + path, body, {
         headers: this.getHeaders(signature, ts),
       });
 
-      console.log('✅ APPLICANT CREATED:', res.data);
+      console.log('✅ APPLICANT CREATED SUCCESSFULLY:', res.data);
 
       return {
         applicantId: res.data.id,
         levelName: this.levelName,
       };
     } catch (err: any) {
-      const data = err?.response?.data;
+      console.error('\n❌ CREATE APPLICANT ERROR =================');
+      console.error('STATUS:', err?.response?.status);
+      console.error('DATA:', err?.response?.data);
+      console.error('MESSAGE:', err?.message);
 
-      console.error('❌ SUMSUB CREATE APPLICANT ERROR:', data);
+      const data = err?.response?.data;
 
       // ✅ If applicant already exists → fetch applicant by externalUserId
       if (err?.response?.status === 409) {
-        console.log('⚠️ Applicant already exists, fetching from Sumsub...');
+        console.log('⚠️ Applicant already exists. Fetching from Sumsub...');
 
         const applicant = await this.getApplicantByExternalUserId(externalUserId);
 
         if (!applicant?.id) {
+          console.error('❌ Applicant exists but cannot be fetched!');
           throw new InternalServerErrorException('Failed to fetch existing applicant');
         }
+
+        console.log('✅ EXISTING APPLICANT FOUND:', applicant);
 
         return {
           applicantId: applicant.id,
@@ -84,7 +93,7 @@ export class SumsubService {
       }
 
       throw new InternalServerErrorException(
-        data?.description || 'Sumsub applicant creation failed',
+        data?.description || err?.message || 'Sumsub applicant creation failed',
       );
     }
   }
@@ -98,15 +107,15 @@ export class SumsubService {
       const encodedId = encodeURIComponent(externalUserId);
 
       const path = `/resources/applicants/-;externalUserId=${encodedId}`;
-
       const signature = this.createSignature('GET', path, ts, '');
 
-      console.log('====== GET APPLICANT DEBUG ======');
+      console.log('\n================ GET APPLICANT =================');
       console.log('EXTERNAL USER ID:', externalUserId);
       console.log('ENCODED ID:', encodedId);
       console.log('PATH:', path);
       console.log('SIGNATURE:', signature);
-      console.log('TS:', ts);
+      console.log('TIMESTAMP:', ts);
+      console.log('URL:', this.baseUrl + path);
 
       const res = await axios.get(this.baseUrl + path, {
         headers: this.getHeaders(signature, ts),
@@ -116,8 +125,12 @@ export class SumsubService {
 
       return res.data;
     } catch (err: any) {
-      console.error('❌ GET APPLICANT ERROR STATUS:', err?.response?.status);
-      console.error('❌ GET APPLICANT ERROR DATA:', err?.response?.data);
+      console.error('\n❌ GET APPLICANT ERROR =================');
+      console.error('STATUS:', err?.response?.status);
+      console.error('DATA:', err?.response?.data);
+      console.error('MESSAGE:', err?.message);
+      console.error('EXTERNAL USER ID:', externalUserId);
+
       return null;
     }
   }
@@ -128,21 +141,18 @@ export class SumsubService {
       applicantId = applicantId.trim();
 
       const ts = Math.floor(Date.now() / 1000);
-
-      // ✅ IMPORTANT: build query string once (order must match signature)
       const query = `ttlInSecs=600&userId=${applicantId}&levelName=${this.levelName}`;
       const path = `/resources/accessTokens?${query}`;
-
       const signature = this.createSignature('POST', path, ts, '');
 
       const url = this.baseUrl + path;
 
-      console.log('====== SUMSUB SDK TOKEN DEBUG ======');
-      console.log('URL:', url);
-      console.log('PATH:', path);
-      console.log('TIMESTAMP:', ts);
-      console.log('SIGNATURE:', signature);
+      console.log('\n================ GENERATE SDK TOKEN =================');
       console.log('APPLICANT ID:', applicantId);
+      console.log('PATH:', path);
+      console.log('URL:', url);
+      console.log('SIGNATURE:', signature);
+      console.log('TIMESTAMP:', ts);
 
       return await new Promise((resolve, reject) => {
         const req = https.request(
@@ -153,7 +163,6 @@ export class SumsubService {
               'X-App-Token': this.appToken.trim(),
               'X-App-Access-Sig': signature,
               'X-App-Access-Ts': ts.toString(),
-              // ❗ DO NOT send Content-Type or Content-Length
             },
           },
           (res) => {
@@ -183,10 +192,11 @@ export class SumsubService {
           reject(err);
         });
 
-        req.end(); // ✅ send request with NO BODY
+        req.end();
       });
     } catch (err: any) {
-      console.error('❌ SDK TOKEN ERROR:', err);
+      console.error('\n❌ SDK TOKEN ERROR =================');
+      console.error(err);
 
       throw new InternalServerErrorException(
         err?.description || err?.message || 'Failed to generate SDK token',
