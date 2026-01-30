@@ -154,10 +154,7 @@ export class KycController {
           let token: string;
 
           try {
-            token = await this.sumsubService.generateSdkToken(
-              applicantId,
-              externalUserId,
-            );
+            token = await this.sumsubService.generateSdkToken(applicantId);
           } catch (err: any) {
             console.error('❌ SDK TOKEN ERROR:', err);
             throw new Error(`SDK token failed: ${err?.message || 'unknown error'}`);
@@ -181,7 +178,8 @@ export class KycController {
             );
           }
 
-          const link = `${process.env.FRONTEND_URL}kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}`;
+          // ✅ Build KYC link with applicantId (FIXED)
+          const link = `${process.env.FRONTEND_URL}kyc?token=${token}&user=${externalUserId}&applicantId=${applicantId}&applicationId=${applicationIdFromDb}`;
 
           console.log('🔗 KYC LINK:', link);
 

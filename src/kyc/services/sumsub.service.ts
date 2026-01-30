@@ -100,53 +100,50 @@ export class SumsubService {
   }
 
   // ================= GENERATE SDK TOKEN =================
-  async generateSdkToken(applicantId: string, externalUserId: string): Promise<string> {
-    try {
-      applicantId = applicantId.trim();
-      externalUserId = externalUserId.trim();
+ async generateSdkToken(applicantId: string): Promise<string> {
+  try {
+    applicantId = applicantId.trim();
 
-      console.log('APPLICANT ID:', applicantId); // ✅ added (so param is used)
+    const ts = Math.floor(Date.now() / 1000);
+    const query = `ttlInSecs=600&userId=${applicantId}&levelName=${this.levelName}`;
+    const path = `/resources/accessTokens?${query}`;
+    const signature = this.createSignature('POST', path, ts, '');
 
-      const ts = Math.floor(Date.now() / 1000);
-      const query = `ttlInSecs=600&userId=${externalUserId}&levelName=${this.levelName}`;
-      const path = `/resources/accessTokens?${query}`;
-      const signature = this.createSignature('POST', path, ts, '');
+    const url = this.baseUrl + path;
 
-      const url = this.baseUrl + path;
-
-      return await new Promise((resolve, reject) => {
-        const req = https.request(
-          url,
-          {
-            method: 'POST',
-            headers: {
-              'X-App-Token': this.appToken.trim(),
-              'X-App-Access-Sig': signature,
-              'X-App-Access-Ts': ts.toString(),
-            },
+    return await new Promise((resolve, reject) => {
+      const req = https.request(
+        url,
+        {
+          method: 'POST',
+          headers: {
+            'X-App-Token': this.appToken.trim(),
+            'X-App-Access-Sig': signature,
+            'X-App-Access-Ts': ts.toString(),
           },
-          (res) => {
-            let data = '';
-            res.on('data', (chunk) => (data += chunk));
-            res.on('end', () => {
-              try {
-                const json = JSON.parse(data);
-                if (!json.token) return reject(json);
-                resolve(json.token);
-              } catch (e) {
-                reject(data);
-              }
-            });
-          },
-        );
-
-        req.on('error', reject);
-        req.end();
-      });
-    } catch (err: any) {
-      throw new InternalServerErrorException(
-        err?.message || 'Failed to generate SDK token',
+        },
+        (res) => {
+          let data = '';
+          res.on('data', (chunk) => (data += chunk));
+          res.on('end', () => {
+            try {
+              const json = JSON.parse(data);
+              if (!json.token) return reject(json);
+              resolve(json.token);
+            } catch (e) {
+              reject(data);
+            }
+          });
+        },
       );
-    }
+
+      req.on('error', reject);
+      req.end();
+    });
+  } catch (err: any) {
+    throw new InternalServerErrorException(
+      err?.message || 'Failed to generate SDK token',
+    );
   }
+}
 }
