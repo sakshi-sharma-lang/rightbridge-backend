@@ -32,7 +32,6 @@ export class KycController {
     private readonly applicationModel: Model<Application>,
   ) {}
 
-  // ================= START KYC FOR ALL APPLICANTS =================
   @Post('start-kyc')
   async startKyc(@Body() body: any) {
     try {
@@ -59,6 +58,9 @@ export class KycController {
       console.log('👥 TOTAL APPLICANTS:', application.applicants.length);
 
       const results: any[] = [];
+
+      // ✅ ADD THIS LINE (ONLY NEW LINE)
+      const emailPromises: Promise<any>[] = [];
 
       for (const applicant of application.applicants) {
         const { externalUserId, email } = applicant;
@@ -89,7 +91,6 @@ export class KycController {
         }
 
         try {
-          // ✅ FIND APPLICATION USING externalUserId
           const appDoc = await this.applicationModel.findOne({
             'applicants.externalUserId': externalUserId,
           });
@@ -101,7 +102,6 @@ export class KycController {
           const applicationIdFromDb = appDoc._id.toString();
           const userId = appDoc.userId;
 
-          // ================= FIND KYC (ONE KYC PER APPLICANT) =================
           console.log('🔍 Finding KYC record...');
           let kyc = await this.kycModel.findOne({ externalUserId });
 
@@ -109,9 +109,7 @@ export class KycController {
 
           let applicantId: string;
 
-          // ================= CREATE OR REUSE SUMSUB APPLICANT =================
           if (kyc && kyc.applicantId) {
-            // ✅ Reuse existing applicantId
             applicantId = kyc.applicantId;
             console.log('♻️ Reusing existing applicantId:', applicantId);
           } else {
@@ -149,7 +147,6 @@ export class KycController {
             throw new Error(`Failed to fetch applicantId`);
           }
 
-          // ================= GENERATE SDK TOKEN =================
           console.log('🔑 Generating SDK token...');
           let token: string;
 
@@ -166,7 +163,6 @@ export class KycController {
             throw new Error(`SDK token is empty`);
           }
 
-          // ================= UPDATE STATUS =================
           console.log('📝 Updating KYC status...');
           if (
             kyc?.status === KycStatus.NOT_STARTED ||
@@ -178,19 +174,18 @@ export class KycController {
             );
           }
 
-          // ✅ Build KYC link with applicantId (FIXED)
           const link = `${process.env.FRONTEND_URL}kyc?token=${token}&user=${externalUserId}&applicantId=${applicantId}&applicationId=${applicationIdFromDb}`;
 
           console.log('🔗 KYC LINK:', link);
 
-          // ================= SEND EMAIL =================
-          try {
-            console.log('📧 Sending email...');
-            await this.mailService.sendKycEmail(email, link);
-            console.log('✅ Email sent successfully');
-          } catch (mailErr: any) {
-            console.error('❌ EMAIL ERROR:', mailErr);
-          }
+          // ✅ FIXED EMAIL LOGIC (ONLY CHANGE)
+          console.log('📧 Queueing email for:', email);
+
+          emailPromises.push(
+            this.mailService.sendKycEmail(email, link)
+              .then(() => console.log('✅ Email sent:', email))
+              .catch(err => console.error('❌ Email failed:', email, err))
+          );
 
           results.push({
             externalUserId,
@@ -199,6 +194,7 @@ export class KycController {
             link,
             status: 'SUCCESS',
           });
+
         } catch (applicantError: any) {
           console.error(`❌ Applicant failed: ${externalUserId}`);
           console.error('🔥 ERROR STACK:', applicantError);
@@ -214,6 +210,10 @@ export class KycController {
         }
       }
 
+      // ✅ ADD THIS LINE (ONLY NEW LINE)
+      await Promise.all(emailPromises);
+      console.log('📨 All emails processed');
+
       console.log('📊 FINAL RESULT:', results);
 
       return {
@@ -224,6 +224,7 @@ export class KycController {
         failedCount: results.filter((r) => r.status === 'FAILED').length,
         results,
       };
+
     } catch (error: any) {
       console.error('❌ START KYC GLOBAL ERROR:', error);
 
