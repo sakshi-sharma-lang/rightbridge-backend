@@ -183,7 +183,7 @@ export class KycController {
             console.log('📝 STATUS UPDATE RESULT:', updateResult);
           }
 
-          const link = `${process.env.FRONTEND_URL}/kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}`;
+          const link = `${process.env.FRONTEND_URL}kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}`;
 
           console.log('🔗 KYC LINK:', link);
 
