@@ -100,7 +100,7 @@ export class SumsubService {
   }
 
   // ================= GENERATE SDK TOKEN =================
- async generateSdkToken(applicantId: string): Promise<string> {
+async generateSdkToken(applicantId: string, retries = 3): Promise<string> {
   try {
     applicantId = applicantId.trim();
 
@@ -141,9 +141,15 @@ export class SumsubService {
       req.end();
     });
   } catch (err: any) {
-    throw new InternalServerErrorException(
-      err?.message || 'Failed to generate SDK token',
-    );
+    // ✅ RETRY LOGIC
+    if (retries > 0) {
+      console.log(`🔁 Retrying Sumsub API... (${retries})`);
+      await new Promise(r => setTimeout(r, 2000)); // wait 2 sec
+      return this.generateSdkToken(applicantId, retries - 1);
+    }
+
+    throw new Error(err?.message || 'Failed to generate SDK token');
   }
 }
+
 }
