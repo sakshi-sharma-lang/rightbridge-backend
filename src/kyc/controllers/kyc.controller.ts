@@ -1,9 +1,7 @@
 import {
   Controller,
   Post,
-  Get,
   Body,
-  Query,
   InternalServerErrorException,
   NotFoundException,
   BadRequestException,
@@ -92,12 +90,9 @@ export class KycController {
 
         try {
           // ✅ FIND APPLICATION USING externalUserId
-          console.log('🔍 Finding application by externalUserId...');
           const appDoc = await this.applicationModel.findOne({
-            "applicants.externalUserId": externalUserId,
+            'applicants.externalUserId': externalUserId,
           });
-
-          console.log('📄 appDoc FOUND:', appDoc?._id);
 
           if (!appDoc) {
             throw new Error(`Application not found for externalUserId: ${externalUserId}`);
@@ -106,20 +101,20 @@ export class KycController {
           const applicationIdFromDb = appDoc._id.toString();
           const userId = appDoc.userId;
 
-          console.log('✅ applicationIdFromDb:', applicationIdFromDb);
-          console.log('✅ userId:', userId);
-
-          // ✅ FIND KYC
+          // ================= FIND KYC (ONE KYC PER APPLICANT) =================
           console.log('🔍 Finding KYC record...');
-          let kyc = await this.kycModel.findOne({
-            externalUserId,
-            applicationId: applicationIdFromDb,
-          });
+          let kyc = await this.kycModel.findOne({ externalUserId });
 
           console.log('📄 KYC FOUND:', kyc);
 
-          // ================= CREATE SUMSUB APPLICANT =================
-          if (!kyc || !kyc.applicantId) {
+          let applicantId: string;
+
+          // ================= CREATE OR REUSE SUMSUB APPLICANT =================
+          if (kyc && kyc.applicantId) {
+            // ✅ Reuse existing applicantId
+            applicantId = kyc.applicantId;
+            console.log('♻️ Reusing existing applicantId:', applicantId);
+          } else {
             console.log('🆕 Creating Sumsub applicant...');
 
             const created = await this.sumsubService.createApplicant(externalUserId, email);
@@ -130,15 +125,17 @@ export class KycController {
               throw new Error(`Sumsub applicant creation failed`);
             }
 
+            applicantId = created.applicantId;
+
             console.log('💾 Saving KYC in DB...');
             kyc = await this.kycModel.findOneAndUpdate(
-              { externalUserId, applicationId: applicationIdFromDb },
+              { externalUserId },
               {
                 UserId: userId,
                 applicationId: applicationIdFromDb,
                 externalUserId,
                 email,
-                applicantId: created.applicantId,
+                applicantId,
                 levelName: created.levelName,
                 status: KycStatus.CREATED,
               },
@@ -148,9 +145,8 @@ export class KycController {
             console.log('💾 KYC SAVED:', kyc);
           }
 
-          if (!kyc || !kyc.applicantId) {
-            console.log('❌ KYC NOT FOUND AFTER UPSERT');
-            throw new Error(`Failed to fetch existing applicant`);
+          if (!applicantId) {
+            throw new Error(`Failed to fetch applicantId`);
           }
 
           // ================= GENERATE SDK TOKEN =================
@@ -159,8 +155,8 @@ export class KycController {
 
           try {
             token = await this.sumsubService.generateSdkToken(
-              kyc.applicantId,
-              externalUserId, // ✅ FIXED
+              applicantId,
+              externalUserId,
             );
           } catch (err: any) {
             console.error('❌ SDK TOKEN ERROR:', err);
@@ -173,18 +169,16 @@ export class KycController {
             throw new Error(`SDK token is empty`);
           }
 
-          // ✅ UPDATE STATUS
+          // ================= UPDATE STATUS =================
           console.log('📝 Updating KYC status...');
           if (
-            kyc.status === KycStatus.NOT_STARTED ||
-            kyc.status === KycStatus.CREATED
+            kyc?.status === KycStatus.NOT_STARTED ||
+            kyc?.status === KycStatus.CREATED
           ) {
-            const updateResult = await this.kycModel.updateOne(
-              { externalUserId, applicationId: applicationIdFromDb },
+            await this.kycModel.updateOne(
+              { externalUserId },
               { status: KycStatus.LINK_SENT },
             );
-
-            console.log('📝 STATUS UPDATE RESULT:', updateResult);
           }
 
           const link = `${process.env.FRONTEND_URL}kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}`;
@@ -198,17 +192,15 @@ export class KycController {
             console.log('✅ Email sent successfully');
           } catch (mailErr: any) {
             console.error('❌ EMAIL ERROR:', mailErr);
-            throw new Error(`Email sending failed`);
           }
 
           results.push({
             externalUserId,
             email,
-            applicantId: kyc.applicantId,
+            applicantId,
             link,
             status: 'SUCCESS',
           });
-
         } catch (applicantError: any) {
           console.error(`❌ Applicant failed: ${externalUserId}`);
           console.error('🔥 ERROR STACK:', applicantError);
@@ -230,11 +222,10 @@ export class KycController {
         success: true,
         applicationId,
         totalApplicants: application.applicants.length,
-        successCount: results.filter(r => r.status === 'SUCCESS').length,
-        failedCount: results.filter(r => r.status === 'FAILED').length,
+        successCount: results.filter((r) => r.status === 'SUCCESS').length,
+        failedCount: results.filter((r) => r.status === 'FAILED').length,
         results,
       };
-
     } catch (error: any) {
       console.error('❌ START KYC GLOBAL ERROR:', error);
 
