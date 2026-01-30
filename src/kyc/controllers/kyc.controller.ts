@@ -30,7 +30,7 @@ export class KycController {
     try {
       const { applicationId } = body;
 
-      console.log('🚀 START KYC REQUEST:', body);
+    //  console.log('🚀 START KYC REQUEST:', body);
 
       if (!applicationId || typeof applicationId !== 'string') {
         throw new BadRequestException('applicationId is required and must be a string');
@@ -46,7 +46,7 @@ export class KycController {
         throw new NotFoundException(`No applicants found in application`);
       }
 
-      console.log('👥 TOTAL APPLICANTS:', application.applicants.length);
+      //console.log('👥 TOTAL APPLICANTS:', application.applicants.length);
 
       const results: any[] = [];
 
@@ -54,8 +54,8 @@ export class KycController {
       for (const applicant of application.applicants) {
         const { externalUserId, email } = applicant;
 
-        console.log('\n==============================');
-        console.log('👤 APPLICANT:', applicant);
+       // console.log('\n==============================');
+       // console.log('👤 APPLICANT:', applicant);
 
         if (!externalUserId) {
           results.push({
@@ -89,9 +89,9 @@ export class KycController {
           // ✅ Reuse applicantId if exists
           if (kyc?.applicantId) {
             applicantId = kyc.applicantId;
-            console.log('♻️ Reusing applicantId:', applicantId);
+           // console.log('♻️ Reusing applicantId:', applicantId);
           } else {
-            console.log('🆕 Creating Sumsub applicant...');
+            //  console.log('🆕 Creating Sumsub applicant...');
 
             const created = await this.sumsubService.createApplicant(externalUserId, email);
 
@@ -131,7 +131,7 @@ export class KycController {
             throw new Error('SDK token generation failed');
           }
 
-          console.log('🎫 SDK TOKEN GENERATED');
+         // console.log('🎫 SDK TOKEN GENERATED');
 
           // ✅ ALWAYS update status + resend link
           await this.kycModel.updateOne(
@@ -181,7 +181,7 @@ export class KycController {
         }
       }
 
-      console.log('📊 FINAL RESULT:', results);
+    //  console.log('📊 FINAL RESULT:', results);
 
       return {
         success: true,
@@ -193,7 +193,7 @@ export class KycController {
       };
 
     } catch (error: any) {
-      console.error('❌ START KYC ERROR:', error);
+     // console.error('❌ START KYC ERROR:', error);
 
       throw new InternalServerErrorException(
         error?.message || 'Failed to start KYC process',
