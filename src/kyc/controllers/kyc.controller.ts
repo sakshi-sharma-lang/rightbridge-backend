@@ -149,25 +149,27 @@ export class KycController {
 
          console.log('📧 Sending email to:', email);
 
-        const mailResult = await this.mailService.sendKycEmail(email, link);
+       const mailResult = await this.mailService.sendKycEmail(email, link);
 
-        if (!mailResult.success) {
-          console.error('❌ Email failed:', email, mailResult.error);
+if (!mailResult.success) {
+  console.error('❌ Email failed:', email, mailResult.error);
 
-          results.push({
-            externalUserId,
-            email,
-            applicantId,
-            link,
-            status: 'EMAIL_FAILED',
-            error: mailResult.error, // ✅ exact SMTP error returned in API
-          });
+  results.push({
+    externalUserId,
+    email,
+    applicantId,
+    link,
+    status: 'EMAIL_FAILED',
+    error: mailResult.error,
+  });
 
-          continue; // ✅ move to next user
-        }
+  continue;
+}
 
-        console.log('✅ Email sent:', email);
+console.log('✅ Email sent:', email);
 
+// ✅ ADD DELAY HERE (IMPORTANT)
+await new Promise(resolve => setTimeout(resolve, 2000)); // 2 seconds
 
           results.push({
             externalUserId,

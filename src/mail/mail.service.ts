@@ -21,10 +21,10 @@ export class MailService {
       },
 
       // ✅ REQUIRED FOR MULTIPLE EMAILS
-      pool: true,
-      maxConnections: 5,
-      maxMessages: Infinity,
-      rateLimit: 115, // optional (emails per second)
+   pool: true,
+  maxConnections: 1,  
+  maxMessages: 100,
+  rateLimit: 1,         
     });
   }
 
