@@ -156,8 +156,12 @@ export class KycController {
           // ================= GENERATE SDK TOKEN =================
           console.log('🔑 Generating SDK token...');
           let token: string;
+
           try {
-            token = await this.sumsubService.generateSdkToken(kyc.applicantId);
+            token = await this.sumsubService.generateSdkToken(
+              kyc.applicantId,
+              externalUserId, // ✅ FIXED
+            );
           } catch (err: any) {
             console.error('❌ SDK TOKEN ERROR:', err);
             throw new Error(`SDK token failed: ${err?.message || 'unknown error'}`);
