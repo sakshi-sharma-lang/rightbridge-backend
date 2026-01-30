@@ -203,17 +203,35 @@ async sendStageEmail(
 }
 
 async sendKycEmail(email: string, kycLink: string) {
-  const html = this.loadTemplate('kyc-verification.html', {
-    KYC_LINK: kycLink,
-  });
+  try {
+    const html = await this.loadTemplate('kyc-verification.html', {
+      KYC_LINK: kycLink,
+    });
 
-  await this.transporter.sendMail({
-    from: `"RightBridge" <${this.configService.get('SMTP_FROM') || this.configService.get('SMTP_USER')}>`,
-    to: email,
-    subject: 'Complete Your KYC Verification',
-    html,
-  });
+    const info = await this.transporter.sendMail({
+      from: `"RightBridge" <${this.configService.get('SMTP_FROM') || this.configService.get('SMTP_USER')}>`,
+      to: email,
+      subject: 'Complete Your KYC Verification',
+      html,
+    });
+
+    console.log('✅ Email sent successfully:', email);
+
+    return {
+      success: true,
+      messageId: info.messageId,
+    };
+  } catch (error: any) {
+    console.error('❌ Email sending failed:', email);
+    console.error('❌ SMTP Error:', error?.message || error);
+
+    return {
+      success: false,
+      error: error?.message || error,
+    };
+  }
 }
+
 
 
 

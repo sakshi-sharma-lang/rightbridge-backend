@@ -147,17 +147,27 @@ export class KycController {
 
           console.log('🔗 KYC LINK:', link);
 
-          // ✅ Send email EVERY TIME
-          try {
-            console.log('📧 Sending email to:', email);
-            await this.mailService.sendKycEmail(email, link);
-            console.log('✅ Email sent:', email);
+         console.log('📧 Sending email to:', email);
 
-            // ✅ Delay to avoid SMTP blocking
-            await new Promise(resolve => setTimeout(resolve, 1500));
-          } catch (mailErr) {
-            console.error('❌ Email failed:', email, mailErr);
-          }
+        const mailResult = await this.mailService.sendKycEmail(email, link);
+
+        if (!mailResult.success) {
+          console.error('❌ Email failed:', email, mailResult.error);
+
+          results.push({
+            externalUserId,
+            email,
+            applicantId,
+            link,
+            status: 'EMAIL_FAILED',
+            error: mailResult.error, // ✅ exact SMTP error returned in API
+          });
+
+          continue; // ✅ move to next user
+        }
+
+        console.log('✅ Email sent:', email);
+
 
           results.push({
             externalUserId,
