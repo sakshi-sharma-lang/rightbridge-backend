@@ -141,13 +141,47 @@ console.log("access_token",access_token);
 
 async forgotPassword(email: string, type?: string) {
   const user = await this.usersService.findByEmail(email);
+
   if (!user) {
     throw new BadRequestException({
       statusCode: 400,
       message: 'Email is not registered',
     });
   }
+
   const now = new Date();
+
+  // ================== LIMIT LOGIC (MAX 3 REQUESTS) ==================
+  const MAX_REQUESTS = 3;
+  const BLOCK_TIME_MINUTES = 15;
+
+  // ✅ Fix undefined values (important for TS + DB)
+  user.forgotPasswordCount = user.forgotPasswordCount ?? 0;
+
+  if (user.forgotPasswordLastRequest) {
+    const diffMinutes =
+      (now.getTime() - new Date(user.forgotPasswordLastRequest).getTime()) /
+      (1000 * 60);
+
+    // reset counter if time window passed
+    if (diffMinutes > BLOCK_TIME_MINUTES) {
+      user.forgotPasswordCount = 0;
+    }
+  }
+
+  // 🚫 Block if limit exceeded
+  if (user.forgotPasswordCount >= MAX_REQUESTS) {
+    throw new BadRequestException({
+      statusCode: 429,
+      message: `You can request forgot password only ${MAX_REQUESTS} times. Try again after ${BLOCK_TIME_MINUTES} minutes.`,
+    });
+  }
+
+  // ✅ Increase counter
+  user.forgotPasswordCount += 1;
+  user.forgotPasswordLastRequest = now;
+  await user.save();
+
   // ================= MOBILE FLOW (OTP ONLY) =================
   if (type === 'mobile') {
     let otp = user.otp;
@@ -166,7 +200,7 @@ async forgotPassword(email: string, type?: string) {
 
     await this.mailService.sendOtpVerificationEmail(
       user.email,
-        `${user.firstName} ${user.lastName}`, // 👈 merged
+      `${user.firstName} ${user.lastName}`,
       otp,
       otp_expiry_time,
     );
@@ -194,6 +228,7 @@ async forgotPassword(email: string, type?: string) {
     email: user.email,
   };
 }
+
 
 async resetPassword(token: string, newPassword: string) {
   try {

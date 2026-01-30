@@ -45,6 +45,11 @@ export class User extends Document {
    @Prop({ default: false })
   isForgetPasswordVerified?: boolean;
 
+@Prop({ default: 0 })
+  forgotPasswordCount?: number;
+
+  @Prop({ default: null })
+  forgotPasswordLastRequest?: Date;
 
 
 

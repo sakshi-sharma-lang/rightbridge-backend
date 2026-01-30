@@ -1,53 +1,53 @@
-  import { ValidationPipe, BadRequestException } from '@nestjs/common';
-  import { NestFactory } from '@nestjs/core';
-  import { AppModule } from './app.module';
-  import * as express from 'express';
-  import { join } from 'path';
-  import * as bodyParser from 'body-parser';
+import { ValidationPipe, BadRequestException } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import * as express from 'express';
+import { join } from 'path';
+import * as bodyParser from 'body-parser';
 
-  async function bootstrap() {
-    const app = await NestFactory.create(AppModule);
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
 
-      // Enable CORS
-    app.enableCors({
-      //origin: process.env.FRONTEND_URL,
-      origin: ['http://localhost:3000', 'http://localhost:3093','https://rightbridge.csdevhub.com', 'http://localhost:3001'],
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-    });
-    
-    // app.useGlobalPipes(
-    //   new ValidationPipe({
-    //     whitelist: true,            // strips properties not in DTO
-    //     forbidNonWhitelisted: true, // throws error if extra props sent
-    //     transform: true,            // converts payload to DTO instance
-    //   }),
-    // );
+  // ✅ Enable CORS
+  app.enableCors({
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:3093',
+      'https://rightbridge.csdevhub.com',
+      'http://localhost:3001',
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  });
 
+  // ================= PAYMENTS WEBHOOK (RAW BODY) =================
   app.use(
     '/payments/webhook',
     bodyParser.raw({ type: 'application/json' }),
   );
 
-   app.use(
+  // ================= SUMSUB WEBHOOK (RAW BODY) =================
+  app.use(
     '/sumsub/webhook',
     bodyParser.raw({
       type: 'application/json',
       verify: (req: any, res, buf) => {
-        req.rawBody = buf.toString();
+        req.rawBody = buf.toString('utf8'); // ✅ store raw body for signature verification
       },
     }),
   );
 
+  // ✅ IMPORTANT: restore JSON parser for all other routes
+  app.use(bodyParser.json());
+  app.use(bodyParser.urlencoded({ extended: true }));
 
-
-    app.useGlobalPipes(
+  // ================= GLOBAL VALIDATION PIPE =================
+  app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-
       exceptionFactory: (errors) => {
         const firstError = errors[0];
         const message = firstError?.constraints
@@ -58,19 +58,21 @@
       },
     }),
   );
+
+  // ================= STATIC FILES =================
   app.use(
     '/additional-info/docs-uploads',
-    require('express').static('additional-info/docs-uploads'),
+    express.static(join(process.cwd(), 'additional-info/docs-uploads')),
   );
 
-app.use(
-  '/uploads',
-  require('express').static('uploads'),
-);
+  app.use(
+    '/uploads',
+    express.static(join(process.cwd(), 'uploads')),
+  );
 
+  const port = process.env.PORT || 4000;
+  await app.listen(port);
+  console.log(`🚀 Server running on port ${port}`);
+}
 
-    const port = process.env.PORT || 4000;
-    await app.listen(port);
-    console.log(`Server running on port ${port}`);
-  }
-  bootstrap();
+bootstrap();
