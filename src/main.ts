@@ -28,15 +28,11 @@ async function bootstrap() {
   );
 
   // ================= SUMSUB WEBHOOK (RAW BODY) =================
-  app.use(
-    '/sumsub/webhook',
-    bodyParser.raw({
-      type: 'application/json',
-      verify: (req: any, res, buf) => {
-        req.rawBody = buf.toString('utf8'); // ✅ store raw body for signature verification
-      },
-    }),
-  );
+ app.use(
+  '/sumsub/webhook',
+  bodyParser.raw({ type: '*/*' }), // ✅ accept all content types
+);
+
 
   // ✅ IMPORTANT: restore JSON parser for all other routes
   app.use(bodyParser.json());

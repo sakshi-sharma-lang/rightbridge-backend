@@ -2,7 +2,6 @@
 import {
   Controller,
   Post,
-  Body,
   Headers,
   UnauthorizedException,
   Req,
@@ -23,15 +22,29 @@ export class SumsubWebhookController {
   @Post('webhook')
   async handleWebhook(
     @Req() req: any,
-    @Body() body: any,
     @Headers('x-sumsub-signature') signature: string,
     @Headers('x-sumsub-timestamp') timestamp: string,
   ) {
-    const rawBody = req.rawBody || JSON.stringify(body);
+    // ✅ Get raw body correctly (important for Sumsub)
+    const rawBody =
+      req.rawBody ||
+      (req.body instanceof Buffer
+        ? req.body.toString('utf8')
+        : JSON.stringify(req.body));
+
+    let parsedBody: any;
+
+    try {
+      parsedBody = JSON.parse(rawBody);
+    } catch (err) {
+      console.log('❌ Failed to parse webhook body');
+      console.log('RAW BODY:', rawBody);
+      return { ok: true };
+    }
 
     // ================= LOG FULL WEBHOOK =================
     console.log('================ SUMSUB WEBHOOK RECEIVED ================');
-    console.log(JSON.stringify(body, null, 2));
+    console.log(JSON.stringify(parsedBody, null, 2));
     console.log('Signature:', signature);
     console.log('Timestamp:', timestamp);
     console.log('========================================================');
@@ -41,7 +54,7 @@ export class SumsubWebhookController {
       this.verifySignature(rawBody, signature, timestamp);
     }
 
-    const { applicantId, type, reviewResult } = body;
+    const { applicantId, type, reviewResult } = parsedBody;
 
     if (!applicantId) {
       console.log('❌ No applicantId in webhook');
@@ -80,7 +93,7 @@ export class SumsubWebhookController {
     const amlResult =
       reviewResult?.amlCheckResult?.overallResult ||
       reviewResult?.amlCheckResult?.result ||
-      body?.amlCheckResult?.overallResult ||
+      parsedBody?.amlCheckResult?.overallResult ||
       'UNKNOWN';
 
     console.log('✅ KYC ANSWER:', kycAnswer);
@@ -115,7 +128,7 @@ export class SumsubWebhookController {
         status,
         reviewAnswer: kycAnswer,
         amlResult,
-        rawWebhookPayload: body,
+        rawWebhookPayload: parsedBody,
         reviewedAt: new Date(),
       },
     );
