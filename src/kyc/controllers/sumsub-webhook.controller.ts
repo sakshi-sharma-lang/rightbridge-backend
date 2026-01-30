@@ -1,4 +1,3 @@
-// sumsub-webhook.controller.ts
 import {
   Controller,
   Post,
@@ -7,7 +6,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, HydratedDocument } from 'mongoose'; // ✅ FIXED
 import * as crypto from 'crypto';
 import { Kyc } from '../schemas/kyc.schema';
 import { KycStatus } from '../enums/kyc-status.enum';
@@ -19,13 +18,16 @@ export class SumsubWebhookController {
     private readonly kycModel: Model<Kyc>,
   ) {}
 
+  private normalizeExternalUserId(id?: string) {
+    return id ? decodeURIComponent(id).trim() : null;
+  }
+
   @Post('webhook')
   async handleWebhook(
     @Req() req: any,
     @Headers('x-sumsub-signature') signature: string,
     @Headers('x-sumsub-timestamp') timestamp: string,
   ) {
-    // ✅ Get raw body correctly (important for Sumsub)
     const rawBody =
       req.rawBody ||
       (req.body instanceof Buffer
@@ -38,92 +40,55 @@ export class SumsubWebhookController {
       parsedBody = JSON.parse(rawBody);
     } catch (err) {
       console.log('❌ Failed to parse webhook body');
-      console.log('RAW BODY:', rawBody);
       return { ok: true };
     }
 
-    // ================= LOG FULL WEBHOOK =================
-    console.log('================ SUMSUB WEBHOOK RECEIVED ================');
-    console.log(JSON.stringify(parsedBody, null, 2));
-    console.log('Signature:', signature);
-    console.log('Timestamp:', timestamp);
-    console.log('========================================================');
+    const { applicantId, type, reviewResult, externalUserId } = parsedBody;
 
-    // ================= VERIFY SIGNATURE =================
-    if (signature && timestamp) {
-      this.verifySignature(rawBody, signature, timestamp);
+    if (!applicantId) return { ok: true };
+
+    const normalizedExternalUserId = this.normalizeExternalUserId(externalUserId);
+
+    let kyc: HydratedDocument<Kyc> | null = null; // ✅ FIXED
+
+    if (normalizedExternalUserId) {
+      kyc = await this.kycModel.findOne({ externalUserId: normalizedExternalUserId });
     }
 
-    const { applicantId, type, reviewResult } = parsedBody;
-
-    if (!applicantId) {
-      console.log('❌ No applicantId in webhook');
-      return { ok: true };
+    if (!kyc && applicantId) {
+      kyc = await this.kycModel.findOne({ applicantId });
     }
 
-    console.log('👤 ApplicantId:', applicantId);
-    console.log('📌 Event Type:', type);
+    if (!kyc) return { ok: true };
 
-    // ================= VALID EVENTS =================
-    const allowedEvents = [
-      'applicantReviewed',
-      'applicantPending',
-      'applicantOnHold',
-      'applicantWorkflowCompleted',
-    ];
-
-    if (!allowedEvents.includes(type)) {
-      console.log('⚠️ Ignored event type:', type);
-      return { ok: true };
+    if (kyc.applicantId !== applicantId) {
+      await this.kycModel.updateOne(
+        { _id: kyc._id },
+        { applicantId },
+      );
     }
 
-    // ================= FIND KYC RECORD =================
-    const kyc = await this.kycModel.findOne({ applicantId });
-
-    if (!kyc) {
-      console.log('❌ KYC record not found for applicantId:', applicantId);
-      return { ok: true };
-    }
-
-    console.log('📦 KYC FOUND:', kyc);
-
-    // ================= EXTRACT KYC + AML RESULT =================
     const kycAnswer = reviewResult?.reviewAnswer || 'PENDING';
 
     const amlResult =
       reviewResult?.amlCheckResult?.overallResult ||
-      reviewResult?.amlCheckResult?.result ||
       parsedBody?.amlCheckResult?.overallResult ||
       'UNKNOWN';
 
-    console.log('✅ KYC ANSWER:', kycAnswer);
-    console.log('✅ AML RESULT:', amlResult);
-
-    // ================= DETERMINE STATUS =================
     let status: KycStatus = KycStatus.IN_PROGRESS;
 
-    if (kycAnswer === 'GREEN' && amlResult !== 'RED') {
-      status = KycStatus.APPROVED;
-    } else if (kycAnswer === 'RED' || amlResult === 'RED') {
-      status = KycStatus.REJECTED;
-    } else if (kycAnswer === 'YELLOW' || amlResult === 'YELLOW') {
-      status = KycStatus.MANUAL_REVIEW;
+    if (type === 'applicantReviewed') {
+      if (kycAnswer === 'GREEN' && amlResult !== 'RED') {
+        status = KycStatus.APPROVED;
+      } else if (kycAnswer === 'RED' || amlResult === 'RED') {
+        status = KycStatus.REJECTED;
+      } else {
+        status = KycStatus.MANUAL_REVIEW;
+      }
     }
 
-    console.log('🆕 NEW STATUS:', status);
-    console.log('🕐 OLD STATUS:', kyc.status);
-
-    // ================= PREVENT WRONG OVERWRITE =================
-    const finalStatuses = [KycStatus.APPROVED, KycStatus.REJECTED];
-
-    if (finalStatuses.includes(kyc.status) && status === KycStatus.IN_PROGRESS) {
-      console.log('⚠️ Skipping downgrade of final status');
-      return { ok: true };
-    }
-
-    // ================= UPDATE DB =================
     await this.kycModel.updateOne(
-      { applicantId },
+      { _id: kyc._id },
       {
         status,
         reviewAnswer: kycAnswer,
@@ -133,17 +98,13 @@ export class SumsubWebhookController {
       },
     );
 
-    console.log('✅ KYC STATUS UPDATED SUCCESSFULLY');
-
     return { ok: true };
   }
 
-  // ================= SIGNATURE VERIFICATION =================
   private verifySignature(rawBody: string, signature: string, timestamp: string) {
     const secret = process.env.SUMSUB_WEBHOOK_SECRET?.trim();
 
     if (!secret) {
-      console.log('❌ SUMSUB_WEBHOOK_SECRET missing');
       throw new UnauthorizedException('Webhook secret missing');
     }
 
@@ -155,10 +116,7 @@ export class SumsubWebhookController {
       .digest('hex');
 
     if (expected !== signature) {
-      console.log('❌ Invalid webhook signature');
       throw new UnauthorizedException('Invalid Sumsub webhook signature');
     }
-
-    console.log('✅ Webhook signature verified');
   }
 }

@@ -29,54 +29,69 @@ export class SumsubService {
   }
 
   // ================= CREATE APPLICANT =================
-  async createApplicant(externalUserId: string, email?: string) {
-    try {
-      externalUserId = externalUserId.trim();
+async createApplicant(externalUserId: string, email?: string) {
+  try {
+    externalUserId = externalUserId.trim();
 
-      const ts = Math.floor(Date.now() / 1000);
-      const path = `/resources/applicants?levelName=${this.levelName}`;
+    // ✅ NEW CODE (IMPORTANT)
+    const existing = await this.getApplicantByExternalUserId(externalUserId);
 
-      const bodyObj: any = { externalUserId };
-      if (email) bodyObj.email = email;
-
-      const body = JSON.stringify(bodyObj);
-      const signature = this.createSignature('POST', path, ts, body);
-
-      const res = await axios.post(this.baseUrl + path, body, {
-        headers: this.getHeaders(signature, ts),
-      });
+    if (existing?.id) {
+      console.log('♻️ Existing applicant found in Sumsub:', existing.id);
 
       return {
-        applicantId: res.data.id,
+        applicantId: existing.id,
         levelName: this.levelName,
+        alreadyExists: true,
       };
-    } catch (err: any) {
-      const data = err?.response?.data;
+    }
 
-      if (err?.response?.status === 409) {
-        const applicant = await this.getApplicantByExternalUserId(externalUserId);
+    const ts = Math.floor(Date.now() / 1000);
+    const path = `/resources/applicants?levelName=${this.levelName}`;
 
-        const applicantId =
-          applicant?.id ||
-          applicant?.list?.items?.[0]?.id ||
-          null;
+    const bodyObj: any = { externalUserId };
+    if (email) bodyObj.email = email;
 
-        if (!applicantId) {
-          throw new InternalServerErrorException('Failed to fetch existing applicant');
-        }
+    const body = JSON.stringify(bodyObj);
+    const signature = this.createSignature('POST', path, ts, body);
 
-        return {
-          applicantId,
-          levelName: this.levelName,
-          alreadyExists: true,
-        };
+    const res = await axios.post(this.baseUrl + path, body, {
+      headers: this.getHeaders(signature, ts),
+    });
+
+    return {
+      applicantId: res.data.id,
+      levelName: this.levelName,
+    };
+  } catch (err: any) {
+    const data = err?.response?.data;
+
+    if (err?.response?.status === 409) {
+      const applicant = await this.getApplicantByExternalUserId(externalUserId);
+
+      const applicantId =
+        applicant?.id ||
+        applicant?.list?.items?.[0]?.id ||
+        applicant?.items?.[0]?.id ||
+        null;
+
+      if (!applicantId) {
+        throw new InternalServerErrorException('Failed to fetch existing applicant');
       }
 
-      throw new InternalServerErrorException(
-        data?.description || err?.message || 'Sumsub applicant creation failed',
-      );
+      return {
+        applicantId,
+        levelName: this.levelName,
+        alreadyExists: true,
+      };
     }
+
+    throw new InternalServerErrorException(
+      data?.description || err?.message || 'Sumsub applicant creation failed',
+    );
   }
+}
+
 
   // ================= GET APPLICANT =================
   async getApplicantByExternalUserId(externalUserId: string) {
@@ -100,12 +115,12 @@ export class SumsubService {
   }
 
   // ================= GENERATE SDK TOKEN =================
-async generateSdkToken(applicantId: string, retries = 3): Promise<string> {
+async generateSdkToken(externalUserId: string, retries = 3): Promise<string> {
   try {
-    applicantId = applicantId.trim();
+    externalUserId = externalUserId.trim();
 
     const ts = Math.floor(Date.now() / 1000);
-    const query = `ttlInSecs=600&userId=${applicantId}&levelName=${this.levelName}`;
+    const query = `ttlInSecs=600&userId=${externalUserId}&levelName=${this.levelName}`;
     const path = `/resources/accessTokens?${query}`;
     const signature = this.createSignature('POST', path, ts, '');
 
@@ -141,15 +156,16 @@ async generateSdkToken(applicantId: string, retries = 3): Promise<string> {
       req.end();
     });
   } catch (err: any) {
-    // ✅ RETRY LOGIC
     if (retries > 0) {
       console.log(`🔁 Retrying Sumsub API... (${retries})`);
-      await new Promise(r => setTimeout(r, 2000)); // wait 2 sec
-      return this.generateSdkToken(applicantId, retries - 1);
+      await new Promise(r => setTimeout(r, 2000));
+      return this.generateSdkToken(externalUserId, retries - 1);
     }
 
     throw new Error(err?.message || 'Failed to generate SDK token');
   }
 }
+
+
 
 }

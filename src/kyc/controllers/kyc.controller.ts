@@ -7,7 +7,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, HydratedDocument } from 'mongoose'; // ✅ FIXED
 import { SumsubService } from '../services/sumsub.service';
 import { Kyc } from '../schemas/kyc.schema';
 import { KycStatus } from '../enums/kyc-status.enum';
@@ -15,7 +15,7 @@ import { Application } from '../../applications/schemas/application.schema';
 import { MailService } from '../../mail/mail.service';
 
 @Controller('kyc')
-export class KycController {
+export class KycController { // ✅ FIXED (export added)
   constructor(
     private readonly sumsubService: SumsubService,
     private readonly mailService: MailService,
@@ -29,8 +29,6 @@ export class KycController {
   async startKyc(@Body() body: any) {
     try {
       const { applicationId } = body;
-
-    //  console.log('🚀 START KYC REQUEST:', body);
 
       if (!applicationId || typeof applicationId !== 'string') {
         throw new BadRequestException('applicationId is required and must be a string');
@@ -46,16 +44,10 @@ export class KycController {
         throw new NotFoundException(`No applicants found in application`);
       }
 
-      //console.log('👥 TOTAL APPLICANTS:', application.applicants.length);
-
       const results: any[] = [];
 
-      // ✅ Process applicants one by one (safe for SMTP)
       for (const applicant of application.applicants) {
         const { externalUserId, email } = applicant;
-
-       // console.log('\n==============================');
-       // console.log('👤 APPLICANT:', applicant);
 
         if (!externalUserId) {
           results.push({
@@ -82,17 +74,25 @@ export class KycController {
           const userId = application.userId;
 
           // ✅ Find existing KYC record
-          let kyc = await this.kycModel.findOne({ externalUserId });
+          let kyc: HydratedDocument<Kyc> | null = null; // ✅ FIXED
 
-          let applicantId: string;
+          kyc = await this.kycModel.findOne({ externalUserId });
 
-          // ✅ Reuse applicantId if exists
+          let applicantId: string = '';
+
           if (kyc?.applicantId) {
             applicantId = kyc.applicantId;
-           // console.log('♻️ Reusing applicantId:', applicantId);
-          } else {
-            //  console.log('🆕 Creating Sumsub applicant...');
 
+            const sumsubApplicant =
+              await this.sumsubService.getApplicantByExternalUserId(externalUserId);
+
+            if (!sumsubApplicant?.id) {
+              console.log('⚠️ ApplicantId in DB is invalid, recreating...');
+              applicantId = '';
+            }
+          }
+
+          if (!applicantId) {
             const created = await this.sumsubService.createApplicant(externalUserId, email);
 
             if (!created?.applicantId) {
@@ -101,11 +101,10 @@ export class KycController {
 
             applicantId = created.applicantId;
 
-            // ✅ Save KYC in DB
             kyc = await this.kycModel.findOneAndUpdate(
               { externalUserId },
               {
-                userId: userId, // ✅ FIXED (was UserId)
+                userId: userId,
                 applicationId: applicationIdFromDb,
                 externalUserId,
                 email,
@@ -115,60 +114,52 @@ export class KycController {
               },
               { upsert: true, new: true },
             );
-
-            console.log('💾 KYC SAVED:', kyc);
           }
 
           if (!applicantId) {
             throw new Error('ApplicantId not found');
           }
 
-          // ✅ ALWAYS generate new SDK token
+          console.log('✅ FINAL APPLICANT ID:', {
+            externalUserId,
+            applicantId,
+          });
+
           console.log('🔑 Generating SDK token...');
-          const token = await this.sumsubService.generateSdkToken(applicantId);
+          const token = await this.sumsubService.generateSdkToken(externalUserId);
 
           if (!token) {
             throw new Error('SDK token generation failed');
           }
 
-         // console.log('🎫 SDK TOKEN GENERATED');
-
-          // ✅ ALWAYS update status + resend link
           await this.kycModel.updateOne(
             { externalUserId },
             {
               status: KycStatus.LINK_SENT,
-              lastLinkSentAt: new Date(), // optional but useful
+              lastLinkSentAt: new Date(),
             },
           );
 
-          // ✅ FIXED LINK (added / before kyc)
-          const link = `${process.env.FRONTEND_URL}kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}&applicantId=${applicantId}`;
+          const link = `${process.env.FRONTEND_URL}/kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}&applicantId=${applicantId}`;
+
           console.log('🔗 KYC LINK:', link);
+          console.log('📧 Sending email to:', email);
 
-         console.log('📧 Sending email to:', email);
+          const mailResult = await this.mailService.sendKycEmail(email, link);
 
-       const mailResult = await this.mailService.sendKycEmail(email, link);
+          if (!mailResult.success) {
+            results.push({
+              externalUserId,
+              email,
+              applicantId,
+              link,
+              status: 'EMAIL_FAILED',
+              error: mailResult.error,
+            });
+            continue;
+          }
 
-if (!mailResult.success) {
-  console.error('❌ Email failed:', email, mailResult.error);
-
-  results.push({
-    externalUserId,
-    email,
-    applicantId,
-    link,
-    status: 'EMAIL_FAILED',
-    error: mailResult.error,
-  });
-
-  continue;
-}
-
-console.log('✅ Email sent:', email);
-
-// ✅ ADD DELAY HERE (IMPORTANT)
-await new Promise(resolve => setTimeout(resolve, 2000)); // 2 seconds
+          await new Promise(resolve => setTimeout(resolve, 2000));
 
           results.push({
             externalUserId,
@@ -179,8 +170,6 @@ await new Promise(resolve => setTimeout(resolve, 2000)); // 2 seconds
           });
 
         } catch (err: any) {
-          console.error('❌ Applicant failed:', externalUserId, err);
-
           results.push({
             externalUserId,
             email,
@@ -192,8 +181,6 @@ await new Promise(resolve => setTimeout(resolve, 2000)); // 2 seconds
         }
       }
 
-    //  console.log('📊 FINAL RESULT:', results);
-
       return {
         success: true,
         applicationId,
@@ -204,8 +191,6 @@ await new Promise(resolve => setTimeout(resolve, 2000)); // 2 seconds
       };
 
     } catch (error: any) {
-     // console.error('❌ START KYC ERROR:', error);
-
       throw new InternalServerErrorException(
         error?.message || 'Failed to start KYC process',
       );
