@@ -40,6 +40,26 @@ export class Kyc extends Document {
   @Prop({ type: Array }) amlHits: any[];
   @Prop() riskLevel: string;
 
+  // ===== KYC LIFECYCLE (ALREADY ADDED EARLIER) =====
+  @Prop() kycStartedAt: Date;
+  @Prop() kycSubmittedAt: Date;
+  @Prop() reviewStartedAt: Date;
+  @Prop() kycCompletedAt: Date;
+
+  @Prop({ type: [String] })
+  uploadedDocuments: string[];
+
+  // ===== COMPLIANCE (NEW – AS REQUESTED) =====
+  @Prop()
+  finalDecision: string; // APPROVED / REJECTED
+
+  @Prop()
+  decisionReason: string; // AML / KYC / MANUAL
+
+  @Prop()
+  complianceNotes: string;
+
+  // ===== RAW DATA =====
   @Prop({ type: Object })
   rawWebhookPayload: Record<string, any>;
 }

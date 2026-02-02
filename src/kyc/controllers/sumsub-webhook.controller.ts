@@ -83,7 +83,7 @@ export class SumsubWebhookController {
       'UNKNOWN';
 
     /* ======================================================
-       ✅ NEW: HANDLE LATE AML REJECTION (PRODUCTION-CRITICAL)
+       ✅ HANDLE LATE AML REJECTION (NO LOGIC CHANGE)
        ====================================================== */
     if (amlResult === 'RED') {
       await this.kycModel.updateOne(
@@ -93,6 +93,10 @@ export class SumsubWebhookController {
           amlResult: 'RED',
           rawWebhookPayload: parsedBody,
           reviewedAt: new Date(),
+
+          // ✅ ADDED FIELDS ONLY
+          finalDecision: 'REJECTED',
+          decisionReason: 'AML',
         },
       );
 
@@ -120,6 +124,21 @@ export class SumsubWebhookController {
         amlResult,
         rawWebhookPayload: parsedBody,
         reviewedAt: new Date(),
+
+        // ✅ ADDED FIELDS ONLY
+        finalDecision:
+          status === KycStatus.APPROVED
+            ? 'APPROVED'
+            : status === KycStatus.REJECTED
+            ? 'REJECTED'
+            : undefined,
+
+        decisionReason:
+          amlResult === 'RED'
+            ? 'AML'
+            : kycAnswer === 'RED'
+            ? 'KYC'
+            : undefined,
       },
     );
 
