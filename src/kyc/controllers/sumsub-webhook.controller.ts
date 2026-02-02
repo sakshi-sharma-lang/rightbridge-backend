@@ -6,7 +6,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, HydratedDocument } from 'mongoose'; // ✅ FIXED
+import { Model, HydratedDocument } from 'mongoose';
 import * as crypto from 'crypto';
 import { Kyc } from '../schemas/kyc.schema';
 import { KycStatus } from '../enums/kyc-status.enum';
@@ -43,16 +43,22 @@ export class SumsubWebhookController {
       return { ok: true };
     }
 
+    // 🔐 OPTIONAL BUT RECOMMENDED (enable in production)
+    // this.verifySignature(rawBody, signature, timestamp);
+
     const { applicantId, type, reviewResult, externalUserId } = parsedBody;
 
     if (!applicantId) return { ok: true };
 
-    const normalizedExternalUserId = this.normalizeExternalUserId(externalUserId);
+    const normalizedExternalUserId =
+      this.normalizeExternalUserId(externalUserId);
 
-    let kyc: HydratedDocument<Kyc> | null = null; // ✅ FIXED
+    let kyc: HydratedDocument<Kyc> | null = null;
 
     if (normalizedExternalUserId) {
-      kyc = await this.kycModel.findOne({ externalUserId: normalizedExternalUserId });
+      kyc = await this.kycModel.findOne({
+        externalUserId: normalizedExternalUserId,
+      });
     }
 
     if (!kyc && applicantId) {
@@ -61,6 +67,7 @@ export class SumsubWebhookController {
 
     if (!kyc) return { ok: true };
 
+    // 🔄 Sync applicantId if missing or changed
     if (kyc.applicantId !== applicantId) {
       await this.kycModel.updateOne(
         { _id: kyc._id },
@@ -75,12 +82,30 @@ export class SumsubWebhookController {
       parsedBody?.amlCheckResult?.overallResult ||
       'UNKNOWN';
 
+    /* ======================================================
+       ✅ NEW: HANDLE LATE AML REJECTION (PRODUCTION-CRITICAL)
+       ====================================================== */
+    if (amlResult === 'RED') {
+      await this.kycModel.updateOne(
+        { _id: kyc._id },
+        {
+          status: KycStatus.REJECTED,
+          amlResult: 'RED',
+          rawWebhookPayload: parsedBody,
+          reviewedAt: new Date(),
+        },
+      );
+
+      return { ok: true };
+    }
+    /* ====================================================== */
+
     let status: KycStatus = KycStatus.IN_PROGRESS;
 
     if (type === 'applicantReviewed') {
-      if (kycAnswer === 'GREEN' && amlResult !== 'RED') {
+      if (kycAnswer === 'GREEN') {
         status = KycStatus.APPROVED;
-      } else if (kycAnswer === 'RED' || amlResult === 'RED') {
+      } else if (kycAnswer === 'RED') {
         status = KycStatus.REJECTED;
       } else {
         status = KycStatus.MANUAL_REVIEW;
@@ -101,14 +126,19 @@ export class SumsubWebhookController {
     return { ok: true };
   }
 
-  private verifySignature(rawBody: string, signature: string, timestamp: string) {
+  // 🔐 Signature verification (recommended for production)
+  private verifySignature(
+    rawBody: string,
+    signature: string,
+    timestamp: string,
+  ) {
     const secret = process.env.SUMSUB_WEBHOOK_SECRET?.trim();
 
     if (!secret) {
       throw new UnauthorizedException('Webhook secret missing');
     }
 
-    const payload = timestamp + '.' + rawBody;
+    const payload = `${timestamp}.${rawBody}`;
 
     const expected = crypto
       .createHmac('sha256', secret)
