@@ -73,7 +73,6 @@ export class KycController { // ✅ FIXED (export added)
           const applicationIdFromDb = application._id.toString();
           const userId = application.userId;
 
-          // ✅ Find existing KYC record
           let kyc: HydratedDocument<Kyc> | null = null; // ✅ FIXED
 
           kyc = await this.kycModel.findOne({ externalUserId });
@@ -133,13 +132,13 @@ export class KycController { // ✅ FIXED (export added)
           }
 
           await this.kycModel.updateOne(
-            { externalUserId },
-            {
-              status: KycStatus.LINK_SENT,
-              lastLinkSentAt: new Date(),
-            },
-          );
-
+              { externalUserId },
+              {
+                status: KycStatus.LINK_SENT,
+                lastLinkSentAt: new Date(),
+                kycStartedAt: new Date(), 
+              },
+            );
           const link = `${process.env.FRONTEND_URL}kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}`;
 
           console.log('🔗 KYC LINK:', link);
