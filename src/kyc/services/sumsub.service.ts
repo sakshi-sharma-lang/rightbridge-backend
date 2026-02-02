@@ -120,7 +120,7 @@ async generateSdkToken(externalUserId: string, retries = 3): Promise<string> {
     externalUserId = externalUserId.trim();
 
     const ts = Math.floor(Date.now() / 1000);
-    const query = `ttlInSecs=600&userId=${externalUserId}&levelName=${this.levelName}`;
+    const query = `ttlInSecs=3600&userId=${externalUserId}&levelName=${this.levelName}`;
     const path = `/resources/accessTokens?${query}`;
     const signature = this.createSignature('POST', path, ts, '');
 
