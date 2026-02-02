@@ -7,7 +7,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, HydratedDocument } from 'mongoose'; // ✅ FIXED
+import { Model, HydratedDocument } from 'mongoose';
 import { SumsubService } from '../services/sumsub.service';
 import { Kyc } from '../schemas/kyc.schema';
 import { KycStatus } from '../enums/kyc-status.enum';
@@ -15,7 +15,7 @@ import { Application } from '../../applications/schemas/application.schema';
 import { MailService } from '../../mail/mail.service';
 
 @Controller('kyc')
-export class KycController { // ✅ FIXED (export added)
+export class KycController {
   constructor(
     private readonly sumsubService: SumsubService,
     private readonly mailService: MailService,
@@ -31,7 +31,9 @@ export class KycController { // ✅ FIXED (export added)
       const { applicationId } = body;
 
       if (!applicationId || typeof applicationId !== 'string') {
-        throw new BadRequestException('applicationId is required and must be a string');
+        throw new BadRequestException(
+          'applicationId is required and must be a string',
+        );
       }
 
       const application = await this.applicationModel.findById(applicationId);
@@ -40,7 +42,10 @@ export class KycController { // ✅ FIXED (export added)
         throw new NotFoundException(`Application not found: ${applicationId}`);
       }
 
-      if (!Array.isArray(application.applicants) || application.applicants.length === 0) {
+      if (
+        !Array.isArray(application.applicants) ||
+        application.applicants.length === 0
+      ) {
         throw new NotFoundException(`No applicants found in application`);
       }
 
@@ -74,26 +79,22 @@ export class KycController { // ✅ FIXED (export added)
           const userId = application.userId;
 
           // ✅ Find existing KYC record
-          let kyc: HydratedDocument<Kyc> | null = null; // ✅ FIXED
+          let kyc: HydratedDocument<Kyc> | null =
+            await this.kycModel.findOne({ externalUserId });
 
-          kyc = await this.kycModel.findOne({ externalUserId });
+          let applicantId = '';
 
-          let applicantId: string = '';
-
+          // ✅ FIX: if applicantId exists, ALWAYS reuse it
           if (kyc?.applicantId) {
             applicantId = kyc.applicantId;
-
-            const sumsubApplicant =
-              await this.sumsubService.getApplicantByExternalUserId(externalUserId);
-
-            if (!sumsubApplicant?.id) {
-              console.log('⚠️ ApplicantId in DB is invalid, recreating...');
-              applicantId = '';
-            }
           }
 
+          // ✅ Create applicant ONLY if applicantId does not exist
           if (!applicantId) {
-            const created = await this.sumsubService.createApplicant(externalUserId, email);
+            const created = await this.sumsubService.createApplicant(
+              externalUserId,
+              email,
+            );
 
             if (!created?.applicantId) {
               throw new Error('Sumsub applicant creation failed');
@@ -104,7 +105,7 @@ export class KycController { // ✅ FIXED (export added)
             kyc = await this.kycModel.findOneAndUpdate(
               { externalUserId },
               {
-                userId: userId,
+                userId,
                 applicationId: applicationIdFromDb,
                 externalUserId,
                 email,
@@ -168,7 +169,6 @@ export class KycController { // ✅ FIXED (export added)
             link,
             status: 'SUCCESS',
           });
-
         } catch (err: any) {
           results.push({
             externalUserId,
@@ -189,7 +189,6 @@ export class KycController { // ✅ FIXED (export added)
         failedCount: results.filter(r => r.status === 'FAILED').length,
         results,
       };
-
     } catch (error: any) {
       throw new InternalServerErrorException(
         error?.message || 'Failed to start KYC process',
