@@ -4,7 +4,6 @@ import { KycStatus } from '../enums/kyc-status.enum';
 
 @Schema({ timestamps: true })
 export class Kyc extends Document {
-  // ================= BASIC IDENTIFIERS =================
   @Prop({ required: true, index: true })
   applicationId: string;
 
@@ -20,7 +19,6 @@ export class Kyc extends Document {
   @Prop()
   levelName: string;
 
-  // ================= STATUS =================
   @Prop({
     type: String,
     enum: Object.values(KycStatus),
@@ -28,40 +26,20 @@ export class Kyc extends Document {
   })
   status: KycStatus;
 
-  // ================= KYC TIMELINE (NEW) =================
-  @Prop()
-  kycStartedAt: Date;     // when LINK_SENT / applicantPending starts
+  // ===== KYC =====
+  @Prop() reviewAnswer: string;
+  @Prop() reviewRejectType: string;
+  @Prop() reviewComment: string;
+  @Prop() reviewedAt: Date;
 
-  @Prop()
-  kycCompletedAt: Date;  // when applicantReviewed (GREEN / RED)
-
-  // ================= REVIEW (KYC) =================
-  @Prop()
-  reviewAnswer: string;
-
-  @Prop()
-  reviewRejectType: string;
-
-  @Prop()
-  reviewComment: string;
-
-  @Prop()
-  reviewedAt: Date;
-
-  // ================= AML =================
+  // ===== AML =====
   @Prop({ default: 'NOT_STARTED' })
   amlStatus: string;
 
-  @Prop()
-  amlResult: string;
+  @Prop() amlResult: string;
+  @Prop({ type: Array }) amlHits: any[];
+  @Prop() riskLevel: string;
 
-  @Prop({ type: Array })
-  amlHits: any[];
-
-  @Prop()
-  riskLevel: string;
-
-  // ================= RAW WEBHOOK =================
   @Prop({ type: Object })
   rawWebhookPayload: Record<string, any>;
 }
