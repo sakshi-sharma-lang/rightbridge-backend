@@ -146,7 +146,7 @@ export class KycController { // ✅ FIXED (export added)
           //   applicantId,
           // });
 
-          console.log('🔑 Generating SDK token...');
+          // console.log('🔑 Generating SDK token...');
           const token = await this.sumsubService.generateSdkToken(externalUserId);
 
           if (!token) {
