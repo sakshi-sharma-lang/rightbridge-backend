@@ -140,7 +140,7 @@ export class KycController { // ✅ FIXED (export added)
             },
           );
 
-          const link = `${process.env.FRONTEND_URL}kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}&applicantId=${applicantId}`;
+          const link = `${process.env.FRONTEND_URL}kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}`;
 
           console.log('🔗 KYC LINK:', link);
           console.log('📧 Sending email to:', email);

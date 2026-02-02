@@ -6,7 +6,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, HydratedDocument } from 'mongoose'; // ✅ FIXED
+  import { Model, HydratedDocument } from 'mongoose';
 import * as crypto from 'crypto';
 import { Kyc } from '../schemas/kyc.schema';
 import { KycStatus } from '../enums/kyc-status.enum';
@@ -34,6 +34,9 @@ export class SumsubWebhookController {
         ? req.body.toString('utf8')
         : JSON.stringify(req.body));
 
+    // ✅ ONLY CHANGE: verify webhook signature
+    this.verifySignature(rawBody, signature, timestamp);
+
     let parsedBody: any;
 
     try {
@@ -47,12 +50,15 @@ export class SumsubWebhookController {
 
     if (!applicantId) return { ok: true };
 
-    const normalizedExternalUserId = this.normalizeExternalUserId(externalUserId);
+    const normalizedExternalUserId =
+      this.normalizeExternalUserId(externalUserId);
 
-    let kyc: HydratedDocument<Kyc> | null = null; // ✅ FIXED
+    let kyc: HydratedDocument<Kyc> | null = null;
 
     if (normalizedExternalUserId) {
-      kyc = await this.kycModel.findOne({ externalUserId: normalizedExternalUserId });
+      kyc = await this.kycModel.findOne({
+        externalUserId: normalizedExternalUserId,
+      });
     }
 
     if (!kyc && applicantId) {
@@ -101,14 +107,18 @@ export class SumsubWebhookController {
     return { ok: true };
   }
 
-  private verifySignature(rawBody: string, signature: string, timestamp: string) {
+  private verifySignature(
+    rawBody: string,
+    signature: string,
+    timestamp: string,
+  ) {
     const secret = process.env.SUMSUB_WEBHOOK_SECRET?.trim();
 
     if (!secret) {
       throw new UnauthorizedException('Webhook secret missing');
     }
 
-    const payload = timestamp + '.' + rawBody;
+    const payload = `${timestamp}.${rawBody}`;
 
     const expected = crypto
       .createHmac('sha256', secret)
