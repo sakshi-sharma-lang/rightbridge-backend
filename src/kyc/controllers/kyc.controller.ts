@@ -8,7 +8,7 @@ import {
     Req,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, HydratedDocument } from 'mongoose'; // ✅ FIXED
+import { Model, HydratedDocument } from 'mongoose'; 
 import { SumsubService } from '../services/sumsub.service';
 import { Kyc } from '../schemas/kyc.schema';
 import { KycStatus } from '../enums/kyc-status.enum';
@@ -18,7 +18,7 @@ import { JwtAuthGuard } from './../../auth/jwt-auth.guard';
 import { UseGuards } from '@nestjs/common';
 
 @Controller('kyc')
-export class KycController { // ✅ FIXED (export added)
+export class KycController {
   constructor(
     private readonly sumsubService: SumsubService,
     private readonly mailService: MailService,
@@ -95,7 +95,7 @@ export class KycController { // ✅ FIXED (export added)
           const userId = application.userId;
 
           // ✅ Find existing KYC record
-          let kyc: HydratedDocument<Kyc> | null = null; // ✅ FIXED
+          let kyc: HydratedDocument<Kyc> | null = null; 
 
           kyc = await this.kycModel.findOne({ externalUserId });
 
@@ -141,7 +141,7 @@ export class KycController { // ✅ FIXED (export added)
             throw new Error('ApplicantId not found');
           }
 
-          // console.log('✅ FINAL APPLICANT ID:', {
+          // console.log(' FINAL APPLICANT ID:', {
           //   externalUserId,
           //   applicantId,
           // });
@@ -224,7 +224,7 @@ async saveOrUpdateKyc(@Body() body: any) {
   try {
     const { externalUserId } = body;
 
-    // 🔑 externalUserId is mandatory
+    //  externalUserId is mandatory
     if (!externalUserId) {
       throw new BadRequestException(
         'externalUserId is required',
@@ -234,7 +234,7 @@ async saveOrUpdateKyc(@Body() body: any) {
     // ❌ Never allow Mongo _id overwrite
     delete body._id;
 
-    // ✅ UPDATE IF EXISTS, CREATE IF NOT (BASED ON externalUserId)
+    //  UPDATE IF EXISTS, CREATE IF NOT (BASED ON externalUserId)
     const saved = await this.kycModel.findOneAndUpdate(
       { externalUserId }, // 🔥 THIS IS THE KEY FIX
       body,
@@ -258,11 +258,6 @@ async saveOrUpdateKyc(@Body() body: any) {
     );
   }
 }
-
-
-
-
-
 
 
 }
