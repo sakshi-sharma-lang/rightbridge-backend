@@ -10,7 +10,7 @@ export class Kyc extends Document {
   @Prop({ required: true, index: true })
   externalUserId: string;
 
-  @Prop({ required: true })
+  @Prop({ required: false })
   email: string;
 
   @Prop()

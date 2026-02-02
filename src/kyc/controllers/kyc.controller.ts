@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
   BadRequestException,
+    Req,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, HydratedDocument } from 'mongoose'; // ✅ FIXED
@@ -13,26 +14,31 @@ import { Kyc } from '../schemas/kyc.schema';
 import { KycStatus } from '../enums/kyc-status.enum';
 import { Application } from '../../applications/schemas/application.schema';
 import { MailService } from '../../mail/mail.service';
+import { JwtAuthGuard } from './../../auth/jwt-auth.guard';
+import { UseGuards } from '@nestjs/common';
 
 @Controller('kyc')
 export class KycController { // ✅ FIXED (export added)
   constructor(
     private readonly sumsubService: SumsubService,
     private readonly mailService: MailService,
-    @InjectModel(Kyc.name)
+    @InjectModel(Kyc.name)  
     private readonly kycModel: Model<Kyc>,
     @InjectModel(Application.name)
     private readonly applicationModel: Model<Application>,
   ) {}
 
   @Post('start-kyc')
-  async startKyc(@Body() body: any) {
+//  @UseGuards(JwtAuthGuard)
+  async startKyc(@Req() req: any, @Body() body: any) {
+
     try {
       const { applicationId } = body;
 
       if (!applicationId || typeof applicationId !== 'string') {
         throw new BadRequestException('applicationId is required and must be a string');
       }
+
 
       const application = await this.applicationModel.findById(applicationId);
 
@@ -43,6 +49,21 @@ export class KycController { // ✅ FIXED (export added)
       if (!Array.isArray(application.applicants) || application.applicants.length === 0) {
         throw new NotFoundException(`No applicants found in application`);
       }
+
+    //   const loggedInUserId =
+    //   req.user?.id || req.user?._id || req.user?.userId;
+
+    // console.log('loggedInUserId', loggedInUserId);
+
+    // if (!loggedInUserId) {
+    //   throw new BadRequestException('Invalid login user');
+    // }
+
+    // if (application.userId.toString() !== loggedInUserId.toString()) {
+    //   throw new BadRequestException(
+    //     'You are not authorized to access this application',
+    //   );
+    // }
 
       const results: any[] = [];
 
@@ -120,10 +141,10 @@ export class KycController { // ✅ FIXED (export added)
             throw new Error('ApplicantId not found');
           }
 
-          console.log('✅ FINAL APPLICANT ID:', {
-            externalUserId,
-            applicantId,
-          });
+          // console.log('✅ FINAL APPLICANT ID:', {
+          //   externalUserId,
+          //   applicantId,
+          // });
 
           console.log('🔑 Generating SDK token...');
           const token = await this.sumsubService.generateSdkToken(externalUserId);
@@ -142,8 +163,8 @@ export class KycController { // ✅ FIXED (export added)
 
           const link = `${process.env.FRONTEND_URL}kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}`;
 
-          console.log('🔗 KYC LINK:', link);
-          console.log('📧 Sending email to:', email);
+         // console.log('🔗 KYC LINK:', link);
+         // console.log('📧 Sending email to:', email);
 
           const mailResult = await this.mailService.sendKycEmail(email, link);
 
@@ -196,4 +217,52 @@ export class KycController { // ✅ FIXED (export added)
       );
     }
   }
+
+
+@Post('client-status/update')
+async saveOrUpdateKyc(@Body() body: any) {
+  try {
+    const { externalUserId } = body;
+
+    // 🔑 externalUserId is mandatory
+    if (!externalUserId) {
+      throw new BadRequestException(
+        'externalUserId is required',
+      );
+    }
+
+    // ❌ Never allow Mongo _id overwrite
+    delete body._id;
+
+    // ✅ UPDATE IF EXISTS, CREATE IF NOT (BASED ON externalUserId)
+    const saved = await this.kycModel.findOneAndUpdate(
+      { externalUserId }, // 🔥 THIS IS THE KEY FIX
+      body,
+      {
+        upsert: true,
+        new: true,
+        runValidators: false,
+        strict: false, // allows extra webhook fields safely
+      },
+    );
+
+    return {
+      success: true,
+      action: 'UPSERTED',
+      kycId: saved._id,
+    };
+
+  } catch (error: any) {
+    throw new InternalServerErrorException(
+      error?.message || 'Failed to save KYC data',
+    );
+  }
+}
+
+
+
+
+
+
+
 }
