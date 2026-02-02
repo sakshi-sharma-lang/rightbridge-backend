@@ -8,26 +8,7 @@ import * as bodyParser from 'body-parser';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // ================= SUMSUB WEBHOOK (RAW BODY SAFE) =================
-  app.use(
-    '/sumsub/webhook',
-    bodyParser.json({
-      verify: (req: any, res, buf) => {
-        req.rawBody = buf.toString('utf8');
-      },
-    }),
-  );
-
-  // ================= PAYMENTS WEBHOOK =================
-  app.use(
-    '/payments/webhook',
-    bodyParser.raw({ type: 'application/json' }),
-  );
-
-  // ================= REST OF APP =================
-  app.use(bodyParser.json());
-  app.use(bodyParser.urlencoded({ extended: true }));
-
+  // ✅ Enable CORS
   app.enableCors({
     origin: [
       'http://localhost:3000',
@@ -37,14 +18,27 @@ async function bootstrap() {
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'x-sumsub-signature',
-      'x-sumsub-timestamp',
-    ],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
+  // ================= PAYMENTS WEBHOOK (RAW BODY) =================
+  app.use(
+    '/payments/webhook',
+    bodyParser.raw({ type: 'application/json' }),
+  );
+
+  // ================= SUMSUB WEBHOOK (RAW BODY) =================
+ app.use(
+  '/sumsub/webhook',
+  bodyParser.raw({ type: '*/*' }), // ✅ accept all content types
+);
+
+
+  // ✅ IMPORTANT: restore JSON parser for all other routes
+  app.use(bodyParser.json());
+  app.use(bodyParser.urlencoded({ extended: true }));
+
+  // ================= GLOBAL VALIDATION PIPE =================
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -55,17 +49,22 @@ async function bootstrap() {
         const message = firstError?.constraints
           ? Object.values(firstError.constraints)[0]
           : 'Validation error';
+
         return new BadRequestException(message);
       },
     }),
   );
 
+  // ================= STATIC FILES =================
   app.use(
     '/additional-info/docs-uploads',
     express.static(join(process.cwd(), 'additional-info/docs-uploads')),
   );
 
-  app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
+  app.use(
+    '/uploads',
+    express.static(join(process.cwd(), 'uploads')),
+  );
 
   const port = process.env.PORT || 4000;
   await app.listen(port);

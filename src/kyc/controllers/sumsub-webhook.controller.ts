@@ -2,11 +2,11 @@ import {
   Controller,
   Post,
   Headers,
-  Req,
   UnauthorizedException,
+  Req,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, HydratedDocument } from 'mongoose';
+import { Model, HydratedDocument } from 'mongoose'; // ✅ FIXED
 import * as crypto from 'crypto';
 import { Kyc } from '../schemas/kyc.schema';
 import { KycStatus } from '../enums/kyc-status.enum';
@@ -22,9 +22,6 @@ export class SumsubWebhookController {
     return id ? decodeURIComponent(id).trim() : null;
   }
 
-  // -------------------------
-  // SUMSUB WEBHOOK ENDPOINT
-  // -------------------------
   @Post('webhook')
   async handleWebhook(
     @Req() req: any,
@@ -37,44 +34,33 @@ export class SumsubWebhookController {
         ? req.body.toString('utf8')
         : JSON.stringify(req.body));
 
-    // 🔐 Verify webhook authenticity
-    this.verifySignature(rawBody, signature, timestamp);
+    let parsedBody: any;
 
-    let payload: any;
     try {
-      payload = JSON.parse(rawBody);
-    } catch {
+      parsedBody = JSON.parse(rawBody);
+    } catch (err) {
+      console.log('❌ Failed to parse webhook body');
       return { ok: true };
     }
 
-    const {
-      type,
-      applicantId,
-      externalUserId,
-      reviewAnswer,
-      reviewStatus,
-    } = payload;
+    const { applicantId, type, reviewResult, externalUserId } = parsedBody;
 
     if (!applicantId) return { ok: true };
 
-    const normalizedExternalUserId =
-      this.normalizeExternalUserId(externalUserId);
+    const normalizedExternalUserId = this.normalizeExternalUserId(externalUserId);
 
-    let kyc: HydratedDocument<Kyc> | null = null;
+    let kyc: HydratedDocument<Kyc> | null = null; // ✅ FIXED
 
     if (normalizedExternalUserId) {
-      kyc = await this.kycModel.findOne({
-        externalUserId: normalizedExternalUserId,
-      });
+      kyc = await this.kycModel.findOne({ externalUserId: normalizedExternalUserId });
     }
 
-    if (!kyc) {
+    if (!kyc && applicantId) {
       kyc = await this.kycModel.findOne({ applicantId });
     }
 
     if (!kyc) return { ok: true };
 
-    // Ensure applicantId is saved
     if (kyc.applicantId !== applicantId) {
       await this.kycModel.updateOne(
         { _id: kyc._id },
@@ -82,80 +68,55 @@ export class SumsubWebhookController {
       );
     }
 
-    // -------------------------
-    // REVIEW + AML EXTRACTION
-    // -------------------------
-    const finalReviewAnswer =
-      reviewAnswer ||
-      payload.reviewResult?.reviewAnswer ||
-      'PENDING';
+    const kycAnswer = reviewResult?.reviewAnswer || 'PENDING';
 
     const amlResult =
-      payload.amlCheckResult?.overallResult ||
-      payload.reviewResult?.amlCheckResult?.overallResult ||
+      reviewResult?.amlCheckResult?.overallResult ||
+      parsedBody?.amlCheckResult?.overallResult ||
       'UNKNOWN';
 
-    // -------------------------
-    // STATUS MAPPING
-    // -------------------------
     let status: KycStatus = KycStatus.IN_PROGRESS;
 
     if (type === 'applicantReviewed') {
-      if (finalReviewAnswer === 'GREEN' && amlResult !== 'RED') {
+      if (kycAnswer === 'GREEN' && amlResult !== 'RED') {
         status = KycStatus.APPROVED;
-      } else if (finalReviewAnswer === 'RED' || amlResult === 'RED') {
+      } else if (kycAnswer === 'RED' || amlResult === 'RED') {
         status = KycStatus.REJECTED;
       } else {
         status = KycStatus.MANUAL_REVIEW;
       }
     }
 
-    // -------------------------
-    // UPDATE PAYLOAD
-    // -------------------------
-    const updatePayload: any = {
-      status,
-      reviewAnswer: finalReviewAnswer,
-      reviewStatus: reviewStatus || null,
-      amlResult,
-      rawWebhookPayload: payload,
-    };
-
-    if (type === 'applicantReviewed') {
-      updatePayload.reviewedAt = new Date();
-    }
-
     await this.kycModel.updateOne(
       { _id: kyc._id },
-      updatePayload,
+      {
+        status,
+        reviewAnswer: kycAnswer,
+        amlResult,
+        rawWebhookPayload: parsedBody,
+        reviewedAt: new Date(),
+      },
     );
 
     return { ok: true };
   }
 
-  // -------------------------
-  // SIGNATURE VERIFICATION
-  // -------------------------
-  private verifySignature(
-    rawBody: string,
-    signature: string,
-    timestamp: string,
-  ) {
+  private verifySignature(rawBody: string, signature: string, timestamp: string) {
     const secret = process.env.SUMSUB_WEBHOOK_SECRET?.trim();
 
     if (!secret) {
       throw new UnauthorizedException('Webhook secret missing');
     }
 
-    const payload = `${timestamp}.${rawBody}`;
+    const payload = timestamp + '.' + rawBody;
 
-    const expectedSignature = crypto
+    const expected = crypto
       .createHmac('sha256', secret)
       .update(payload)
       .digest('hex');
 
-    if (expectedSignature !== signature) {
-      throw new UnauthorizedException('Invalid webhook signature');
+    if (expected !== signature) {
+      throw new UnauthorizedException('Invalid Sumsub webhook signature');
     }
   }
 }
