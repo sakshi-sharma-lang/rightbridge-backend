@@ -2,9 +2,19 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import axios from 'axios';
 import * as crypto from 'crypto';
 import https from 'https';
+import { Application } from '../../applications/schemas/application.schema';
+import { InjectModel } from '@nestjs/mongoose';   
+import { Model } from 'mongoose'; 
+import { Kyc } from '../schemas/kyc.schema';
 
 @Injectable()
 export class SumsubService {
+    constructor(
+    @InjectModel(Application.name)
+    private readonly applicationModel: Model<Application>,
+    @InjectModel(Kyc.name)                    
+    private readonly kycModel: Model<Kyc>,    
+  ) {}
   private readonly baseUrl = process.env.SUMSUB_BASE_URL!;
   private readonly appToken = process.env.SUMSUB_APP_TOKEN!;
   private readonly secretKey = process.env.SUMSUB_SECRET_KEY!;
@@ -164,5 +174,201 @@ async generateSdkToken(externalUserId: string, retries = 3): Promise<string> {
     throw new Error(err?.message || 'Failed to generate SDK token');
   }
 }
+
+
+async getKycDetails(query: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  riskLevel?: string;
+  applicantName?: string;
+  applicationId?: string;
+  fromDate?: string;
+  toDate?: string;
+}) {
+  const page = Number(query.page || 1);
+  const limit = Number(query.limit || 10);
+  const skip = (page - 1) * limit;
+
+  const kycMatch: any = {};
+
+  if (query.status) kycMatch.status = query.status;
+
+  if (query.fromDate || query.toDate) {
+    kycMatch.createdAt = {};
+    if (query.fromDate) kycMatch.createdAt.$gte = new Date(query.fromDate);
+    if (query.toDate) kycMatch.createdAt.$lte = new Date(query.toDate);
+  }
+
+  // 🔹 MAIN AGGREGATION
+  const [result] = await this.kycModel.aggregate([
+    { $match: kycMatch },
+
+    { $sort: { createdAt: -1 } },
+    {
+      $group: {
+        _id: '$externalUserId',
+        kyc: { $first: '$$ROOT' },
+      },
+    },
+
+    {
+      $lookup: {
+        from: 'applications',
+        let: { appObjId: { $toObjectId: '$kyc.applicationId' } },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$_id', '$$appObjId'] } } },
+        ],
+        as: 'application',
+      },
+    },
+    { $unwind: '$application' },
+
+    ...(query.applicationId
+      ? [{ $match: { 'application.appId': query.applicationId } }]
+      : []),
+
+    {
+      $addFields: {
+        applicant: {
+          $arrayElemAt: [
+            {
+              $filter: {
+                input: '$application.applicants',
+                as: 'a',
+                cond: { $eq: ['$$a.externalUserId', '$kyc.externalUserId'] },
+              },
+            },
+            0,
+          ],
+        },
+      },
+    },
+
+    ...(query.applicantName
+      ? [
+          {
+            $match: {
+              $expr: {
+                $regexMatch: {
+                  input: {
+                    $concat: [
+                      { $ifNull: ['$applicant.firstName', ''] },
+                      ' ',
+                      { $ifNull: ['$applicant.lastName', ''] },
+                    ],
+                  },
+                  regex: query.applicantName,
+                  options: 'i',
+                },
+              },
+            },
+          },
+        ]
+      : []),
+
+    {
+      $facet: {
+        // 🔹 TABLE DATA
+        data: [
+          {
+            $project: {
+              _id: 0,
+              applicationObjectId: '$application._id',
+              applicationId: '$application.appId',
+              applicantName: {
+                $concat: [
+                  '$applicant.firstName',
+                  ' ',
+                  '$applicant.lastName',
+                ],
+              },
+              provider: { $literal: 'Onfido' },
+              status: '$kyc.status',
+              startedOn: '$kyc.createdAt',
+              completedOn: '$kyc.kycCompletedAt',
+              riskSummary: {
+                $ifNull: [
+                  '$kyc.finalDecision',
+                  { $ifNull: ['$kyc.reviewAnswer', '$kyc.amlResult'] },
+                ],
+              },
+            },
+          },
+          { $sort: { startedOn: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+        ],
+
+        // 🔹 TOTAL COUNT
+        total: [{ $count: 'count' }],
+
+        // 🔹 CARD STATS (THIS WAS MISSING ❌)
+        cards: [
+          {
+            $group: {
+              _id: null,
+              totalChecks: { $sum: 1 },
+              completed: {
+                $sum: {
+                  $cond: [{ $eq: ['$kyc.finalDecision', 'APPROVED'] }, 1, 0],
+                },
+              },
+              failed: {
+                $sum: {
+                  $cond: [{ $eq: ['$kyc.finalDecision', 'REJECTED'] }, 1, 0],
+                },
+              },
+              inProgress: {
+                $sum: {
+                  $cond: [
+                    {
+                      $in: [
+                        '$kyc.status',
+                        ['LINK_SENT', 'IN_PROGRESS', 'PENDING'],
+                      ],
+                    },
+                    1,
+                    0,
+                  ],
+                },
+              },
+              lowRisk: {
+                $sum: {
+                  $cond: [
+                    {
+                      $or: [
+                        { $eq: ['$kyc.reviewAnswer', 'GREEN'] },
+                        { $eq: ['$kyc.finalDecision', 'APPROVED'] },
+                      ],
+                    },
+                    1,
+                    0,
+                  ],
+                },
+              },
+            },
+          },
+        ],
+      },
+    },
+  ]);
+
+  return {
+    success: true,
+    cards: result.cards?.[0] || {
+      totalChecks: 0,
+      completed: 0,
+      inProgress: 0,
+      failed: 0,
+      lowRisk: 0,
+    },
+    data: result.data || [],
+    total: result.total?.[0]?.count || 0,
+    page,
+    limit,
+  };
+}
+
 
 }

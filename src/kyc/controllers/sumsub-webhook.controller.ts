@@ -98,7 +98,7 @@ export class SumsubWebhookController {
       console.log('AML CHECK RESULT:', amlCheckResult);
 
       const amlResult =
-        amlCheckResult?.overallResult || 'UNKNOWN';
+        amlCheckResult?.overallResult || '';
 
       console.log('FINAL AML RESULT:', amlResult);
 

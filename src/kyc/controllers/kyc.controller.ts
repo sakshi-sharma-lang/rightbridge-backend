@@ -6,6 +6,8 @@ import {
   NotFoundException,
   BadRequestException,
     Req,
+    Get,
+    Query,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, HydratedDocument } from 'mongoose'; 
@@ -258,6 +260,25 @@ async saveOrUpdateKyc(@Body() body: any) {
     );
   }
 }
+@Get('details')
+async getKycDetails(@Query() query: any) {
+  return this.sumsubService.getKycDetails({
+    page: Number(query.page || 1),
+    limit: Number(query.limit || 10),
+    status: query.status,
+    riskLevel: query.riskLevel,
+    applicantName: query.applicantName,
+    applicationId: query.applicationId,
+    fromDate: query.from,
+    toDate: query.to,
+  });
+}
+
+
+
+
+
+
 
 
 }
