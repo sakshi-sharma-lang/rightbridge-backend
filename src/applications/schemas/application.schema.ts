@@ -34,8 +34,7 @@ export class Application extends Document {
       applyingAs: { type: String, required: true },
       firstName: { type: String, required: true },
       lastName: { type: String, required: true },
-      email: { type: String, required: true },
-      // mobile: { type: String, required: true },
+      email: { type: String, required: true, unique: true }, // kept as-is
       phoneNumber: { type: String, required: true },
       dateOfBirth: { type: String, required: false },
       nationality: { type: String, required: false },
@@ -49,10 +48,6 @@ export class Application extends Document {
         required: true,
         enum: ['Under 3 years', '3 years or more'],
       },
-      // numberOfApplicants: {
-      //   type: String,
-      //   required: false,
-      // },
 
       kycEmailSent: { type: Boolean, default: false },
       kycEmailSentAt: { type: Date, default: null },
@@ -69,11 +64,22 @@ export class Application extends Document {
     },
   ],
   required: true,
-  validate: {
-    validator: (v: any[]) => Array.isArray(v) && v.length > 0,
-    message: 'At least one applicant is required',
-  },
+  validate: [
+    {
+      validator: (v: any[]) => Array.isArray(v) && v.length > 0,
+      message: 'At least one applicant is required',
+    },
+    {
+      // ✅ ADDED: unique email validation
+      validator: (v: any[]) => {
+        const emails = v.map(a => a.email?.toLowerCase());
+        return emails.length === new Set(emails).size;
+      },
+      message: 'Applicant emails must be unique',
+    },
+  ],
 })
+
 applicants: Record<string, any>[];
   /* ================= POPUP + FORM: PROPERTY ================= */
   @Prop(raw({

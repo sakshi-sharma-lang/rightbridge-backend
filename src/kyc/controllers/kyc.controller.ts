@@ -18,6 +18,7 @@ import { Application } from '../../applications/schemas/application.schema';
 import { MailService } from '../../mail/mail.service';
 import { JwtAuthGuard } from './../../auth/jwt-auth.guard';
 import { UseGuards } from '@nestjs/common';
+import { AdminJwtGuard } from '../../auth/admin-jwt.guard'
 
 @Controller('kyc')
 export class KycController {
@@ -260,18 +261,24 @@ async saveOrUpdateKyc(@Body() body: any) {
     );
   }
 }
-@Get('details')
-async getKycDetails(@Query() query: any) {
-  return this.sumsubService.getKycDetails({
-    page: Number(query.page || 1),
-    limit: Number(query.limit || 10),
-    status: query.status,
-    riskLevel: query.riskLevel,
-    applicantName: query.applicantName,
-    applicationId: query.applicationId,
-    fromDate: query.from,
-    toDate: query.to,
-  });
+  @Get('details')
+  @UseGuards(AdminJwtGuard)
+  async getKycDetails(@Query() query: any) {
+    return this.sumsubService.getKycDetails({
+      page: Number(query.page || 1),
+      limit: Number(query.limit || 10),
+      status: query.status,
+      riskLevel: query.riskLevel,
+      applicantName: query.applicantName,
+      applicationId: query.applicationId,
+      fromDate: query.from,
+      toDate: query.to,
+    });
+  }
+
+
+
+
 }
 
 
@@ -281,4 +288,5 @@ async getKycDetails(@Query() query: any) {
 
 
 
-}
+
+

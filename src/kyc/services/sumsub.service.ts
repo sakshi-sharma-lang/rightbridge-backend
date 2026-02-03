@@ -192,19 +192,30 @@ async getKycDetails(query: {
 
   const kycMatch: any = {};
 
-  if (query.status) kycMatch.status = query.status;
-
-  if (query.fromDate || query.toDate) {
-    kycMatch.createdAt = {};
-    if (query.fromDate) kycMatch.createdAt.$gte = new Date(query.fromDate);
-    if (query.toDate) kycMatch.createdAt.$lte = new Date(query.toDate);
+  // 🔹 Status filter
+  if (query.status) {
+    kycMatch.status = query.status;
   }
 
-  // 🔹 MAIN AGGREGATION
+  // 🔹 Date filter
+  if (query.fromDate || query.toDate) {
+    kycMatch.createdAt = {};
+    if (query.fromDate) {
+      kycMatch.createdAt.$gte = new Date(query.fromDate);
+    }
+    if (query.toDate) {
+      kycMatch.createdAt.$lte = new Date(query.toDate);
+    }
+  }
+
   const [result] = await this.kycModel.aggregate([
+    // 🔹 Base filter
     { $match: kycMatch },
 
+    // 🔹 Latest record first
     { $sort: { createdAt: -1 } },
+
+    // 🔹 One KYC per applicant
     {
       $group: {
         _id: '$externalUserId',
@@ -212,22 +223,29 @@ async getKycDetails(query: {
       },
     },
 
+    // 🔹 Join application
     {
       $lookup: {
         from: 'applications',
         let: { appObjId: { $toObjectId: '$kyc.applicationId' } },
         pipeline: [
-          { $match: { $expr: { $eq: ['$_id', '$$appObjId'] } } },
+          {
+            $match: {
+              $expr: { $eq: ['$_id', '$$appObjId'] },
+            },
+          },
         ],
         as: 'application',
       },
     },
     { $unwind: '$application' },
 
+    // 🔹 Filter by applicationId
     ...(query.applicationId
       ? [{ $match: { 'application.appId': query.applicationId } }]
       : []),
 
+    // 🔹 Resolve applicant from applicants array
     {
       $addFields: {
         applicant: {
@@ -236,7 +254,9 @@ async getKycDetails(query: {
               $filter: {
                 input: '$application.applicants',
                 as: 'a',
-                cond: { $eq: ['$$a.externalUserId', '$kyc.externalUserId'] },
+                cond: {
+                  $eq: ['$$a.externalUserId', '$kyc.externalUserId'],
+                },
               },
             },
             0,
@@ -245,6 +265,7 @@ async getKycDetails(query: {
       },
     },
 
+    // 🔹 Applicant name search
     ...(query.applicantName
       ? [
           {
@@ -267,9 +288,10 @@ async getKycDetails(query: {
         ]
       : []),
 
+    // 🔹 Final output
     {
       $facet: {
-        // 🔹 TABLE DATA
+        // ================= TABLE DATA =================
         data: [
           {
             $project: {
@@ -277,20 +299,28 @@ async getKycDetails(query: {
               applicationObjectId: '$application._id',
               applicationId: '$application.appId',
               applicantName: {
-                $concat: [
-                  '$applicant.firstName',
-                  ' ',
-                  '$applicant.lastName',
-                ],
+                $trim: {
+                  input: {
+                    $concat: [
+                      { $ifNull: ['$applicant.firstName', ''] },
+                      ' ',
+                      { $ifNull: ['$applicant.lastName', ''] },
+                    ],
+                  },
+                },
               },
               provider: { $literal: 'Onfido' },
               status: '$kyc.status',
               startedOn: '$kyc.createdAt',
               completedOn: '$kyc.kycCompletedAt',
+
+              // 🔹 Risk Summary Priority
               riskSummary: {
                 $ifNull: [
                   '$kyc.finalDecision',
-                  { $ifNull: ['$kyc.reviewAnswer', '$kyc.amlResult'] },
+                  {
+                    $ifNull: ['$kyc.reviewAnswer', '$kyc.amlResult'],
+                  },
                 ],
               },
             },
@@ -300,25 +330,36 @@ async getKycDetails(query: {
           { $limit: limit },
         ],
 
-        // 🔹 TOTAL COUNT
+        // ================= TOTAL COUNT =================
         total: [{ $count: 'count' }],
 
-        // 🔹 CARD STATS (THIS WAS MISSING ❌)
+        // ================= DASHBOARD CARDS =================
         cards: [
           {
             $group: {
               _id: null,
               totalChecks: { $sum: 1 },
+
               completed: {
                 $sum: {
-                  $cond: [{ $eq: ['$kyc.finalDecision', 'APPROVED'] }, 1, 0],
+                  $cond: [
+                    { $eq: ['$kyc.finalDecision', 'APPROVED'] },
+                    1,
+                    0,
+                  ],
                 },
               },
+
               failed: {
                 $sum: {
-                  $cond: [{ $eq: ['$kyc.finalDecision', 'REJECTED'] }, 1, 0],
+                  $cond: [
+                    { $eq: ['$kyc.finalDecision', 'REJECTED'] },
+                    1,
+                    0,
+                  ],
                 },
               },
+
               inProgress: {
                 $sum: {
                   $cond: [
@@ -333,6 +374,7 @@ async getKycDetails(query: {
                   ],
                 },
               },
+
               lowRisk: {
                 $sum: {
                   $cond: [
@@ -356,15 +398,15 @@ async getKycDetails(query: {
 
   return {
     success: true,
-    cards: result.cards?.[0] || {
+    cards: result?.cards?.[0] || {
       totalChecks: 0,
       completed: 0,
       inProgress: 0,
       failed: 0,
       lowRisk: 0,
     },
-    data: result.data || [],
-    total: result.total?.[0]?.count || 0,
+    data: result?.data || [],
+    total: result?.total?.[0]?.count || 0,
     page,
     limit,
   };
