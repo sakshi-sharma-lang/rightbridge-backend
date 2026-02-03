@@ -179,8 +179,8 @@ async generateSdkToken(externalUserId: string, retries = 3): Promise<string> {
 async getKycDetails(query: {
   page?: number;
   limit?: number;
-  status?: 'Completed' | 'In Progress' | 'Failed' | 'Not Started';
-  riskLevel?: 'Low Risk' | 'Medium Risk' | 'High Risk' | 'Pending';
+  status?: string;
+  riskLevel?: string;
   applicantName?: string;
   applicationId?: string;
   fromDate?: string;
@@ -193,26 +193,28 @@ async getKycDetails(query: {
   const kycMatch: any = {};
 
   /* =====================================================
-     STATUS FILTER (UI → DB MAPPING)
+     NORMALIZE STATUS INPUT (CASE SAFE)
   ===================================================== */
-  if (query.status) {
-    switch (query.status) {
-      case 'Completed':
-        kycMatch.finalDecision = 'APPROVED';
+  const uiStatus = query.status?.toLowerCase();
+
+  if (uiStatus) {
+    switch (uiStatus) {
+      case 'completed':
+        kycMatch['kyc.finalDecision'] = 'APPROVED';
         break;
 
-      case 'Failed':
-        kycMatch.finalDecision = 'REJECTED';
+      case 'failed':
+        kycMatch['kyc.finalDecision'] = 'REJECTED';
         break;
 
-      case 'In Progress':
-        kycMatch.status = {
+      case 'in progress':
+        kycMatch['kyc.status'] = {
           $in: ['LINK_SENT', 'IN_PROGRESS', 'PENDING'],
         };
         break;
 
-      case 'Not Started':
-        kycMatch.status = 'NOT_STARTED';
+      case 'not started':
+        kycMatch['kyc.status'] = { $in: ['NOT_STARTED', 'CREATED'] };
         break;
     }
   }
@@ -221,28 +223,23 @@ async getKycDetails(query: {
      DATE RANGE FILTER (Started On = createdAt)
   ===================================================== */
   if (query.fromDate || query.toDate) {
-    kycMatch.createdAt = {};
+    kycMatch['kyc.createdAt'] = {};
     if (query.fromDate) {
-      kycMatch.createdAt.$gte = new Date(query.fromDate);
+      kycMatch['kyc.createdAt'].$gte = new Date(query.fromDate);
     }
     if (query.toDate) {
-      kycMatch.createdAt.$lte = new Date(query.toDate);
+      kycMatch['kyc.createdAt'].$lte = new Date(query.toDate);
     }
   }
 
   const [result] = await this.kycModel.aggregate([
     /* =====================================================
-       BASE FILTER
-    ===================================================== */
-    { $match: kycMatch },
-
-    /* =====================================================
-       LATEST FIRST
+       ALWAYS SORT FIRST
     ===================================================== */
     { $sort: { createdAt: -1 } },
 
     /* =====================================================
-       ONE LATEST KYC PER APPLICANT
+       ONE LATEST KYC PER APPLICANT (UNCHANGED LOGIC)
     ===================================================== */
     {
       $group: {
@@ -250,6 +247,11 @@ async getKycDetails(query: {
         kyc: { $first: '$$ROOT' },
       },
     },
+
+    /* =====================================================
+       APPLY STATUS + DATE FILTERS (CRITICAL FIX)
+    ===================================================== */
+    ...(Object.keys(kycMatch).length ? [{ $match: kycMatch }] : []),
 
     /* =====================================================
        JOIN APPLICATION
@@ -321,7 +323,7 @@ async getKycDetails(query: {
       : []),
 
     /* =====================================================
-       NORMALIZE RISK SUMMARY
+       NORMALIZE RISK SUMMARY (UNCHANGED)
     ===================================================== */
     {
       $addFields: {
@@ -369,7 +371,6 @@ async getKycDetails(query: {
     ===================================================== */
     {
       $facet: {
-        /* ================= TABLE ================= */
         data: [
           {
             $project: {
@@ -399,10 +400,8 @@ async getKycDetails(query: {
           { $limit: limit },
         ],
 
-        /* ================= TOTAL ================= */
         total: [{ $count: 'count' }],
 
-        /* ================= CARDS ================= */
         cards: [
           {
             $group: {
