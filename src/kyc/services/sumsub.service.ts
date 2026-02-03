@@ -179,8 +179,8 @@ async generateSdkToken(externalUserId: string, retries = 3): Promise<string> {
 async getKycDetails(query: {
   page?: number;
   limit?: number;
-  status?: string;
-  riskLevel?: string; // Low Risk | Medium Risk | High Risk | Pending
+  status?: 'Completed' | 'In Progress' | 'Failed' | 'Not Started';
+  riskLevel?: 'Low Risk' | 'Medium Risk' | 'High Risk' | 'Pending';
   applicantName?: string;
   applicationId?: string;
   fromDate?: string;
@@ -192,26 +192,58 @@ async getKycDetails(query: {
 
   const kycMatch: any = {};
 
-  // 🔹 Status filter
+  /* =====================================================
+     STATUS FILTER (UI → DB MAPPING)
+  ===================================================== */
   if (query.status) {
-    kycMatch.status = query.status;
+    switch (query.status) {
+      case 'Completed':
+        kycMatch.finalDecision = 'APPROVED';
+        break;
+
+      case 'Failed':
+        kycMatch.finalDecision = 'REJECTED';
+        break;
+
+      case 'In Progress':
+        kycMatch.status = {
+          $in: ['LINK_SENT', 'IN_PROGRESS', 'PENDING'],
+        };
+        break;
+
+      case 'Not Started':
+        kycMatch.status = 'NOT_STARTED';
+        break;
+    }
   }
 
-  // 🔹 Date filter
+  /* =====================================================
+     DATE RANGE FILTER (Started On = createdAt)
+  ===================================================== */
   if (query.fromDate || query.toDate) {
     kycMatch.createdAt = {};
-    if (query.fromDate) kycMatch.createdAt.$gte = new Date(query.fromDate);
-    if (query.toDate) kycMatch.createdAt.$lte = new Date(query.toDate);
+    if (query.fromDate) {
+      kycMatch.createdAt.$gte = new Date(query.fromDate);
+    }
+    if (query.toDate) {
+      kycMatch.createdAt.$lte = new Date(query.toDate);
+    }
   }
 
   const [result] = await this.kycModel.aggregate([
-    // 🔹 Base filter
+    /* =====================================================
+       BASE FILTER
+    ===================================================== */
     { $match: kycMatch },
 
-    // 🔹 Latest first
+    /* =====================================================
+       LATEST FIRST
+    ===================================================== */
     { $sort: { createdAt: -1 } },
 
-    // 🔹 One latest KYC per applicant
+    /* =====================================================
+       ONE LATEST KYC PER APPLICANT
+    ===================================================== */
     {
       $group: {
         _id: '$externalUserId',
@@ -219,7 +251,9 @@ async getKycDetails(query: {
       },
     },
 
-    // 🔹 Join application
+    /* =====================================================
+       JOIN APPLICATION
+    ===================================================== */
     {
       $lookup: {
         from: 'applications',
@@ -232,12 +266,16 @@ async getKycDetails(query: {
     },
     { $unwind: '$application' },
 
-    // 🔹 Filter by applicationId
+    /* =====================================================
+       FILTER BY APPLICATION ID
+    ===================================================== */
     ...(query.applicationId
       ? [{ $match: { 'application.appId': query.applicationId } }]
       : []),
 
-    // 🔹 Resolve applicant
+    /* =====================================================
+       RESOLVE APPLICANT
+    ===================================================== */
     {
       $addFields: {
         applicant: {
@@ -246,7 +284,9 @@ async getKycDetails(query: {
               $filter: {
                 input: '$application.applicants',
                 as: 'a',
-                cond: { $eq: ['$$a.externalUserId', '$kyc.externalUserId'] },
+                cond: {
+                  $eq: ['$$a.externalUserId', '$kyc.externalUserId'],
+                },
               },
             },
             0,
@@ -255,7 +295,9 @@ async getKycDetails(query: {
       },
     },
 
-    // 🔹 Applicant name search
+    /* =====================================================
+       APPLICANT NAME SEARCH
+    ===================================================== */
     ...(query.applicantName
       ? [
           {
@@ -278,7 +320,9 @@ async getKycDetails(query: {
         ]
       : []),
 
-    // 🔹 Normalize risk summary
+    /* =====================================================
+       NORMALIZE RISK SUMMARY
+    ===================================================== */
     {
       $addFields: {
         riskSummary: {
@@ -313,15 +357,19 @@ async getKycDetails(query: {
       },
     },
 
-    // 🔹 Risk level filter (NOW WORKS ✅)
+    /* =====================================================
+       RISK LEVEL FILTER
+    ===================================================== */
     ...(query.riskLevel
       ? [{ $match: { riskSummary: query.riskLevel } }]
       : []),
 
-    // 🔹 Final output
+    /* =====================================================
+       FINAL OUTPUT
+    ===================================================== */
     {
       $facet: {
-        // ================= TABLE =================
+        /* ================= TABLE ================= */
         data: [
           {
             $project: {
@@ -351,10 +399,10 @@ async getKycDetails(query: {
           { $limit: limit },
         ],
 
-        // ================= TOTAL =================
+        /* ================= TOTAL ================= */
         total: [{ $count: 'count' }],
 
-        // ================= CARDS =================
+        /* ================= CARDS ================= */
         cards: [
           {
             $group: {
@@ -423,6 +471,7 @@ async getKycDetails(query: {
     limit,
   };
 }
+
 
 
 
