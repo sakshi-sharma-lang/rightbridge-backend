@@ -190,10 +190,13 @@ async getKycDetails(query: {
   const limit = Number(query.limit || 10);
   const skip = (page - 1) * limit;
 
+  /* =====================================================
+     BUILD MATCH OBJECT (APPLIED AFTER GROUP)
+  ===================================================== */
   const kycMatch: any = {};
 
   /* =====================================================
-     NORMALIZE STATUS INPUT (CASE SAFE)
+     STATUS FILTER (CASE INSENSITIVE)
   ===================================================== */
   const uiStatus = query.status?.toLowerCase();
 
@@ -214,13 +217,13 @@ async getKycDetails(query: {
         break;
 
       case 'not started':
-        kycMatch['kyc.status'] = { $in: ['NOT_STARTED', 'CREATED'] };
+        kycMatch['kyc.status'] = { $in: ['CREATED', 'NOT_STARTED'] };
         break;
     }
   }
 
   /* =====================================================
-     DATE RANGE FILTER (Started On = createdAt)
+     DATE FILTER (STARTED ON = createdAt)
   ===================================================== */
   if (query.fromDate || query.toDate) {
     kycMatch['kyc.createdAt'] = {};
@@ -239,7 +242,7 @@ async getKycDetails(query: {
     { $sort: { createdAt: -1 } },
 
     /* =====================================================
-       ONE LATEST KYC PER APPLICANT (UNCHANGED LOGIC)
+       ONE LATEST KYC PER APPLICANT (UNCHANGED)
     ===================================================== */
     {
       $group: {
@@ -323,7 +326,7 @@ async getKycDetails(query: {
       : []),
 
     /* =====================================================
-       NORMALIZE RISK SUMMARY (UNCHANGED)
+       NORMALIZE RISK SUMMARY
     ===================================================== */
     {
       $addFields: {
@@ -371,6 +374,7 @@ async getKycDetails(query: {
     ===================================================== */
     {
       $facet: {
+        /* ================= TABLE ================= */
         data: [
           {
             $project: {
@@ -400,8 +404,10 @@ async getKycDetails(query: {
           { $limit: limit },
         ],
 
+        /* ================= TOTAL ================= */
         total: [{ $count: 'count' }],
 
+        /* ================= CARDS ================= */
         cards: [
           {
             $group: {
@@ -470,6 +476,7 @@ async getKycDetails(query: {
     limit,
   };
 }
+
 
 
 
