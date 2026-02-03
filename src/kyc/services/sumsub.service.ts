@@ -118,9 +118,8 @@ async createApplicant(externalUserId: string, email?: string) {
 async generateSdkToken(externalUserId: string, retries = 3): Promise<string> {
   try {
     externalUserId = externalUserId.trim();
-
     const ts = Math.floor(Date.now() / 1000);
-    const query = `ttlInSecs=3600&userId=${externalUserId}&levelName=${this.levelName}`;
+    const query = `ttlInSecs=86400&userId=${externalUserId}&levelName=${this.levelName}`;
     const path = `/resources/accessTokens?${query}`;
     const signature = this.createSignature('POST', path, ts, '');
 
@@ -165,7 +164,5 @@ async generateSdkToken(externalUserId: string, retries = 3): Promise<string> {
     throw new Error(err?.message || 'Failed to generate SDK token');
   }
 }
-
-
 
 }

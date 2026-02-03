@@ -33,10 +33,10 @@ export class Kyc extends Document {
   @Prop() reviewedAt: Date;
 
   // ===== AML =====
-  @Prop({ default: 'NOT_STARTED' })
-  amlStatus: string;
 
-  @Prop() amlResult: string;
+
+  @Prop({ default: 'UNKNOWN' })
+  amlResult?: string;
   @Prop({ type: Array }) amlHits: any[];
   @Prop() riskLevel: string;
 
@@ -48,6 +48,11 @@ export class Kyc extends Document {
 
   @Prop({ type: [String] })
   uploadedDocuments: string[];
+
+
+
+@Prop({ default: '' })
+amlStatus?: string;   
 
   // ===== COMPLIANCE (NEW – AS REQUESTED) =====
   @Prop()

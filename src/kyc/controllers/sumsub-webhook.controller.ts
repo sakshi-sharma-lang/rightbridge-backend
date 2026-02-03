@@ -6,7 +6,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-  import { Model, HydratedDocument } from 'mongoose';
+import { Model, HydratedDocument } from 'mongoose';
 import * as crypto from 'crypto';
 import { Kyc } from '../schemas/kyc.schema';
 import { KycStatus } from '../enums/kyc-status.enum';
@@ -34,19 +34,33 @@ export class SumsubWebhookController {
         ? req.body.toString('utf8')
         : JSON.stringify(req.body));
 
-    let parsedBody: any;
+    console.log('================ SUMSUB WEBHOOK RECEIVED ================');
+    console.log('RAW BODY:', rawBody);
 
+    let parsedBody: any;
     try {
       parsedBody = JSON.parse(rawBody);
-    } catch {
+    } catch (e) {
+      console.log('❌ JSON PARSE FAILED');
       return { ok: true };
     }
 
-    // 🔐 Enable in production
-    // this.verifySignature(rawBody, signature, timestamp);
+    const {
+      applicantId,
+      type,
+      reviewResult,
+      externalUserId,
+      amlCheckResult,
+    } = parsedBody;
 
-    const { applicantId, type, reviewResult, externalUserId } = parsedBody;
-    if (!applicantId) return { ok: true };
+    console.log('WEBHOOK TYPE:', type);
+    console.log('APPLICANT ID:', applicantId);
+    console.log('EXTERNAL USER ID:', externalUserId);
+
+    if (!applicantId) {
+      console.log('❌ Missing applicantId → ignored');
+      return { ok: true };
+    }
 
     const normalizedExternalUserId =
       this.normalizeExternalUserId(externalUserId);
@@ -63,59 +77,80 @@ export class SumsubWebhookController {
       kyc = await this.kycModel.findOne({ applicantId });
     }
 
-    if (!kyc) return { ok: true };
+    if (!kyc) {
+      console.log('❌ KYC RECORD NOT FOUND → ignored');
+      return { ok: true };
+    }
 
     if (kyc.applicantId !== applicantId) {
+      console.log('ℹ️ Updating applicantId in DB');
       await this.kycModel.updateOne(
         { _id: kyc._id },
         { applicantId },
       );
     }
 
+    /* ======================================================
+       🔐 AML WEBHOOK — DEBUG + HANDLER
+       ====================================================== */
+    if (type === 'amlCheckCompleted') {
+      console.log('✅ AML WEBHOOK RECEIVED');
+      console.log('AML CHECK RESULT:', amlCheckResult);
+
+      const amlResult =
+        amlCheckResult?.overallResult || 'UNKNOWN';
+
+      console.log('FINAL AML RESULT:', amlResult);
+
+      await this.kycModel.updateOne(
+        { _id: kyc._id },
+        {
+          amlResult,
+          amlStatus:
+            amlResult === 'RED' ? 'FAILED' : 'PASSED',
+          rawWebhookPayload: parsedBody,
+          reviewedAt: new Date(),
+          decisionReason:
+            amlResult === 'RED' ? 'AML' : undefined,
+        },
+      );
+
+      console.log('✅ AML DATA SAVED');
+      return { ok: true };
+    }
+
+    /* ======================================================
+       🆔 KYC WEBHOOK — DEBUG + HANDLER
+       ====================================================== */
+    if (type !== 'applicantReviewed') {
+      console.log('ℹ️ Not KYC / AML webhook → ignored');
+      return { ok: true };
+    }
+
+    console.log('✅ KYC REVIEW WEBHOOK RECEIVED');
+
     const kycAnswer = reviewResult?.reviewAnswer || 'PENDING';
+    console.log('KYC REVIEW ANSWER:', kycAnswer);
 
-    const amlResult =
-      reviewResult?.amlCheckResult?.overallResult ||
-      parsedBody?.amlCheckResult?.overallResult ||
-      'UNKNOWN';
+    const amlResult = kyc.amlResult || 'UNKNOWN';
+    console.log('CURRENT AML RESULT (DB):', amlResult);
 
-    // ✅ Extract uploaded document types
     const uploadedDocuments =
       reviewResult?.reviewDocuments?.map(
         (doc) => doc.idDocType,
       ) || [];
 
-    /* ================= AML RED ================= */
-    if (amlResult === 'RED') {
-      await this.kycModel.updateOne(
-        { _id: kyc._id },
-        {
-          status: KycStatus.REJECTED,
-          amlResult: 'RED',
-          rawWebhookPayload: parsedBody,
-          reviewedAt: new Date(),
-
-          uploadedDocuments,
-          kycCompletedAt: new Date(),
-          finalDecision: 'REJECTED',
-          decisionReason: 'AML',
-        },
-      );
-      return { ok: true };
-    }
-    /* =========================================== */
-
     let status: KycStatus = KycStatus.IN_PROGRESS;
 
-    if (type === 'applicantReviewed') {
-      if (kycAnswer === 'GREEN') {
-        status = KycStatus.APPROVED;
-      } else if (kycAnswer === 'RED') {
-        status = KycStatus.REJECTED;
-      } else {
-        status = KycStatus.MANUAL_REVIEW;
-      }
+    if (kycAnswer === 'GREEN') {
+      status = KycStatus.APPROVED;
+    } else if (kycAnswer === 'RED') {
+      status = KycStatus.REJECTED;
+    } else {
+      status = KycStatus.MANUAL_REVIEW;
     }
+
+    console.log('FINAL KYC STATUS:', status);
 
     await this.kycModel.updateOne(
       { _id: kyc._id },
@@ -127,8 +162,10 @@ export class SumsubWebhookController {
         reviewedAt: new Date(),
 
         uploadedDocuments,
+
         kycCompletedAt:
-          status === KycStatus.APPROVED || status === KycStatus.REJECTED
+          status === KycStatus.APPROVED ||
+          status === KycStatus.REJECTED
             ? new Date()
             : undefined,
 
@@ -140,13 +177,12 @@ export class SumsubWebhookController {
             : undefined,
 
         decisionReason:
-          amlResult === 'RED'
-            ? 'AML'
-            : kycAnswer === 'RED'
-            ? 'KYC'
-            : undefined,
+          kycAnswer === 'RED' ? 'KYC' : undefined,
       },
     );
+
+    console.log('✅ KYC DATA SAVED');
+    console.log('========================================================');
 
     return { ok: true };
   }
