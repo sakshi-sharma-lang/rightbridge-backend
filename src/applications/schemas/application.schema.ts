@@ -260,10 +260,8 @@ declarationsAndConsent: {
 
 @Prop({ type: Boolean, default: null })
 dipconditional?: boolean | null;
-
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true })
   userId: any;
-
 
 }
 

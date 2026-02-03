@@ -339,7 +339,7 @@ async getKycDetails(query: {
                   },
                 },
               },
-              provider: { $literal: 'Onfido' },
+              provider: { $literal: 'Sumsub' },
               status: '$kyc.status',
               startedOn: '$kyc.createdAt',
               completedOn: '$kyc.kycCompletedAt',
