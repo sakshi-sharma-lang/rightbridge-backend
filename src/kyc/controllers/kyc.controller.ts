@@ -29,7 +29,7 @@ export class KycController {
   ) {}
 
   @Post('start-kyc')
-//  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   async startKyc(@Req() req: any, @Body() body: any) {
 
     try {
@@ -50,20 +50,20 @@ export class KycController {
         throw new NotFoundException(`No applicants found in application`);
       }
 
-    //   const loggedInUserId =
-    //   req.user?.id || req.user?._id || req.user?.userId;
+      const loggedInUserId =
+      req.user?.id || req.user?._id || req.user?.userId;
 
-    // console.log('loggedInUserId', loggedInUserId);
+    console.log('loggedInUserId', loggedInUserId);
 
-    // if (!loggedInUserId) {
-    //   throw new BadRequestException('Invalid login user');
-    // }
+    if (!loggedInUserId) {
+      throw new BadRequestException('Invalid login user');
+    }
 
-    // if (application.userId.toString() !== loggedInUserId.toString()) {
-    //   throw new BadRequestException(
-    //     'You are not authorized to access this application',
-    //   );
-    // }
+    if (application.userId.toString() !== loggedInUserId.toString()) {
+      throw new BadRequestException(
+        'You are not authorized to access this application',
+      );
+    }
 
       const results: any[] = [];
 

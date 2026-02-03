@@ -40,7 +40,7 @@ export class SumsubWebhookController {
     let parsedBody: any;
     try {
       parsedBody = JSON.parse(rawBody);
-    } catch (e) {
+    } catch {
       console.log('❌ JSON PARSE FAILED');
       return { ok: true };
     }
@@ -91,7 +91,7 @@ export class SumsubWebhookController {
     }
 
     /* ======================================================
-       🔐 AML WEBHOOK — DEBUG + HANDLER
+       🔐 AML WEBHOOK — ALL AML CASES
        ====================================================== */
     if (type === 'amlCheckCompleted') {
       console.log('✅ AML WEBHOOK RECEIVED');
@@ -120,7 +120,7 @@ export class SumsubWebhookController {
     }
 
     /* ======================================================
-       🆔 KYC WEBHOOK — DEBUG + HANDLER
+       🆔 KYC WEBHOOK — ALL KYC CASES
        ====================================================== */
     if (type !== 'applicantReviewed') {
       console.log('ℹ️ Not KYC / AML webhook → ignored');
@@ -142,7 +142,9 @@ export class SumsubWebhookController {
 
     let status: KycStatus = KycStatus.IN_PROGRESS;
 
-    if (kycAnswer === 'GREEN') {
+    if (amlResult === 'RED') {
+      status = KycStatus.REJECTED;
+    } else if (kycAnswer === 'GREEN') {
       status = KycStatus.APPROVED;
     } else if (kycAnswer === 'RED') {
       status = KycStatus.REJECTED;
@@ -177,7 +179,11 @@ export class SumsubWebhookController {
             : undefined,
 
         decisionReason:
-          kycAnswer === 'RED' ? 'KYC' : undefined,
+          amlResult === 'RED'
+            ? 'AML'
+            : kycAnswer === 'RED'
+            ? 'KYC'
+            : undefined,
       },
     );
 

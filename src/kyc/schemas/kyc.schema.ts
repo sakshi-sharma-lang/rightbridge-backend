@@ -35,7 +35,7 @@ export class Kyc extends Document {
   // ===== AML =====
 
 
-  @Prop({ default: 'UNKNOWN' })
+  @Prop({ default: '' })
   amlResult?: string;
   @Prop({ type: Array }) amlHits: any[];
   @Prop() riskLevel: string;
