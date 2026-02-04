@@ -195,18 +195,54 @@ async getKycDetails(query: {
 
   const pipeline: any[] = [];
 
-  /* ============================
-     BASE KYC RECORDS
-  ============================ */
-  pipeline.push({
-    $match: {
-      externalUserId: { $exists: true, $ne: null },
-    },
-  });
+  /* =====================================================
+     PRE-GROUP MATCH (DATE FILTER MUST BE HERE)
+  ===================================================== */
+  const preGroupMatch: any = {
+    externalUserId: { $exists: true, $ne: null },
+  };
 
-  /* ============================
-     SORT + GROUP (LATEST PER USER)
-  ============================ */
+  const now = new Date();
+
+  if (query.dateRange === 'today') {
+    const start = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      0, 0, 0, 0
+    ));
+    preGroupMatch.createdAt = { $gte: start };
+  }
+
+  if (query.dateRange === 'this_week') {
+    const start = new Date(now);
+    start.setUTCDate(now.getUTCDate() - now.getUTCDay());
+    start.setUTCHours(0, 0, 0, 0);
+    preGroupMatch.createdAt = { $gte: start };
+  }
+
+  if (query.dateRange === 'this_month') {
+    const start = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      1
+    ));
+    preGroupMatch.createdAt = { $gte: start };
+  }
+
+  if (query.fromDate || query.toDate) {
+    preGroupMatch.createdAt = {};
+    if (query.fromDate)
+      preGroupMatch.createdAt.$gte = new Date(query.fromDate);
+    if (query.toDate)
+      preGroupMatch.createdAt.$lte = new Date(query.toDate);
+  }
+
+  pipeline.push({ $match: preGroupMatch });
+
+  /* =====================================================
+     SORT + GROUP (LATEST PER externalUserId)
+  ===================================================== */
   pipeline.push({ $sort: { createdAt: -1 } });
 
   pipeline.push({
@@ -216,39 +252,12 @@ async getKycDetails(query: {
     },
   });
 
-  /* ============================
-     DATE FILTERS
-  ============================ */
+  /* =====================================================
+     POST-GROUP FILTERS
+  ===================================================== */
   const match: any = {};
-  const now = new Date();
 
-  if (query.dateRange === 'today') {
-    const s = new Date(); s.setHours(0, 0, 0, 0);
-    match['kyc.createdAt'] = { $gte: s };
-  }
-
-  if (query.dateRange === 'this_week') {
-    const s = new Date();
-    s.setDate(s.getDate() - s.getDay());
-    s.setHours(0, 0, 0, 0);
-    match['kyc.createdAt'] = { $gte: s };
-  }
-
-  if (query.dateRange === 'this_month') {
-    match['kyc.createdAt'] = {
-      $gte: new Date(now.getFullYear(), now.getMonth(), 1),
-    };
-  }
-
-  if (query.fromDate || query.toDate) {
-    match['kyc.createdAt'] = {};
-    if (query.fromDate) match['kyc.createdAt'].$gte = new Date(query.fromDate);
-    if (query.toDate) match['kyc.createdAt'].$lte = new Date(query.toDate);
-  }
-
-  /* ============================
-     STATUS FILTER
-  ============================ */
+  // STATUS FILTER
   switch (query.status?.toLowerCase()) {
     case 'completed':
       match['kyc.status'] = 'APPROVED';
@@ -264,9 +273,7 @@ async getKycDetails(query: {
       break;
   }
 
-  /* ============================
-     RISK LEVEL FILTER (FIXED)
-  ============================ */
+  // RISK LEVEL FILTER
   switch (query.riskLevel?.toLowerCase()) {
     case 'high':
       match['kyc.status'] = 'REJECTED';
@@ -286,9 +293,9 @@ async getKycDetails(query: {
     pipeline.push({ $match: match });
   }
 
-  /* ============================
+  /* =====================================================
      SAFE applicationId handling
-  ============================ */
+  ===================================================== */
   pipeline.push({
     $addFields: {
       applicationIdStr: {
@@ -313,9 +320,9 @@ async getKycDetails(query: {
     },
   });
 
-  /* ============================
+  /* =====================================================
      LOOKUP APPLICATION
-  ============================ */
+  ===================================================== */
   pipeline.push({
     $lookup: {
       from: 'applications',
@@ -332,9 +339,7 @@ async getKycDetails(query: {
     },
   });
 
-  /* ============================
-     APPLICATION ID FILTER
-  ============================ */
+  // APPLICATION ID FILTER
   if (query.applicationId) {
     pipeline.push({
       $match: {
@@ -343,9 +348,9 @@ async getKycDetails(query: {
     });
   }
 
-  /* ============================
+  /* =====================================================
      RESOLVE APPLICANT
-  ============================ */
+  ===================================================== */
   pipeline.push({
     $addFields: {
       applicant: {
@@ -360,9 +365,7 @@ async getKycDetails(query: {
     },
   });
 
-  /* ============================
-     APPLICANT NAME FILTER
-  ============================ */
+  // APPLICANT NAME FILTER
   if (query.applicantName) {
     pipeline.push({
       $match: {
@@ -374,9 +377,9 @@ async getKycDetails(query: {
     });
   }
 
-  /* ============================
+  /* =====================================================
      RISK SUMMARY
-  ============================ */
+  ===================================================== */
   pipeline.push({
     $addFields: {
       riskSummary: {
@@ -396,9 +399,9 @@ async getKycDetails(query: {
     },
   });
 
-  /* ============================
-     FACET (DATA + CARDS)
-  ============================ */
+  /* =====================================================
+     FACET (DATA + TOTAL + CARDS)
+  ===================================================== */
   pipeline.push({
     $facet: {
       data: [
@@ -461,13 +464,20 @@ async getKycDetails(query: {
 
   return {
     success: true,
-    cards: result?.cards?.[0] || {},
+    cards: result?.cards?.[0] || {
+      totalChecks: 0,
+      completed: 0,
+      failed: 0,
+      inProgress: 0,
+      lowRisk: 0,
+    },
     data: result?.data || [],
     total: result?.total?.[0]?.count || 0,
     page,
     limit,
   };
 }
+
 
 
 
