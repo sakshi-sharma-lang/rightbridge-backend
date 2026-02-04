@@ -183,25 +183,24 @@ async getKycDetails(query: {
   riskLevel?: string;
   applicantName?: string;
   applicationId?: string;
+  dateRange?: 'today' | 'this_week' | 'this_month';
   fromDate?: string;
   toDate?: string;
 }): Promise<any> {
+
   const page = Number(query.page || 1);
   const limit = Number(query.limit || 10);
   const skip = (page - 1) * limit;
 
-  /* =====================================================
-     BUILD PIPELINE
-  ===================================================== */
   const pipeline: any[] = [];
 
   /* =====================================================
-     SORT FIRST (LATEST KYC WINS)
+     SORT → LATEST KYC WINS
   ===================================================== */
   pipeline.push({ $sort: { createdAt: -1 } });
 
   /* =====================================================
-     ONE LATEST KYC PER APPLICANT
+     ONE LATEST KYC PER USER
   ===================================================== */
   pipeline.push({
     $group: {
@@ -211,56 +210,62 @@ async getKycDetails(query: {
   });
 
   /* =====================================================
-     STATUS + DATE FILTERS (AFTER GROUP)
+     DATE FILTER (createdAt = startedOn)
   ===================================================== */
   const matchAfterGroup: any = {};
+  const now = new Date();
 
-  // ---------- STATUS ----------
-  const uiStatus = query.status?.toLowerCase();
-  if (uiStatus) {
-    switch (uiStatus) {
-      case 'completed':
-        matchAfterGroup['kyc.finalDecision'] = 'APPROVED';
-        break;
-
-      case 'failed':
-        matchAfterGroup['kyc.finalDecision'] = 'REJECTED';
-        break;
-
-      case 'in progress':
-        matchAfterGroup['kyc.status'] = {
-          $in: ['LINK_SENT', 'IN_PROGRESS', 'PENDING'],
-        };
-        break;
-
-      case 'not started':
-        matchAfterGroup['kyc.status'] = {
-          $in: ['CREATED', 'NOT_STARTED'],
-        };
-        break;
-    }
+  if (query.dateRange === 'today') {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    matchAfterGroup['kyc.createdAt'] = { $gte: start };
   }
 
-  // ---------- DATE (createdAt) ----------
+  if (query.dateRange === 'this_week') {
+    const start = new Date();
+    start.setDate(start.getDate() - start.getDay());
+    start.setHours(0, 0, 0, 0);
+    matchAfterGroup['kyc.createdAt'] = { $gte: start };
+  }
+
+  if (query.dateRange === 'this_month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    matchAfterGroup['kyc.createdAt'] = { $gte: start };
+  }
+
   if (query.fromDate || query.toDate) {
     matchAfterGroup['kyc.createdAt'] = {};
-
     if (query.fromDate) {
-      const from = new Date(query.fromDate);
-      if (!isNaN(from.getTime())) {
-        matchAfterGroup['kyc.createdAt'].$gte = from;
-      }
+      matchAfterGroup['kyc.createdAt'].$gte = new Date(query.fromDate);
     }
-
     if (query.toDate) {
-      const to = new Date(query.toDate);
-      if (!isNaN(to.getTime())) {
-        matchAfterGroup['kyc.createdAt'].$lte = to;
-      }
+      matchAfterGroup['kyc.createdAt'].$lte = new Date(query.toDate);
     }
   }
 
-  if (Object.keys(matchAfterGroup).length > 0) {
+  /* =====================================================
+     STATUS FILTER (UI ALIGNED)
+  ===================================================== */
+  switch (query.status?.toLowerCase()) {
+    case 'completed':
+      matchAfterGroup['kyc.finalDecision'] = 'APPROVED';
+      break;
+
+    case 'failed':
+      matchAfterGroup['kyc.finalDecision'] = 'REJECTED';
+      break;
+
+    case 'in progress':
+      matchAfterGroup['kyc.finalDecision'] = { $exists: false };
+      matchAfterGroup['kyc.status'] = 'IN_PROGRESS';
+      break;
+
+    case 'not started':
+      matchAfterGroup['kyc.status'] = { $in: ['LINK_SENT', 'CREATED'] };
+      break;
+  }
+
+  if (Object.keys(matchAfterGroup).length) {
     pipeline.push({ $match: matchAfterGroup });
   }
 
@@ -271,10 +276,8 @@ async getKycDetails(query: {
     {
       $lookup: {
         from: 'applications',
-        let: { appObjId: { $toObjectId: '$kyc.applicationId' } },
-        pipeline: [
-          { $match: { $expr: { $eq: ['$_id', '$$appObjId'] } } },
-        ],
+        let: { appId: { $toObjectId: '$kyc.applicationId' } },
+        pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$appId'] } } }],
         as: 'application',
       },
     },
@@ -282,16 +285,7 @@ async getKycDetails(query: {
   );
 
   /* =====================================================
-     FILTER BY APPLICATION ID
-  ===================================================== */
-  if (query.applicationId) {
-    pipeline.push({
-      $match: { 'application.appId': query.applicationId },
-    });
-  }
-
-  /* =====================================================
-     RESOLVE APPLICANT
+     APPLICANT RESOLVE
   ===================================================== */
   pipeline.push({
     $addFields: {
@@ -301,9 +295,7 @@ async getKycDetails(query: {
             $filter: {
               input: '$application.applicants',
               as: 'a',
-              cond: {
-                $eq: ['$$a.externalUserId', '$kyc.externalUserId'],
-              },
+              cond: { $eq: ['$$a.externalUserId', '$kyc.externalUserId'] },
             },
           },
           0,
@@ -311,29 +303,6 @@ async getKycDetails(query: {
       },
     },
   });
-
-  /* =====================================================
-     APPLICANT NAME SEARCH
-  ===================================================== */
-  if (query.applicantName) {
-    pipeline.push({
-      $match: {
-        $expr: {
-          $regexMatch: {
-            input: {
-              $concat: [
-                { $ifNull: ['$applicant.firstName', ''] },
-                ' ',
-                { $ifNull: ['$applicant.lastName', ''] },
-              ],
-            },
-            regex: query.applicantName,
-            options: 'i',
-          },
-        },
-      },
-    });
-  }
 
   /* =====================================================
      RISK SUMMARY
@@ -344,25 +313,11 @@ async getKycDetails(query: {
         $switch: {
           branches: [
             {
-              case: {
-                $or: [
-                  { $eq: ['$kyc.finalDecision', 'APPROVED'] },
-                  { $eq: ['$kyc.reviewAnswer', 'GREEN'] },
-                ],
-              },
+              case: { $eq: ['$kyc.finalDecision', 'APPROVED'] },
               then: 'Low Risk',
             },
             {
-              case: { $eq: ['$kyc.reviewAnswer', 'YELLOW'] },
-              then: 'Medium Risk',
-            },
-            {
-              case: {
-                $or: [
-                  { $eq: ['$kyc.finalDecision', 'REJECTED'] },
-                  { $eq: ['$kyc.reviewAnswer', 'RED'] },
-                ],
-              },
+              case: { $eq: ['$kyc.finalDecision', 'REJECTED'] },
               then: 'High Risk',
             },
           ],
@@ -372,9 +327,6 @@ async getKycDetails(query: {
     },
   });
 
-  /* =====================================================
-     RISK LEVEL FILTER
-  ===================================================== */
   if (query.riskLevel) {
     pipeline.push({ $match: { riskSummary: query.riskLevel } });
   }
@@ -388,7 +340,6 @@ async getKycDetails(query: {
         {
           $project: {
             _id: 0,
-            applicationObjectId: '$application._id',
             applicationId: '$application.appId',
             applicantName: {
               $trim: {
@@ -412,37 +363,35 @@ async getKycDetails(query: {
         { $skip: skip },
         { $limit: limit },
       ],
+
       total: [{ $count: 'count' }],
+
       cards: [
         {
           $group: {
             _id: null,
+
             totalChecks: { $sum: 1 },
+
             completed: {
               $sum: {
-                $cond: [
-                  { $eq: ['$kyc.finalDecision', 'APPROVED'] },
-                  1,
-                  0,
-                ],
+                $cond: [{ $eq: ['$kyc.finalDecision', 'APPROVED'] }, 1, 0],
               },
             },
+
             failed: {
               $sum: {
-                $cond: [
-                  { $eq: ['$kyc.finalDecision', 'REJECTED'] },
-                  1,
-                  0,
-                ],
+                $cond: [{ $eq: ['$kyc.finalDecision', 'REJECTED'] }, 1, 0],
               },
             },
+
             inProgress: {
               $sum: {
                 $cond: [
                   {
-                    $in: [
-                      '$kyc.status',
-                      ['LINK_SENT', 'IN_PROGRESS', 'PENDING'],
+                    $and: [
+                      { $not: ['$kyc.finalDecision'] },
+                      { $eq: ['$kyc.status', 'IN_PROGRESS'] },
                     ],
                   },
                   1,
@@ -450,9 +399,14 @@ async getKycDetails(query: {
                 ],
               },
             },
+
             lowRisk: {
               $sum: {
-                $cond: [{ $eq: ['$riskSummary', 'Low Risk'] }, 1, 0],
+                $cond: [
+                  { $eq: ['$kyc.finalDecision', 'APPROVED'] },
+                  1,
+                  0,
+                ],
               },
             },
           },
@@ -478,6 +432,7 @@ async getKycDetails(query: {
     limit,
   };
 }
+
 }
 
 
