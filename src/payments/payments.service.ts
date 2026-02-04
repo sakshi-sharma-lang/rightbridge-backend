@@ -314,7 +314,7 @@ async getPaymentsManagement(query: {
   fromDate?: string;
   toDate?: string;
   search?: string;
-  appId?: string; // ✅ ADDED
+  appId?: string; // filter by application appId
 }) {
   try {
     /* =====================================================
@@ -328,17 +328,15 @@ async getPaymentsManagement(query: {
 
     /* =====================================================
        APPLICATION FILTER (BY appId)
-       ✅ DOES NOT REMOVE ANYTHING
     ===================================================== */
     if (query.appId) {
       const application = await this.applicationModel
         .findOne({ appId: query.appId })
-        .select('_id')
+        .select('_id appId')
         .lean();
 
       if (!application) {
-        // valid request but no matching application
-        match._id = null;
+        match._id = null; // valid request, no data
       } else {
         match.applicationId = application._id.toString();
       }
@@ -356,11 +354,9 @@ async getPaymentsManagement(query: {
         );
       }
 
-      // DB has ONLY Commitment Fee
       if (query.type === 'facility' || query.type === 'other') {
         match._id = null; // force empty result
       }
-      // all / commitment → return all
     }
 
     /* =====================================================
@@ -486,13 +482,11 @@ async getPaymentsManagement(query: {
     const totalRecords = await this.paymentModel.countDocuments(match);
 
     /* =====================================================
-       FETCH APPLICATION DATA (NO CHANGE TO RESPONSE)
+       FETCH APPLICATION appId ONLY
     ===================================================== */
     const applicationIds = [
       ...new Set(
-        payments
-          .map(p => p.applicationId?.toString())
-          .filter(Boolean)
+        payments.map(p => p.applicationId?.toString()).filter(Boolean)
       ),
     ];
 
@@ -502,17 +496,17 @@ async getPaymentsManagement(query: {
       .lean();
 
     const applicationMap = new Map(
-      applications.map(app => [app._id.toString(), app])
+      applications.map(app => [app._id.toString(), app.appId])
     );
 
     /* =====================================================
-       STATIC UI FIELDS + APPLICATION
+       FINAL LIST (FLAT appId ONLY)
     ===================================================== */
     const list = payments.map(p => ({
       ...p,
+      appId: applicationMap.get(p.applicationId?.toString()) || null,
       type: 'Commitment Fee',
       provider: 'Stripe',
-      application: applicationMap.get(p.applicationId?.toString()) || null,
     }));
 
     return {
@@ -543,6 +537,7 @@ async getPaymentsManagement(query: {
     throw new InternalServerErrorException('Failed to fetch payments');
   }
 }
+
 
 
 
