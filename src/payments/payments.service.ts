@@ -302,10 +302,12 @@ async confirmPayment(paymentIntentId: string, userId: string) {
 
 
  /* ================= GET PAYMENTS MANAGEMENT ================= */
-  async getPaymentsManagement(query: {
+async getPaymentsManagement(query: {
   page?: number;
   limit?: number;
   status?: string;
+  paymentType?: string;
+  dateRange?: string;   // today | week | month | all
   fromDate?: string;
   toDate?: string;
   search?: string;
@@ -317,34 +319,95 @@ async confirmPayment(paymentIntentId: string, userId: string) {
   const match: any = {};
 
   /* =====================================================
-     STATUS FILTER (TABLE ONLY – STRICT VALIDATION)
+     PAYMENT TYPE FILTER (STATIC DATA, DYNAMIC FILTER)
+     DB has ONLY Commitment Fee
+  ===================================================== */
+  if (query.paymentType) {
+    const allowedTypes = ['all', 'commitment', 'facility', 'other'];
+
+    if (!allowedTypes.includes(query.paymentType)) {
+      throw new BadRequestException(
+        `Invalid paymentType. Allowed: ${allowedTypes.join(', ')}`
+      );
+    }
+
+    // Since DB only has Commitment Fee:
+    if (query.paymentType === 'facility' || query.paymentType === 'other') {
+      // force empty result
+      match._id = null;
+    }
+    // all / commitment → no filter
+  }
+
+  /* =====================================================
+     STATUS FILTER (TABLE ONLY)
   ===================================================== */
   if (query.status) {
     const allowedStatuses = ['completed', 'pending', 'failed'];
 
     if (!allowedStatuses.includes(query.status)) {
       throw new BadRequestException(
-        `Invalid status. Allowed values: ${allowedStatuses.join(', ')}`
+        `Invalid status. Allowed: ${allowedStatuses.join(', ')}`
       );
     }
 
     if (query.status === 'completed') {
       match.status = 'PAID';
     }
-
     if (query.status === 'pending') {
       match.status = { $in: ['PENDING', 'PROCESSING'] };
     }
-
     if (query.status === 'failed') {
       match.status = { $in: ['FAILED', 'CANCELED'] };
     }
   }
 
   /* =====================================================
-     DATE FILTER (createdAt – TABLE ONLY)
+     DATE RANGE FILTER (UI PRESETS)
   ===================================================== */
-  if (query.fromDate || query.toDate) {
+  if (query.dateRange) {
+    const now = new Date();
+    let from: Date | null = null;
+
+    switch (query.dateRange) {
+      case 'today':
+        from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
+
+      case 'week': {
+        const day = now.getDay() || 7; // Sunday = 7
+        from = new Date(now);
+        from.setDate(now.getDate() - day + 1); // Monday
+        from.setHours(0, 0, 0, 0);
+        break;
+      }
+
+      case 'month':
+        from = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+
+      case 'all':
+        from = null;
+        break;
+
+      default:
+        throw new BadRequestException(
+          'Invalid dateRange. Allowed: today, week, month, all'
+        );
+    }
+
+    if (from) {
+      match.createdAt = {
+        $gte: from,
+        $lte: now,
+      };
+    }
+  }
+
+  /* =====================================================
+     CUSTOM DATE RANGE (if no preset used)
+  ===================================================== */
+  if (!query.dateRange && (query.fromDate || query.toDate)) {
     match.createdAt = {};
 
     if (query.fromDate) {
@@ -365,7 +428,7 @@ async confirmPayment(paymentIntentId: string, userId: string) {
   }
 
   /* =====================================================
-     SEARCH FILTER (TABLE ONLY)
+     SEARCH FILTER
   ===================================================== */
   if (query.search) {
     match.$or = [
@@ -376,40 +439,24 @@ async confirmPayment(paymentIntentId: string, userId: string) {
   }
 
   /* =====================================================
-     DASHBOARD SUMMARY (GLOBAL – NOT FILTERED)
+     DASHBOARD SUMMARY (GLOBAL – PAID ONLY)
   ===================================================== */
   const [
-    totalPaidAmountAgg,
-    successfulCount,
-    pendingCount,
-    failedCount,
+    totalPaidAgg,
+    successful,
+    pending,
+    failed,
   ] = await Promise.all([
-    // ✅ TOTAL PAYMENTS = SUM OF PAID ONLY
     this.paymentModel.aggregate([
       { $match: { status: 'PAID' } },
-      {
-        $group: {
-          _id: null,
-          totalAmount: { $sum: '$amount' },
-        },
-      },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
     ]),
-
-    // ✅ SUCCESSFUL
     this.paymentModel.countDocuments({ status: 'PAID' }),
-
-    // ✅ PENDING
-    this.paymentModel.countDocuments({
-      status: { $in: ['PENDING', 'PROCESSING'] },
-    }),
-
-    // ✅ FAILED
-    this.paymentModel.countDocuments({
-      status: { $in: ['FAILED', 'CANCELED'] },
-    }),
+    this.paymentModel.countDocuments({ status: { $in: ['PENDING', 'PROCESSING'] } }),
+    this.paymentModel.countDocuments({ status: { $in: ['FAILED', 'CANCELED'] } }),
   ]);
 
-  const totalPaymentsAmount = totalPaidAmountAgg[0]?.totalAmount || 0;
+  const totalPayments = totalPaidAgg[0]?.total || 0;
 
   /* =====================================================
      PAYMENT LIST (FILTERED)
@@ -424,19 +471,28 @@ async confirmPayment(paymentIntentId: string, userId: string) {
   const totalRecords = await this.paymentModel.countDocuments(match);
 
   /* =====================================================
-     FINAL RESPONSE (UI MATCH)
+     STATIC FIELDS REQUIRED BY UI
+  ===================================================== */
+  const list = payments.map(p => ({
+    ...p,
+    type: 'Commitment Fee', // STATIC
+    provider: 'Stripe',     // STATIC
+  }));
+
+  /* =====================================================
+     FINAL RESPONSE
   ===================================================== */
   return {
     statusCode: 200,
     message: 'Payments fetched successfully',
     data: {
       summary: {
-        totalPayments: totalPaymentsAmount, // £45,500 ✅
-        successful: successfulCount,
-        pending: pendingCount,
-        failed: failedCount,
+        totalPayments,   // £45,500 ✅
+        successful,
+        pending,
+        failed,
       },
-      list: payments,
+      list,
       pagination: {
         page,
         limit,
@@ -445,8 +501,5 @@ async confirmPayment(paymentIntentId: string, userId: string) {
       },
     },
   };
-
-
- 
 }
 }
