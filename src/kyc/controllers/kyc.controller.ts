@@ -261,20 +261,21 @@ async saveOrUpdateKyc(@Body() body: any) {
     );
   }
 }
-  @Get('details')
-  @UseGuards(AdminJwtGuard)
-  async getKycDetails(@Query() query: any) {
-    return this.sumsubService.getKycDetails({
-      page: Number(query.page || 1),
-      limit: Number(query.limit || 10),
-      status: query.status,
-      riskLevel: query.riskLevel,
-      applicantName: query.applicantName,
-      applicationId: query.applicationId,
-      fromDate: query.from,
-      toDate: query.to,
-    });
-  }
+@Get('details')
+@UseGuards(AdminJwtGuard)
+async getKycDetails(@Query() query: any) {
+  return this.sumsubService.getKycDetails({
+    page: Number(query.page || 1),
+    limit: Number(query.limit || 10),
+    status: query.status,
+    riskLevel: query.riskLevel,
+    applicantName: query.applicantName,
+    applicationId: query.applicationId,
+    dateRange: query.dateRange,
+    fromDate: query.fromDate,
+    toDate: query.toDate,
+  });
+}
 
 
     @Get('sumsub-data')
