@@ -196,7 +196,7 @@ async getKycDetails(query: {
   const pipeline: any[] = [];
 
   /* =====================================================
-     BASE FILTER – VALID KYC RECORDS ONLY
+     BASE FILTER – VALID KYC RECORDS
   ===================================================== */
   pipeline.push({
     $match: {
@@ -210,7 +210,7 @@ async getKycDetails(query: {
   pipeline.push({ $sort: { createdAt: -1 } });
 
   /* =====================================================
-     GROUP – UNIQUE APPLICANTS (FOR CARDS)
+     GROUP – ONE ROW PER APPLICANT (FOR CARDS)
   ===================================================== */
   pipeline.push({
     $group: {
@@ -251,24 +251,23 @@ async getKycDetails(query: {
   }
 
   /* =====================================================
-     STATUS FILTER
+     STATUS FILTER (OPTIONAL)
   ===================================================== */
   switch (query.status?.toLowerCase()) {
     case 'completed':
-      match['kyc.finalDecision'] = 'APPROVED';
+      match['kyc.status'] = 'APPROVED';
       break;
 
     case 'failed':
-      match['kyc.finalDecision'] = 'REJECTED';
+      match['kyc.status'] = 'REJECTED';
       break;
 
     case 'in progress':
-      match['kyc.status'] = 'IN_PROGRESS';
-      match['kyc.finalDecision'] = { $exists: false };
+      match['kyc.status'] = { $in: ['IN_PROGRESS', 'LINK_SENT'] };
       break;
 
     case 'not started':
-      match['kyc.status'] = { $in: ['CREATED', 'LINK_SENT'] };
+      match['kyc.status'] = 'CREATED';
       break;
   }
 
@@ -326,7 +325,7 @@ async getKycDetails(query: {
   });
 
   /* =====================================================
-     RESOLVE APPLICANT USING externalUserId
+     RESOLVE APPLICANT VIA externalUserId
   ===================================================== */
   pipeline.push({
     $addFields: {
@@ -343,21 +342,22 @@ async getKycDetails(query: {
   });
 
   /* =====================================================
-     RISK SUMMARY
+     RISK SUMMARY – STATUS FIRST (FINAL RULE)
   ===================================================== */
   pipeline.push({
     $addFields: {
       riskSummary: {
         $switch: {
           branches: [
+            { case: { $eq: ['$kyc.status', 'APPROVED'] }, then: 'Low Risk' },
+            { case: { $eq: ['$kyc.status', 'REJECTED'] }, then: 'High Risk' },
             {
-              case: { $eq: ['$kyc.finalDecision', 'APPROVED'] },
-              then: 'Low Risk',
+              case: {
+                $in: ['$kyc.status', ['IN_PROGRESS', 'LINK_SENT']],
+              },
+              then: 'In Progress',
             },
-            {
-              case: { $eq: ['$kyc.finalDecision', 'REJECTED'] },
-              then: 'High Risk',
-            },
+            { case: { $eq: ['$kyc.status', 'CREATED'] }, then: 'Pending' },
           ],
           default: 'Pending',
         },
@@ -375,11 +375,9 @@ async getKycDetails(query: {
           $project: {
             _id: 0,
 
-            // 🔹 Application identifiers
-            applicationId: '$application.appId',        // BL-2026-0106
-            applicationObjectId: '$application._id',    // MongoDB OID
+            applicationId: '$application.appId',
+            applicationObjectId: '$application._id',
 
-            // 🔹 Applicant identifiers
             applicantId: '$applicant._id',
             externalUserId: '$kyc.externalUserId',
 
@@ -414,28 +412,27 @@ async getKycDetails(query: {
           $group: {
             _id: null,
             totalChecks: { $sum: 1 },
+
             completed: {
-              $sum: { $cond: [{ $eq: ['$kyc.finalDecision', 'APPROVED'] }, 1, 0] },
+              $sum: { $cond: [{ $eq: ['$kyc.status', 'APPROVED'] }, 1, 0] },
             },
+
             failed: {
-              $sum: { $cond: [{ $eq: ['$kyc.finalDecision', 'REJECTED'] }, 1, 0] },
+              $sum: { $cond: [{ $eq: ['$kyc.status', 'REJECTED'] }, 1, 0] },
             },
+
             inProgress: {
               $sum: {
                 $cond: [
-                  {
-                    $and: [
-                      { $eq: ['$kyc.status', 'IN_PROGRESS'] },
-                      { $not: ['$kyc.finalDecision'] },
-                    ],
-                  },
+                  { $in: ['$kyc.status', ['IN_PROGRESS', 'LINK_SENT']] },
                   1,
                   0,
                 ],
               },
             },
+
             lowRisk: {
-              $sum: { $cond: [{ $eq: ['$kyc.finalDecision', 'APPROVED'] }, 1, 0] },
+              $sum: { $cond: [{ $eq: ['$kyc.status', 'APPROVED'] }, 1, 0] },
             },
           },
         },
@@ -460,6 +457,7 @@ async getKycDetails(query: {
     limit,
   };
 }
+
 
 
 
