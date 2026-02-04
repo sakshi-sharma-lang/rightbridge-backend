@@ -9,6 +9,7 @@ import {
   HttpCode,
   Res,
   Headers,
+  Query,
 } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -60,7 +61,11 @@ export class PaymentsController {
     return this.service.confirmPayment(paymentIntentId, req.user.userId);
   }
 
-
+ @Get('management')
+  @UseGuards(JwtAuthGuard)
+  async getPayments(@Query() query: any) {
+    return this.service.getPaymentsManagement(query);
+  }
 
 
 }

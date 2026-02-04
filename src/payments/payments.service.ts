@@ -301,7 +301,117 @@ async confirmPayment(paymentIntentId: string, userId: string) {
 }
 
 
- 
- 
+ /* ================= GET PAYMENTS MANAGEMENT ================= */
+  async getPaymentsManagement(query: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    fromDate?: string;
+    toDate?: string;
+    search?: string;
+  }) {
+    const page = Number(query.page || 1);
+    const limit = Number(query.limit || 10);
+    const skip = (page - 1) * limit;
+
+    const match: any = {};
+
+    /* ---------- STATUS FILTER (TABLE ONLY) ---------- */
+    if (query.status) {
+      if (query.status === 'completed') {
+        match.status = 'PAID';
+      } else if (query.status === 'pending') {
+        match.status = { $in: ['PENDING', 'PROCESSING'] };
+      } else if (query.status === 'failed') {
+        match.status = { $in: ['FAILED', 'CANCELED'] };
+      }
+    }
+
+    /* ---------- DATE FILTER ---------- */
+    if (query.fromDate || query.toDate) {
+      match.createdAt = {};
+      if (query.fromDate) {
+        match.createdAt.$gte = new Date(query.fromDate);
+      }
+      if (query.toDate) {
+        match.createdAt.$lte = new Date(query.toDate);
+      }
+    }
+
+    /* ---------- SEARCH FILTER ---------- */
+    if (query.search) {
+      match.$or = [
+        { stripePaymentIntentId: { $regex: query.search, $options: 'i' } },
+        { applicationId: { $regex: query.search, $options: 'i' } },
+        { userId: { $regex: query.search, $options: 'i' } },
+      ];
+    }
+
+    /* ---------- DASHBOARD SUMMARY (FINAL & CORRECT) ---------- */
+    const [
+      totalAmountAgg,
+      successfulCount,
+      pendingCount,
+      failedCount,
+    ] = await Promise.all([
+      // ✅ SUM OF PAID ONLY
+      this.paymentModel.aggregate([
+        { $match: { status: 'PAID' } },
+        {
+          $group: {
+            _id: null,
+            totalAmount: { $sum: '$amount' },
+          },
+        },
+      ]),
+
+      // ✅ SUCCESSFUL
+      this.paymentModel.countDocuments({ status: 'PAID' }),
+
+      // ✅ PENDING
+      this.paymentModel.countDocuments({
+        status: { $in: ['PENDING', 'PROCESSING'] },
+      }),
+
+      // ✅ FAILED
+      this.paymentModel.countDocuments({
+        status: { $in: ['FAILED', 'CANCELED'] },
+      }),
+    ]);
+
+    const totalPaymentsAmount = totalAmountAgg[0]?.totalAmount || 0;
+
+    /* ---------- PAYMENT LIST ---------- */
+    const payments = await this.paymentModel
+      .find(match)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const totalRecords = await this.paymentModel.countDocuments(match);
+
+    return {
+      statusCode: 200,
+      message: 'Payments fetched successfully',
+      data: {
+        summary: {
+          totalPayments: totalPaymentsAmount, // ✅ FIXED (500 in your case)
+          successful: successfulCount,
+          pending: pendingCount,
+          failed: failedCount,
+        },
+        list: payments,
+        pagination: {
+          page,
+          limit,
+          totalRecords,
+          totalPages: Math.ceil(totalRecords / limit),
+        },
+      },
+    };
+  }
+
+
  
 }
