@@ -314,6 +314,7 @@ async getPaymentsManagement(query: {
   fromDate?: string;
   toDate?: string;
   search?: string;
+  appId?: string; // ✅ ADDED
 }) {
   try {
     /* =====================================================
@@ -324,6 +325,24 @@ async getPaymentsManagement(query: {
     const skip = (page - 1) * limit;
 
     const match: any = {};
+
+    /* =====================================================
+       APPLICATION FILTER (BY appId)
+       ✅ DOES NOT REMOVE ANYTHING
+    ===================================================== */
+    if (query.appId) {
+      const application = await this.applicationModel
+        .findOne({ appId: query.appId })
+        .select('_id')
+        .lean();
+
+      if (!application) {
+        // valid request but no matching application
+        match._id = null;
+      } else {
+        match.applicationId = application._id.toString();
+      }
+    }
 
     /* =====================================================
        TYPE FILTER (STRICT VALIDATION – STATIC DATA)
@@ -431,7 +450,7 @@ async getPaymentsManagement(query: {
     }
 
     /* =====================================================
-       DASHBOARD SUMMARY (GLOBAL)
+       DASHBOARD SUMMARY (GLOBAL – UNCHANGED)
     ===================================================== */
     const [
       totalPaidAgg,
@@ -467,7 +486,7 @@ async getPaymentsManagement(query: {
     const totalRecords = await this.paymentModel.countDocuments(match);
 
     /* =====================================================
-       🔹 ADDED: FETCH APPLICATION DATA (SAFE)
+       FETCH APPLICATION DATA (NO CHANGE TO RESPONSE)
     ===================================================== */
     const applicationIds = [
       ...new Set(
@@ -479,7 +498,7 @@ async getPaymentsManagement(query: {
 
     const applications = await this.applicationModel
       .find({ _id: { $in: applicationIds } })
-      .select('_id appId firstName lastName email')
+      .select('_id appId')
       .lean();
 
     const applicationMap = new Map(
@@ -487,7 +506,7 @@ async getPaymentsManagement(query: {
     );
 
     /* =====================================================
-       STATIC UI FIELDS + APPLICATION DATA
+       STATIC UI FIELDS + APPLICATION
     ===================================================== */
     const list = payments.map(p => ({
       ...p,
@@ -524,6 +543,7 @@ async getPaymentsManagement(query: {
     throw new InternalServerErrorException('Failed to fetch payments');
   }
 }
+
 
 
 
