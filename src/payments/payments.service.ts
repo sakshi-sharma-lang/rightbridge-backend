@@ -302,204 +302,203 @@ async confirmPayment(paymentIntentId: string, userId: string) {
 
 
  /* ================= GET PAYMENTS MANAGEMENT ================= */
+
+
 async getPaymentsManagement(query: {
-  page?: number;
-  limit?: number;
+  page?: string;
+  limit?: string;
   status?: string;
-  paymentType?: string;
-  dateRange?: string;   // today | week | month | all
+  type?: string;
+  dateRange?: string;
   fromDate?: string;
   toDate?: string;
   search?: string;
 }) {
-  const page = Math.max(Number(query.page || 1), 1);
-  const limit = Math.max(Number(query.limit || 10), 1);
-  const skip = (page - 1) * limit;
+  try {
+    /* =====================================================
+       PAGINATION (SAFE)
+    ===================================================== */
+    const page = Math.max(Number(query.page || 1), 1);
+    const limit = Math.max(Number(query.limit || 10), 1);
+    const skip = (page - 1) * limit;
 
-  const match: any = {};
+    const match: any = {};
 
-  /* =====================================================
-     PAYMENT TYPE FILTER (STATIC DATA, DYNAMIC FILTER)
-     DB has ONLY Commitment Fee
-  ===================================================== */
-  if (query.paymentType) {
-    const allowedTypes = ['all', 'commitment', 'facility', 'other'];
+    /* =====================================================
+       TYPE FILTER (STRICT VALIDATION – STATIC DATA)
+    ===================================================== */
+    if (query.type) {
+      const allowedTypes = ['all', 'commitment', 'facility', 'other'];
 
-    if (!allowedTypes.includes(query.paymentType)) {
-      throw new BadRequestException(
-        `Invalid paymentType. Allowed: ${allowedTypes.join(', ')}`
-      );
-    }
-
-    // Since DB only has Commitment Fee:
-    if (query.paymentType === 'facility' || query.paymentType === 'other') {
-      // force empty result
-      match._id = null;
-    }
-    // all / commitment → no filter
-  }
-
-  /* =====================================================
-     STATUS FILTER (TABLE ONLY)
-  ===================================================== */
-  if (query.status) {
-    const allowedStatuses = ['completed', 'pending', 'failed'];
-
-    if (!allowedStatuses.includes(query.status)) {
-      throw new BadRequestException(
-        `Invalid status. Allowed: ${allowedStatuses.join(', ')}`
-      );
-    }
-
-    if (query.status === 'completed') {
-      match.status = 'PAID';
-    }
-    if (query.status === 'pending') {
-      match.status = { $in: ['PENDING', 'PROCESSING'] };
-    }
-    if (query.status === 'failed') {
-      match.status = { $in: ['FAILED', 'CANCELED'] };
-    }
-  }
-
-  /* =====================================================
-     DATE RANGE FILTER (UI PRESETS)
-  ===================================================== */
-  if (query.dateRange) {
-    const now = new Date();
-    let from: Date | null = null;
-
-    switch (query.dateRange) {
-      case 'today':
-        from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        break;
-
-      case 'week': {
-        const day = now.getDay() || 7; // Sunday = 7
-        from = new Date(now);
-        from.setDate(now.getDate() - day + 1); // Monday
-        from.setHours(0, 0, 0, 0);
-        break;
-      }
-
-      case 'month':
-        from = new Date(now.getFullYear(), now.getMonth(), 1);
-        break;
-
-      case 'all':
-        from = null;
-        break;
-
-      default:
+      if (!allowedTypes.includes(query.type)) {
         throw new BadRequestException(
-          'Invalid dateRange. Allowed: today, week, month, all'
+          `Invalid type. Allowed values: ${allowedTypes.join(', ')}`
         );
-    }
-
-    if (from) {
-      match.createdAt = {
-        $gte: from,
-        $lte: now,
-      };
-    }
-  }
-
-  /* =====================================================
-     CUSTOM DATE RANGE (if no preset used)
-  ===================================================== */
-  if (!query.dateRange && (query.fromDate || query.toDate)) {
-    match.createdAt = {};
-
-    if (query.fromDate) {
-      const from = new Date(query.fromDate);
-      if (isNaN(from.getTime())) {
-        throw new BadRequestException('Invalid fromDate');
       }
-      match.createdAt.$gte = from;
-    }
 
-    if (query.toDate) {
-      const to = new Date(query.toDate);
-      if (isNaN(to.getTime())) {
-        throw new BadRequestException('Invalid toDate');
+      // DB has ONLY Commitment Fee
+      if (query.type === 'facility' || query.type === 'other') {
+        match._id = null; // force empty result
       }
-      match.createdAt.$lte = to;
+      // all / commitment → return all
     }
-  }
 
-  /* =====================================================
-     SEARCH FILTER
-  ===================================================== */
-  if (query.search) {
-    match.$or = [
-      { stripePaymentIntentId: { $regex: query.search, $options: 'i' } },
-      { applicationId: { $regex: query.search, $options: 'i' } },
-      { userId: { $regex: query.search, $options: 'i' } },
-    ];
-  }
+    /* =====================================================
+       STATUS FILTER (STRICT – LIKE YOU ASKED)
+    ===================================================== */
+    if (query.status) {
+      const allowedStatuses = ['completed', 'pending', 'failed'];
 
-  /* =====================================================
-     DASHBOARD SUMMARY (GLOBAL – PAID ONLY)
-  ===================================================== */
-  const [
-    totalPaidAgg,
-    successful,
-    pending,
-    failed,
-  ] = await Promise.all([
-    this.paymentModel.aggregate([
-      { $match: { status: 'PAID' } },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
-    ]),
-    this.paymentModel.countDocuments({ status: 'PAID' }),
-    this.paymentModel.countDocuments({ status: { $in: ['PENDING', 'PROCESSING'] } }),
-    this.paymentModel.countDocuments({ status: { $in: ['FAILED', 'CANCELED'] } }),
-  ]);
+      if (!allowedStatuses.includes(query.status)) {
+        throw new BadRequestException(
+          `Invalid status. Allowed values: ${allowedStatuses.join(', ')}`
+        );
+      }
 
-  const totalPayments = totalPaidAgg[0]?.total || 0;
+      if (query.status === 'completed') {
+        match.status = 'PAID';
+      } else if (query.status === 'pending') {
+        match.status = { $in: ['PENDING', 'PROCESSING'] };
+      } else if (query.status === 'failed') {
+        match.status = { $in: ['FAILED', 'CANCELED'] };
+      }
+    }
 
-  /* =====================================================
-     PAYMENT LIST (FILTERED)
-  ===================================================== */
-  const payments = await this.paymentModel
-    .find(match)
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit)
-    .lean();
+    /* =====================================================
+       DATE RANGE FILTER (UI DROPDOWN)
+    ===================================================== */
+    if (query.dateRange) {
+      const allowedRanges = ['today', 'week', 'month', 'all'];
 
-  const totalRecords = await this.paymentModel.countDocuments(match);
+      if (!allowedRanges.includes(query.dateRange)) {
+        throw new BadRequestException(
+          `Invalid dateRange. Allowed values: ${allowedRanges.join(', ')}`
+        );
+      }
 
-  /* =====================================================
-     STATIC FIELDS REQUIRED BY UI
-  ===================================================== */
-  const list = payments.map(p => ({
-    ...p,
-    type: 'Commitment Fee', // STATIC
-    provider: 'Stripe',     // STATIC
-  }));
+      if (query.dateRange !== 'all') {
+        const now = new Date();
+        let from: Date;
 
-  /* =====================================================
-     FINAL RESPONSE
-  ===================================================== */
-  return {
-    statusCode: 200,
-    message: 'Payments fetched successfully',
-    data: {
-      summary: {
-        totalPayments,   // £45,500 ✅
-        successful,
-        pending,
-        failed,
+        if (query.dateRange === 'today') {
+          from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        } else if (query.dateRange === 'week') {
+          const day = now.getDay() || 7;
+          from = new Date(now);
+          from.setDate(now.getDate() - day + 1);
+          from.setHours(0, 0, 0, 0);
+        } else {
+          // month
+          from = new Date(now.getFullYear(), now.getMonth(), 1);
+        }
+
+        match.createdAt = { $gte: from, $lte: now };
+      }
+    }
+
+    /* =====================================================
+       CUSTOM DATE RANGE (ONLY IF NO PRESET)
+    ===================================================== */
+    if (!query.dateRange && (query.fromDate || query.toDate)) {
+      match.createdAt = {};
+
+      if (query.fromDate) {
+        const from = new Date(query.fromDate);
+        if (isNaN(from.getTime())) {
+          throw new BadRequestException('Invalid fromDate');
+        }
+        match.createdAt.$gte = from;
+      }
+
+      if (query.toDate) {
+        const to = new Date(query.toDate);
+        if (isNaN(to.getTime())) {
+          throw new BadRequestException('Invalid toDate');
+        }
+        match.createdAt.$lte = to;
+      }
+    }
+
+    /* =====================================================
+       SEARCH FILTER
+    ===================================================== */
+    if (query.search) {
+      match.$or = [
+        { stripePaymentIntentId: { $regex: query.search, $options: 'i' } },
+        { applicationId: { $regex: query.search, $options: 'i' } },
+        { userId: { $regex: query.search, $options: 'i' } },
+      ];
+    }
+
+    /* =====================================================
+       DASHBOARD SUMMARY (GLOBAL – NEVER FILTERED)
+    ===================================================== */
+    const [
+      totalPaidAgg,
+      successful,
+      pending,
+      failed,
+    ] = await Promise.all([
+      this.paymentModel.aggregate([
+        { $match: { status: 'PAID' } },
+        { $group: { _id: null, total: { $sum: '$amount' } } },
+      ]),
+      this.paymentModel.countDocuments({ status: 'PAID' }),
+      this.paymentModel.countDocuments({ status: { $in: ['PENDING', 'PROCESSING'] } }),
+      this.paymentModel.countDocuments({ status: { $in: ['FAILED', 'CANCELED'] } }),
+    ]);
+
+    const totalPayments = totalPaidAgg[0]?.total || 0;
+
+    /* =====================================================
+       LIST QUERY
+    ===================================================== */
+    const payments = await this.paymentModel
+      .find(match)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const totalRecords = await this.paymentModel.countDocuments(match);
+
+    /* =====================================================
+       STATIC UI FIELDS
+    ===================================================== */
+    const list = payments.map(p => ({
+      ...p,
+      type: 'Commitment Fee',
+      provider: 'Stripe',
+    }));
+
+    return {
+      statusCode: 200,
+      message: 'Payments fetched successfully',
+      data: {
+        summary: {
+          totalPayments,
+          successful,
+          pending,
+          failed,
+        },
+        list,
+        pagination: {
+          page,
+          limit,
+          totalRecords,
+          totalPages: Math.ceil(totalRecords / limit),
+        },
       },
-      list,
-      pagination: {
-        page,
-        limit,
-        totalRecords,
-        totalPages: Math.ceil(totalRecords / limit),
-      },
-    },
-  };
+    };
+  } catch (error) {
+    // 👇 Centralized error handling
+    if (error instanceof BadRequestException) {
+      throw error;
+    }
+
+    console.error('Payments management error:', error);
+    throw new InternalServerErrorException('Failed to fetch payments');
+  }
 }
+
 }

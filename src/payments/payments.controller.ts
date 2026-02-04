@@ -62,10 +62,13 @@ export class PaymentsController {
   }
 
  @Get('management')
-  @UseGuards(JwtAuthGuard)
-  async getPayments(@Query() query: any) {
-    return this.service.getPaymentsManagement(query);
-  }
+@UseGuards(JwtAuthGuard)
+async getPaymentsManagement(
+  @Query() query: any,
+) {
+  return this.paymentsService.getPaymentsManagement(query);
+}
+
 
 
 }
