@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException ,NotFoundException ,UnauthorizedException ,BadRequestException } from '@nestjs/common';
 import axios from 'axios';
 import * as crypto from 'crypto';
 import https from 'https';
@@ -434,7 +434,67 @@ async getKycDetails(query: {
 }
 
 
+async getApplicantById(applicantId: string) {
+  try {
+    if (!applicantId) {
+      throw new BadRequestException('applicantId is required');
+    }
 
+    const ts = Math.floor(Date.now() / 1000);
+    const path = `/resources/applicants/${applicantId}/one`;
+    const signature = this.createSignature('GET', path, ts);
+
+    const res = await axios.get(this.baseUrl + path, {
+      headers: this.getHeaders(signature, ts),
+      timeout: 10000, // ⏱️ prevent hanging requests
+    });
+
+    return res.data;
+
+  } catch (err: any) {
+    // Axios error
+    if (err?.response) {
+      const status = err.response.status;
+      const message =
+        err.response.data?.description ||
+        err.response.data?.error ||
+        'Sumsub API error';
+
+      switch (status) {
+        case 400:
+          throw new BadRequestException(message);
+
+        case 401:
+        case 403:
+          throw new UnauthorizedException(
+            'Unauthorized with Sumsub API',
+          );
+
+        case 404:
+          throw new NotFoundException(
+            'Applicant not found in Sumsub',
+          );
+
+        default:
+          throw new InternalServerErrorException(message);
+      }
+    }
+
+    // Network / timeout error
+    if (err?.code === 'ECONNABORTED') {
+      throw new InternalServerErrorException(
+        'Sumsub API timeout',
+      );
+    }
+
+    // Fallback
+    throw new InternalServerErrorException(
+      err?.message || 'Failed to fetch Sumsub data',
+    );
+  }
+
+
+}
 }
 
 

@@ -276,6 +276,24 @@ async saveOrUpdateKyc(@Body() body: any) {
     });
   }
 
+
+    @Get('sumsub-data')
+
+  async getSumsubData(
+    @Query('applicantId') applicantId: string,
+  ) {
+    if (!applicantId) {
+      throw new BadRequestException('applicantId is required');
+    }
+
+    const data = await this.sumsubService.getApplicantById(applicantId);
+
+    return {
+      success: true,
+      data,
+    };
+  }
+
 }
 
 
