@@ -196,7 +196,7 @@ async getKycDetails(query: {
   const pipeline: any[] = [];
 
   /* =====================================================
-     PRE-GROUP MATCH (DATE FILTER MUST BE HERE)
+     PRE-GROUP MATCH (SIMPLE createdAt FILTER)
   ===================================================== */
   const preGroupMatch: any = {
     externalUserId: { $exists: true, $ne: null },
@@ -204,38 +204,65 @@ async getKycDetails(query: {
 
   const now = new Date();
 
+  /* ===== TODAY ===== */
   if (query.dateRange === 'today') {
-    const start = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-      0, 0, 0, 0
-    ));
-    preGroupMatch.createdAt = { $gte: start };
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+
+    preGroupMatch.createdAt = {
+      $gte: start,
+      $lte: end,
+    };
   }
 
+  /* ===== THIS WEEK ===== */
   if (query.dateRange === 'this_week') {
-    const start = new Date(now);
-    start.setUTCDate(now.getUTCDate() - now.getUTCDay());
-    start.setUTCHours(0, 0, 0, 0);
-    preGroupMatch.createdAt = { $gte: start };
+    const start = new Date();
+    start.setDate(start.getDate() - start.getDay());
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    end.setHours(23, 59, 59, 999);
+
+    preGroupMatch.createdAt = {
+      $gte: start,
+      $lte: end,
+    };
   }
 
+  /* ===== THIS MONTH ===== */
   if (query.dateRange === 'this_month') {
-    const start = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      1
-    ));
-    preGroupMatch.createdAt = { $gte: start };
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    end.setHours(23, 59, 59, 999);
+
+    preGroupMatch.createdAt = {
+      $gte: start,
+      $lte: end,
+    };
   }
 
+  /* ===== CUSTOM RANGE ===== */
   if (query.fromDate || query.toDate) {
     preGroupMatch.createdAt = {};
-    if (query.fromDate)
-      preGroupMatch.createdAt.$gte = new Date(query.fromDate);
-    if (query.toDate)
-      preGroupMatch.createdAt.$lte = new Date(query.toDate);
+
+    if (query.fromDate) {
+      const from = new Date(query.fromDate);
+      from.setHours(0, 0, 0, 0);
+      preGroupMatch.createdAt.$gte = from;
+    }
+
+    if (query.toDate) {
+      const to = new Date(query.toDate);
+      to.setHours(23, 59, 59, 999);
+      preGroupMatch.createdAt.$lte = to;
+    }
   }
 
   pipeline.push({ $match: preGroupMatch });
@@ -253,11 +280,10 @@ async getKycDetails(query: {
   });
 
   /* =====================================================
-     POST-GROUP FILTERS
+     STATUS + RISK FILTERS
   ===================================================== */
   const match: any = {};
 
-  // STATUS FILTER
   switch (query.status?.toLowerCase()) {
     case 'completed':
       match['kyc.status'] = 'APPROVED';
@@ -273,7 +299,6 @@ async getKycDetails(query: {
       break;
   }
 
-  // RISK LEVEL FILTER
   switch (query.riskLevel?.toLowerCase()) {
     case 'high':
       match['kyc.status'] = 'REJECTED';
@@ -339,12 +364,9 @@ async getKycDetails(query: {
     },
   });
 
-  // APPLICATION ID FILTER
   if (query.applicationId) {
     pipeline.push({
-      $match: {
-        'application.appId': query.applicationId,
-      },
+      $match: { 'application.appId': query.applicationId },
     });
   }
 
@@ -365,7 +387,6 @@ async getKycDetails(query: {
     },
   });
 
-  // APPLICANT NAME FILTER
   if (query.applicantName) {
     pipeline.push({
       $match: {
@@ -400,7 +421,7 @@ async getKycDetails(query: {
   });
 
   /* =====================================================
-     FACET (DATA + TOTAL + CARDS)
+     FACET
   ===================================================== */
   pipeline.push({
     $facet: {
@@ -434,9 +455,7 @@ async getKycDetails(query: {
         { $skip: skip },
         { $limit: limit },
       ],
-
       total: [{ $count: 'count' }],
-
       cards: [
         {
           $group: {
@@ -446,11 +465,7 @@ async getKycDetails(query: {
             failed: { $sum: { $cond: [{ $eq: ['$kyc.status', 'REJECTED'] }, 1, 0] } },
             inProgress: {
               $sum: {
-                $cond: [
-                  { $in: ['$kyc.status', ['IN_PROGRESS', 'LINK_SENT']] },
-                  1,
-                  0,
-                ],
+                $cond: [{ $in: ['$kyc.status', ['IN_PROGRESS', 'LINK_SENT']] }, 1, 0],
               },
             },
             lowRisk: { $sum: { $cond: [{ $eq: ['$kyc.status', 'APPROVED'] }, 1, 0] } },
@@ -477,6 +492,8 @@ async getKycDetails(query: {
     limit,
   };
 }
+
+
 
 
 
