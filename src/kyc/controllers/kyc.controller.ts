@@ -278,7 +278,7 @@ async saveOrUpdateKyc(@Body() body: any) {
 
 
     @Get('sumsub-data')
-
+  @UseGuards(AdminJwtGuard)
   async getSumsubData(
     @Query('applicantId') applicantId: string,
   ) {
