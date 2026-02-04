@@ -196,46 +196,96 @@ async getKycDetails(query: {
   const pipeline: any[] = [];
 
   /* =====================================================
-     PRE-GROUP MATCH (DATE FILTER MUST BE HERE)
+     PRE-GROUP MATCH (DATE FILTER – IST CORRECT RANGE)
   ===================================================== */
   const preGroupMatch: any = {
     externalUserId: { $exists: true, $ne: null },
   };
 
+  const IST_OFFSET = 5.5 * 60 * 60 * 1000;
   const now = new Date();
 
+  /* ===== TODAY (IST) ===== */
   if (query.dateRange === 'today') {
-    const start = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
+    const istStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
       0, 0, 0, 0
-    ));
-    preGroupMatch.createdAt = { $gte: start };
+    );
+
+    const istEnd = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 1,
+      0, 0, 0, 0
+    );
+
+    preGroupMatch.createdAt = {
+      $gte: new Date(istStart.getTime() - IST_OFFSET),
+      $lt:  new Date(istEnd.getTime()   - IST_OFFSET),
+    };
   }
 
+  /* ===== THIS WEEK (IST) ===== */
   if (query.dateRange === 'this_week') {
-    const start = new Date(now);
-    start.setUTCDate(now.getUTCDate() - now.getUTCDay());
-    start.setUTCHours(0, 0, 0, 0);
-    preGroupMatch.createdAt = { $gte: start };
+    const startOfWeek = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - now.getDay(),
+      0, 0, 0, 0
+    );
+
+    const startOfNextWeek = new Date(
+      startOfWeek.getFullYear(),
+      startOfWeek.getMonth(),
+      startOfWeek.getDate() + 7,
+      0, 0, 0, 0
+    );
+
+    preGroupMatch.createdAt = {
+      $gte: new Date(startOfWeek.getTime()     - IST_OFFSET),
+      $lt:  new Date(startOfNextWeek.getTime() - IST_OFFSET),
+    };
   }
 
+  /* ===== THIS MONTH (IST) ===== */
   if (query.dateRange === 'this_month') {
-    const start = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      1
-    ));
-    preGroupMatch.createdAt = { $gte: start };
+    const startOfMonth = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      1,
+      0, 0, 0, 0
+    );
+
+    const startOfNextMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      1,
+      0, 0, 0, 0
+    );
+
+    preGroupMatch.createdAt = {
+      $gte: new Date(startOfMonth.getTime()     - IST_OFFSET),
+      $lt:  new Date(startOfNextMonth.getTime() - IST_OFFSET),
+    };
   }
 
+  /* ===== CUSTOM RANGE (IST) ===== */
   if (query.fromDate || query.toDate) {
     preGroupMatch.createdAt = {};
-    if (query.fromDate)
-      preGroupMatch.createdAt.$gte = new Date(query.fromDate);
-    if (query.toDate)
-      preGroupMatch.createdAt.$lte = new Date(query.toDate);
+
+    if (query.fromDate) {
+      const fromIST = new Date(query.fromDate);
+      preGroupMatch.createdAt.$gte =
+        new Date(fromIST.getTime() - IST_OFFSET);
+    }
+
+    if (query.toDate) {
+      const toIST = new Date(query.toDate);
+      preGroupMatch.createdAt.$lt =
+        new Date(toIST.getTime() - IST_OFFSET);
+    }
   }
 
   pipeline.push({ $match: preGroupMatch });
@@ -253,11 +303,10 @@ async getKycDetails(query: {
   });
 
   /* =====================================================
-     POST-GROUP FILTERS
+     STATUS + RISK FILTERS
   ===================================================== */
   const match: any = {};
 
-  // STATUS FILTER
   switch (query.status?.toLowerCase()) {
     case 'completed':
       match['kyc.status'] = 'APPROVED';
@@ -273,7 +322,6 @@ async getKycDetails(query: {
       break;
   }
 
-  // RISK LEVEL FILTER
   switch (query.riskLevel?.toLowerCase()) {
     case 'high':
       match['kyc.status'] = 'REJECTED';
@@ -339,7 +387,6 @@ async getKycDetails(query: {
     },
   });
 
-  // APPLICATION ID FILTER
   if (query.applicationId) {
     pipeline.push({
       $match: {
@@ -365,7 +412,6 @@ async getKycDetails(query: {
     },
   });
 
-  // APPLICANT NAME FILTER
   if (query.applicantName) {
     pipeline.push({
       $match: {
@@ -400,7 +446,7 @@ async getKycDetails(query: {
   });
 
   /* =====================================================
-     FACET (DATA + TOTAL + CARDS)
+     FACET
   ===================================================== */
   pipeline.push({
     $facet: {
@@ -477,6 +523,7 @@ async getKycDetails(query: {
     limit,
   };
 }
+
 
 
 
