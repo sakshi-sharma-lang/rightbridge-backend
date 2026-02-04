@@ -303,115 +303,150 @@ async confirmPayment(paymentIntentId: string, userId: string) {
 
  /* ================= GET PAYMENTS MANAGEMENT ================= */
   async getPaymentsManagement(query: {
-    page?: number;
-    limit?: number;
-    status?: string;
-    fromDate?: string;
-    toDate?: string;
-    search?: string;
-  }) {
-    const page = Number(query.page || 1);
-    const limit = Number(query.limit || 10);
-    const skip = (page - 1) * limit;
+  page?: number;
+  limit?: number;
+  status?: string;
+  fromDate?: string;
+  toDate?: string;
+  search?: string;
+}) {
+  const page = Math.max(Number(query.page || 1), 1);
+  const limit = Math.max(Number(query.limit || 10), 1);
+  const skip = (page - 1) * limit;
 
-    const match: any = {};
+  const match: any = {};
 
-    /* ---------- STATUS FILTER (TABLE ONLY) ---------- */
-    if (query.status) {
-      if (query.status === 'completed') {
-        match.status = 'PAID';
-      } else if (query.status === 'pending') {
-        match.status = { $in: ['PENDING', 'PROCESSING'] };
-      } else if (query.status === 'failed') {
-        match.status = { $in: ['FAILED', 'CANCELED'] };
-      }
+  /* =====================================================
+     STATUS FILTER (TABLE ONLY – STRICT VALIDATION)
+  ===================================================== */
+  if (query.status) {
+    const allowedStatuses = ['completed', 'pending', 'failed'];
+
+    if (!allowedStatuses.includes(query.status)) {
+      throw new BadRequestException(
+        `Invalid status. Allowed values: ${allowedStatuses.join(', ')}`
+      );
     }
 
-    /* ---------- DATE FILTER ---------- */
-    if (query.fromDate || query.toDate) {
-      match.createdAt = {};
-      if (query.fromDate) {
-        match.createdAt.$gte = new Date(query.fromDate);
-      }
-      if (query.toDate) {
-        match.createdAt.$lte = new Date(query.toDate);
-      }
+    if (query.status === 'completed') {
+      match.status = 'PAID';
     }
 
-    /* ---------- SEARCH FILTER ---------- */
-    if (query.search) {
-      match.$or = [
-        { stripePaymentIntentId: { $regex: query.search, $options: 'i' } },
-        { applicationId: { $regex: query.search, $options: 'i' } },
-        { userId: { $regex: query.search, $options: 'i' } },
-      ];
+    if (query.status === 'pending') {
+      match.status = { $in: ['PENDING', 'PROCESSING'] };
     }
 
-    /* ---------- DASHBOARD SUMMARY (FINAL & CORRECT) ---------- */
-    const [
-      totalAmountAgg,
-      successfulCount,
-      pendingCount,
-      failedCount,
-    ] = await Promise.all([
-      // ✅ SUM OF PAID ONLY
-      this.paymentModel.aggregate([
-        { $match: { status: 'PAID' } },
-        {
-          $group: {
-            _id: null,
-            totalAmount: { $sum: '$amount' },
-          },
-        },
-      ]),
+    if (query.status === 'failed') {
+      match.status = { $in: ['FAILED', 'CANCELED'] };
+    }
+  }
 
-      // ✅ SUCCESSFUL
-      this.paymentModel.countDocuments({ status: 'PAID' }),
+  /* =====================================================
+     DATE FILTER (createdAt – TABLE ONLY)
+  ===================================================== */
+  if (query.fromDate || query.toDate) {
+    match.createdAt = {};
 
-      // ✅ PENDING
-      this.paymentModel.countDocuments({
-        status: { $in: ['PENDING', 'PROCESSING'] },
-      }),
+    if (query.fromDate) {
+      const from = new Date(query.fromDate);
+      if (isNaN(from.getTime())) {
+        throw new BadRequestException('Invalid fromDate');
+      }
+      match.createdAt.$gte = from;
+    }
 
-      // ✅ FAILED
-      this.paymentModel.countDocuments({
-        status: { $in: ['FAILED', 'CANCELED'] },
-      }),
-    ]);
+    if (query.toDate) {
+      const to = new Date(query.toDate);
+      if (isNaN(to.getTime())) {
+        throw new BadRequestException('Invalid toDate');
+      }
+      match.createdAt.$lte = to;
+    }
+  }
 
-    const totalPaymentsAmount = totalAmountAgg[0]?.totalAmount || 0;
+  /* =====================================================
+     SEARCH FILTER (TABLE ONLY)
+  ===================================================== */
+  if (query.search) {
+    match.$or = [
+      { stripePaymentIntentId: { $regex: query.search, $options: 'i' } },
+      { applicationId: { $regex: query.search, $options: 'i' } },
+      { userId: { $regex: query.search, $options: 'i' } },
+    ];
+  }
 
-    /* ---------- PAYMENT LIST ---------- */
-    const payments = await this.paymentModel
-      .find(match)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
-
-    const totalRecords = await this.paymentModel.countDocuments(match);
-
-    return {
-      statusCode: 200,
-      message: 'Payments fetched successfully',
-      data: {
-        summary: {
-          totalPayments: totalPaymentsAmount, // ✅ FIXED (500 in your case)
-          successful: successfulCount,
-          pending: pendingCount,
-          failed: failedCount,
-        },
-        list: payments,
-        pagination: {
-          page,
-          limit,
-          totalRecords,
-          totalPages: Math.ceil(totalRecords / limit),
+  /* =====================================================
+     DASHBOARD SUMMARY (GLOBAL – NOT FILTERED)
+  ===================================================== */
+  const [
+    totalPaidAmountAgg,
+    successfulCount,
+    pendingCount,
+    failedCount,
+  ] = await Promise.all([
+    // ✅ TOTAL PAYMENTS = SUM OF PAID ONLY
+    this.paymentModel.aggregate([
+      { $match: { status: 'PAID' } },
+      {
+        $group: {
+          _id: null,
+          totalAmount: { $sum: '$amount' },
         },
       },
-    };
-  }
+    ]),
+
+    // ✅ SUCCESSFUL
+    this.paymentModel.countDocuments({ status: 'PAID' }),
+
+    // ✅ PENDING
+    this.paymentModel.countDocuments({
+      status: { $in: ['PENDING', 'PROCESSING'] },
+    }),
+
+    // ✅ FAILED
+    this.paymentModel.countDocuments({
+      status: { $in: ['FAILED', 'CANCELED'] },
+    }),
+  ]);
+
+  const totalPaymentsAmount = totalPaidAmountAgg[0]?.totalAmount || 0;
+
+  /* =====================================================
+     PAYMENT LIST (FILTERED)
+  ===================================================== */
+  const payments = await this.paymentModel
+    .find(match)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean();
+
+  const totalRecords = await this.paymentModel.countDocuments(match);
+
+  /* =====================================================
+     FINAL RESPONSE (UI MATCH)
+  ===================================================== */
+  return {
+    statusCode: 200,
+    message: 'Payments fetched successfully',
+    data: {
+      summary: {
+        totalPayments: totalPaymentsAmount, // £45,500 ✅
+        successful: successfulCount,
+        pending: pendingCount,
+        failed: failedCount,
+      },
+      list: payments,
+      pagination: {
+        page,
+        limit,
+        totalRecords,
+        totalPages: Math.ceil(totalRecords / limit),
+      },
+    },
+  };
 
 
  
+}
 }
