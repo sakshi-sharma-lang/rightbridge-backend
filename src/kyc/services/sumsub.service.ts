@@ -196,22 +196,22 @@ async getKycDetails(query: {
   const pipeline: any[] = [];
 
   /* =====================================================
-     BASE FILTER
-     (provider DOES NOT exist in DB)
+     BASE FILTER – ONLY SUMSUB (SAFE)
   ===================================================== */
   pipeline.push({
     $match: {
+      provider: 'sumsub',
       externalUserId: { $exists: true, $ne: null },
     },
   });
 
   /* =====================================================
-     SORT FIRST (IMPORTANT FOR GROUP)
+     SORT FIRST (VERY IMPORTANT)
   ===================================================== */
   pipeline.push({ $sort: { createdAt: -1 } });
 
   /* =====================================================
-     GROUP → ONE ROW PER APPLICANT
+     GROUP – ONE KYC PER EXTERNAL USER
   ===================================================== */
   pipeline.push({
     $group: {
@@ -221,7 +221,7 @@ async getKycDetails(query: {
   });
 
   /* =====================================================
-     DATE FILTERS
+     DATE FILTERS (ON GROUPED DATA)
   ===================================================== */
   const match: any = {};
   const now = new Date();
@@ -278,30 +278,14 @@ async getKycDetails(query: {
   }
 
   /* =====================================================
-     SAFE applicationId → STRING
-     (PREVENTS $strLenCP CRASH)
-  ===================================================== */
-  pipeline.push({
-    $addFields: {
-      applicationIdStr: {
-        $cond: [
-          { $ifNull: ['$kyc.applicationId', false] },
-          { $toString: '$kyc.applicationId' },
-          '',
-        ],
-      },
-    },
-  });
-
-  /* =====================================================
      SAFE applicationId → ObjectId
   ===================================================== */
   pipeline.push({
     $addFields: {
       applicationObjectId: {
         $cond: [
-          { $eq: [{ $strLenCP: '$applicationIdStr' }, 24] },
-          { $toObjectId: '$applicationIdStr' },
+          { $eq: [{ $strLenCP: '$kyc.applicationId' }, 24] },
+          { $toObjectId: '$kyc.applicationId' },
           null,
         ],
       },
@@ -309,7 +293,7 @@ async getKycDetails(query: {
   });
 
   /* =====================================================
-     LOOKUP APPLICATION
+     LOOKUP APPLICATION (SAFE)
   ===================================================== */
   pipeline.push({
     $lookup: {
@@ -328,7 +312,7 @@ async getKycDetails(query: {
   });
 
   /* =====================================================
-     RESOLVE APPLICANT VIA externalUserId
+     RESOLVE APPLICANT (USING externalUserId)
   ===================================================== */
   pipeline.push({
     $addFields: {
@@ -345,7 +329,7 @@ async getKycDetails(query: {
   });
 
   /* =====================================================
-     RISK SUMMARY (UI LOGIC)
+     RISK SUMMARY (UI ALIGNED)
   ===================================================== */
   pipeline.push({
     $addFields: {
@@ -368,7 +352,7 @@ async getKycDetails(query: {
   });
 
   /* =====================================================
-     FACET → DATA + TOTAL + CARDS
+     FACET – DATA + TOTAL + CARDS
   ===================================================== */
   pipeline.push({
     $facet: {
@@ -388,7 +372,7 @@ async getKycDetails(query: {
                 },
               },
             },
-            provider: { $literal: 'Sumsub' }, // UI only
+            provider: { $literal: 'Sumsub' },
             status: '$kyc.status',
             startedOn: '$kyc.createdAt',
             completedOn: '$kyc.kycCompletedAt',
@@ -407,19 +391,12 @@ async getKycDetails(query: {
           $group: {
             _id: null,
             totalChecks: { $sum: 1 },
-
             completed: {
-              $sum: {
-                $cond: [{ $eq: ['$kyc.finalDecision', 'APPROVED'] }, 1, 0],
-              },
+              $sum: { $cond: [{ $eq: ['$kyc.finalDecision', 'APPROVED'] }, 1, 0] },
             },
-
             failed: {
-              $sum: {
-                $cond: [{ $eq: ['$kyc.finalDecision', 'REJECTED'] }, 1, 0],
-              },
+              $sum: { $cond: [{ $eq: ['$kyc.finalDecision', 'REJECTED'] }, 1, 0] },
             },
-
             inProgress: {
               $sum: {
                 $cond: [
@@ -434,11 +411,8 @@ async getKycDetails(query: {
                 ],
               },
             },
-
             lowRisk: {
-              $sum: {
-                $cond: [{ $eq: ['$kyc.finalDecision', 'APPROVED'] }, 1, 0],
-              },
+              $sum: { $cond: [{ $eq: ['$kyc.finalDecision', 'APPROVED'] }, 1, 0] },
             },
           },
         },
