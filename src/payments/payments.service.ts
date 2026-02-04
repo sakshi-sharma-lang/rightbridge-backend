@@ -345,7 +345,7 @@ async getPaymentsManagement(query: {
     }
 
     /* =====================================================
-       STATUS FILTER (STRICT – LIKE YOU ASKED)
+       STATUS FILTER (STRICT)
     ===================================================== */
     if (query.status) {
       const allowedStatuses = ['completed', 'pending', 'failed'];
@@ -389,7 +389,6 @@ async getPaymentsManagement(query: {
           from.setDate(now.getDate() - day + 1);
           from.setHours(0, 0, 0, 0);
         } else {
-          // month
           from = new Date(now.getFullYear(), now.getMonth(), 1);
         }
 
@@ -398,7 +397,7 @@ async getPaymentsManagement(query: {
     }
 
     /* =====================================================
-       CUSTOM DATE RANGE (ONLY IF NO PRESET)
+       CUSTOM DATE RANGE
     ===================================================== */
     if (!query.dateRange && (query.fromDate || query.toDate)) {
       match.createdAt = {};
@@ -432,7 +431,7 @@ async getPaymentsManagement(query: {
     }
 
     /* =====================================================
-       DASHBOARD SUMMARY (GLOBAL – NEVER FILTERED)
+       DASHBOARD SUMMARY (GLOBAL)
     ===================================================== */
     const [
       totalPaidAgg,
@@ -445,8 +444,12 @@ async getPaymentsManagement(query: {
         { $group: { _id: null, total: { $sum: '$amount' } } },
       ]),
       this.paymentModel.countDocuments({ status: 'PAID' }),
-      this.paymentModel.countDocuments({ status: { $in: ['PENDING', 'PROCESSING'] } }),
-      this.paymentModel.countDocuments({ status: { $in: ['FAILED', 'CANCELED'] } }),
+      this.paymentModel.countDocuments({
+        status: { $in: ['PENDING', 'PROCESSING'] },
+      }),
+      this.paymentModel.countDocuments({
+        status: { $in: ['FAILED', 'CANCELED'] },
+      }),
     ]);
 
     const totalPayments = totalPaidAgg[0]?.total || 0;
@@ -464,12 +467,33 @@ async getPaymentsManagement(query: {
     const totalRecords = await this.paymentModel.countDocuments(match);
 
     /* =====================================================
-       STATIC UI FIELDS
+       🔹 ADDED: FETCH APPLICATION DATA (SAFE)
+    ===================================================== */
+    const applicationIds = [
+      ...new Set(
+        payments
+          .map(p => p.applicationId?.toString())
+          .filter(Boolean)
+      ),
+    ];
+
+    const applications = await this.applicationModel
+      .find({ _id: { $in: applicationIds } })
+      .select('_id appId firstName lastName email')
+      .lean();
+
+    const applicationMap = new Map(
+      applications.map(app => [app._id.toString(), app])
+    );
+
+    /* =====================================================
+       STATIC UI FIELDS + APPLICATION DATA
     ===================================================== */
     const list = payments.map(p => ({
       ...p,
       type: 'Commitment Fee',
       provider: 'Stripe',
+      application: applicationMap.get(p.applicationId?.toString()) || null,
     }));
 
     return {
@@ -492,7 +516,6 @@ async getPaymentsManagement(query: {
       },
     };
   } catch (error) {
-    // 👇 Centralized error handling
     if (error instanceof BadRequestException) {
       throw error;
     }
@@ -501,5 +524,7 @@ async getPaymentsManagement(query: {
     throw new InternalServerErrorException('Failed to fetch payments');
   }
 }
+
+
 
 }
