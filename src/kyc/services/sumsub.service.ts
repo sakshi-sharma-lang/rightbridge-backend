@@ -195,7 +195,7 @@ async getKycDetails(query: {
   const pipeline: any[] = [];
 
   /* =====================================================
-     SORT → LATEST KYC WINS
+     SORT → LATEST KYC FIRST
   ===================================================== */
   pipeline.push({ $sort: { createdAt: -1 } });
 
@@ -244,7 +244,7 @@ async getKycDetails(query: {
   }
 
   /* =====================================================
-     STATUS FILTER (UI ALIGNED)
+     STATUS FILTER (UI MAPPING)
   ===================================================== */
   switch (query.status?.toLowerCase()) {
     case 'completed':
@@ -277,7 +277,9 @@ async getKycDetails(query: {
       $lookup: {
         from: 'applications',
         let: { appId: { $toObjectId: '$kyc.applicationId' } },
-        pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$appId'] } } }],
+        pipeline: [
+          { $match: { $expr: { $eq: ['$_id', '$$appId'] } } }
+        ],
         as: 'application',
       },
     },
@@ -285,7 +287,7 @@ async getKycDetails(query: {
   );
 
   /* =====================================================
-     APPLICANT RESOLVE
+     RESOLVE APPLICANT
   ===================================================== */
   pipeline.push({
     $addFields: {
@@ -332,7 +334,7 @@ async getKycDetails(query: {
   }
 
   /* =====================================================
-     FACET
+     FACET (DATA + CARDS)
   ===================================================== */
   pipeline.push({
     $facet: {
@@ -340,7 +342,15 @@ async getKycDetails(query: {
         {
           $project: {
             _id: 0,
+
+            // ✅ REQUIRED IDS
+            externalUserId: '$kyc.externalUserId',
+            applicantId: {
+              $ifNull: ['$applicant._id', '$applicant.applicantId'],
+            },
+
             applicationId: '$application.appId',
+
             applicantName: {
               $trim: {
                 input: {
@@ -352,6 +362,7 @@ async getKycDetails(query: {
                 },
               },
             },
+
             provider: { $literal: 'Sumsub' },
             status: '$kyc.status',
             startedOn: '$kyc.createdAt',
@@ -402,11 +413,7 @@ async getKycDetails(query: {
 
             lowRisk: {
               $sum: {
-                $cond: [
-                  { $eq: ['$kyc.finalDecision', 'APPROVED'] },
-                  1,
-                  0,
-                ],
+                $cond: [{ $eq: ['$kyc.finalDecision', 'APPROVED'] }, 1, 0],
               },
             },
           },
@@ -432,6 +439,7 @@ async getKycDetails(query: {
     limit,
   };
 }
+
 
 
 async getApplicantById(applicantId: string) {
