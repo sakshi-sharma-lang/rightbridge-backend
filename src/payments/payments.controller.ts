@@ -61,14 +61,12 @@ export class PaymentsController {
     return this.service.confirmPayment(paymentIntentId, req.user.userId);
   }
 
- @Get('management')
-@UseGuards(JwtAuthGuard)
-async getPaymentsManagement(
-  @Query() query: any,
-) {
-  return this.paymentsService.getPaymentsManagement(query);
-}
 
+@Get('management')
+@UseGuards(JwtAuthGuard)
+async getPaymentsManagement(@Query() query: any) {
+  return this.service.getPaymentsManagement(query);
+}
 
 
 }
