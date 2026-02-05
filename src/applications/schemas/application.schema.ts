@@ -63,7 +63,7 @@ export class Application extends Document {
       message: 'At least one applicant is required',
     },
     {
-      // ✅ ADDED: unique email validation
+      //  ADDED: unique email validation
       validator: (v: any[]) => {
         const emails = v.map(a => a.email?.toLowerCase());
         return emails.length === new Set(emails).size;
@@ -144,8 +144,11 @@ applicants: Record<string, any>[];
     postcode: String,
     solicitorFirmConfirmation: {
       type: Boolean,
-      required: true,
     },
+  solicitorStage: {
+  type: Boolean,
+  required: true,
+},
   }))
   solicitor: Record<string, any>;
 
@@ -168,7 +171,6 @@ applicants: Record<string, any>[];
     default: [],
   })
   consents: { key: string; value: boolean }[];
-
   /* ================= STATUS ================= */
   @Prop({
   type: String,
@@ -208,7 +210,7 @@ rejectReason?: string;
 application_stage_management: string[];
 commitment_fee: number;
 @Prop({
-  type: [String],      // stores only file URLs
+  type: [String],      
   default: [],
 })
 additionalInformationDocuments: string[];

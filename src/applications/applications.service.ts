@@ -98,6 +98,9 @@ async create(
 
     // ✅ ONLY ADD THIS LINE (IMPORTANT)
     const { applicants: bodyApplicants, ...safeBody } = body;
+    delete safeBody.status;
+    delete safeBody.rejectReason;
+    delete safeBody.applicationStatus;
 
     const applicants = Array.isArray(body.applicants)
       ? body.applicants.map((a, index) => ({
@@ -130,9 +133,49 @@ async create(
         }))
       : [];
 
+ //  AUTO REJECT CALCULATION (FINAL WORKING VERSION)
+      let autoRejectStatus: any = {};
+      const loanAmountRaw =
+        body?.loanRequirements?.loanAmount ??
+        body['loanRequirements.loanAmount'];
+      const propertyValueRaw =
+        body?.property?.estimatedValue ??
+        body['property.estimatedValue'];
+      const loanAmountNum = Number(loanAmountRaw);
+      const propertyValueNum = Number(propertyValueRaw);
+        if (
+          !isNaN(loanAmountNum) &&
+          !isNaN(propertyValueNum) &&
+          propertyValueNum > 0
+        ) {
+          const ltv = (loanAmountNum / propertyValueNum) * 100;
+          console.log("LTV CALCULATED:", ltv);
+
+             if (ltv > 75) {
+            console.log("AUTO REJECT WILL BE SET TRUE");
+
+            autoRejectStatus = {
+              status: 'AUTO_REJECTED',
+              rejectReason: 'LTV_EXCEEDED',
+            };
+
+          } else {
+            console.log("LTV SAFE — USE BODY STATUS");
+
+            if (body?.status) {
+              autoRejectStatus = {
+                status: body.status
+              };
+            }
+          }
+
+            } else {
+              console.log("LTV SKIPPED — INVALID VALUES");
+            }
     const application = new this.applicationModel({
       ...safeBody, // ✅ ONLY CHANGE HERE (was ...body)
       applicants,
+      ...autoRejectStatus ,
 
       property: {
         address: property.address ?? '',
@@ -283,8 +326,7 @@ async updateApplicationDetails(
 ): Promise<Application> {
   try {
 
-    // 🔹 STEP 1: Check DB first (application must exist)
-    let pushStatusManagement: string | null = null;
+    // 🔹 Authorization check
     const existingApplication = await this.applicationModel.findOne({
       _id: id,
       userId,
@@ -295,89 +337,53 @@ async updateApplicationDetails(
         'You are not authorized to update this application',
       );
     }
-    // 🔹 STEP 2: Resolve values (Body → DB fallback)
-    const loanAmount = Number(
-      body?.loanRequirements?.loanAmount ??
-        body?.['loanRequirements.loanAmount'] ??
-        existingApplication?.loanRequirements?.loanAmount
-    );
-    const propertyValue = Number(
-      body?.property?.estimatedValue ??
-        body?.['property.estimatedValue'] ??
-        existingApplication?.property?.estimatedValue
-    );
 
-
-
-    // 🔴 STEP 3: If BOTH body + DB values are missing → BLOCK UPDATE
-    if (isNaN(loanAmount) || isNaN(propertyValue) || propertyValue <= 0) {
-      throw new BadRequestException(
-        'Loan amount and property value are required to update application',
-      );
+    // 🔹 DIP stage logic
+    let statusUpdate: any = {};
+    if (body?.status === 'dip_stage') {
+      statusUpdate = {
+        status: 'dip_stage',
+        application_stage_management: 'dip_submitted',
+        rejectReason: '',
+      };
     }
 
-    // 🔹 STEP 4: LTV calculation
-    let statusUpdate: any = {};
-    const ltv = (loanAmount / propertyValue) * 100;
-
-
-if (ltv > 75) {
-  statusUpdate = {
-    status: 'AUTO_REJECTED',
-    rejectReason: 'LTV_EXCEEDED',
-  };
-} else if (body?.status === 'dip_stage') {
-  statusUpdate = {
-    status: 'dip_stage',
-    application_stage_management: 'dip_submitted',
-    rejectReason:''
-  };
-}
-    // 🔹 STEP 5: Sanitize body (DO NOT allow system fields)
+    // 🔹 Clean body (prevent system override)
     const safeBody = { ...body };
-
-    delete safeBody.application_stage_management;
     delete safeBody.status;
     delete safeBody.rejectReason;
     delete safeBody.isDraft;
     delete safeBody.userId;
     delete safeBody.appId;
-    delete safeBody.applicationStatus; 
+    delete safeBody.applicationStatus;
+    delete safeBody.application_stage_management;
 
-    // 🔹 STEP 6: ORIGINAL UPDATE (UNCHANGED STRUCTURE)
+    // 🔹 Preserve externalUserId in applicants
+    if (Array.isArray(safeBody.applicants)) {
+      safeBody.applicants = safeBody.applicants.map((applicant, index) => {
+        const existingApplicant = existingApplication.applicants?.[index];
 
-if (safeBody.applicants && Array.isArray(safeBody.applicants)) {
-  safeBody.applicants = safeBody.applicants.map((applicant, index) => {
-    const existingApplicant = existingApplication.applicants?.[index];
+        if (existingApplicant?.externalUserId) {
+          applicant.externalUserId = existingApplicant.externalUserId;
+        }
 
-    if (existingApplicant?.externalUserId) {
-      applicant.externalUserId = existingApplicant.externalUserId;
+        return applicant;
+      });
     }
 
-    return applicant;
-  });
-}
-
-
-
-    console.log("applicationStatus",body?.applicationStatus);
-    if (body?.applicationStatus) {
-      pushStatusManagement = body.applicationStatus;
-    }
+    // 🔹 Update query
     const updated = await this.applicationModel.findOneAndUpdate(
       { _id: id, userId },
       {
         $set: {
           ...safeBody,
           isDraft: false,
-          ...statusUpdate, // applied ONLY if LTV > 75
+          ...statusUpdate,
         },
 
-          ...(pushStatusManagement && {
-      $push: {
-        applicationStatus: pushStatusManagement,
-      },
-    }),
+        ...(body?.applicationStatus && {
+          $push: { applicationStatus: body.applicationStatus },
+        }),
       },
       { new: true },
     );
@@ -389,23 +395,15 @@ if (safeBody.applicants && Array.isArray(safeBody.applicants)) {
     }
 
     return updated;
-  } catch (error) {
-    // 🔹 Known HTTP errors → rethrow
-    if (
-      error instanceof BadRequestException ||
-      error instanceof ForbiddenException ||
-      error instanceof NotFoundException
-    ) {
-      throw error;
-    }
 
-    // 🔹 Unknown errors
+  } catch (error) {
     throw new InternalServerErrorException({
       message: 'Failed to update application',
       error: error?.message ?? 'Internal Server Error',
     });
   }
 }
+
 
 
   /* ================= APP ID GENERATOR ================= */
@@ -951,7 +949,6 @@ if (search) {
       sort = 'recent', // recent | oldest | highest_amount | lowest_amount | priority
     } = query;
 
-
     const STATUS_LABEL_MAP: Record<string, string> = {
     welcome_stage: 'Draft',
     dip_stage: 'DIP Submitted',
@@ -962,7 +959,6 @@ if (search) {
     completed_stage: 'Offer Accepted',
     decline_stage: 'DIP Declined',
   };
-
 
     // ================= BASE FILTER =================
       const baseFilter = {
@@ -1009,7 +1005,6 @@ if (search) {
 if (search) {
   const raw = search.trim();
   const parts = raw.split(/\s+/);
-
   const orConditions: any[] = [
     { appId: { $regex: raw, $options: 'i' } },
     { 'property.address': { $regex: raw, $options: 'i' } },
@@ -1017,7 +1012,7 @@ if (search) {
     { 'applicants.lastName': { $regex: raw, $options: 'i' } },
   ];
 
-  // ✅ Full name search (same applicant)
+  //  Full name search (same applicant)
   if (parts.length >= 2) {
     orConditions.push({
       applicants: {
@@ -1045,27 +1040,20 @@ if (search) {
   filter.$or = orConditions;
 }
 
-
-
     // ================= SORT =================
     let sortQuery: any = { updatedAt: -1 };
-
     if (sort === 'oldest') sortQuery = { updatedAt: 1 };
     if (sort === 'highest_amount') sortQuery = { 'loanRequirements.loanAmount': -1 };
     if (sort === 'lowest_amount') sortQuery = { 'loanRequirements.loanAmount': 1 };
     if (sort === 'priority') sortQuery = { priority: -1 };
-
     const skip = (Number(page) - 1) * Number(limit);
-
     // ================= DASHBOARD FILTER =================
     const dashboardFilter = { ...filter };
     delete dashboardFilter.$or; // cards ignore search
-
     // ================= QUERY =================
     const [
       rows,
       total,
-
       totalApplications,
       awaitingFee,
       kycInProgress,
@@ -1083,8 +1071,7 @@ if (search) {
           priority: 1,
           updatedAt: 1,
           'applicants.firstName': 1,
-'applicants.lastName': 1,
-
+           'applicants.lastName': 1,
           'loanRequirements.loanAmount': 1,
           'property.address': 1,
         })
@@ -1285,6 +1272,76 @@ async updatePriority(applicationId: string, priority: string) {
     });
   }
 }
+
+
+async deleteDraftApplication(applicationId: string, userId: string) {
+  try {
+
+    if (!Types.ObjectId.isValid(applicationId)) {
+      throw new BadRequestException('Invalid application id');
+    }
+
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid user id');
+    }
+
+    const appObjectId = new Types.ObjectId(applicationId);
+    const userObjectId = new Types.ObjectId(userId);
+
+
+    const application = await this.applicationModel.findById(appObjectId);
+
+    if (!application) {
+      throw new NotFoundException('Application not found');
+    }
+
+
+    if (application.userId.toString() !== userObjectId.toString()) {
+      throw new ForbiddenException(
+        'You are not authorized to delete this application',
+      );
+    }
+
+   
+    if (!application.isDraft) {
+      throw new BadRequestException(
+        'Only draft application can be deleted',
+      );
+    }
+
+    // ✅ 5. Status check
+    if (application.status !== 'welcome_stage') {
+      throw new BadRequestException(
+        'Only welcome stage draft application can be deleted',
+      );
+    }
+
+    // ✅ 6. Delete
+    await this.applicationModel.deleteOne({ _id: appObjectId });
+
+    return {
+      success: true,
+      message: 'Application deleted successfully',
+    };
+
+  } catch (err) {
+    // ✅ Known errors → throw directly
+    if (
+      err instanceof BadRequestException ||
+      err instanceof NotFoundException ||
+      err instanceof ForbiddenException
+    ) {
+      throw err;
+    }
+
+    // ❌ Unknown error
+    throw new InternalServerErrorException(
+      'Something went wrong while deleting application',
+    );
+  }
+}
+
+
 
 
 }

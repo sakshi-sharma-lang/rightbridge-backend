@@ -28,12 +28,12 @@ export class PropertyDto {
   @IsString()
   ownershipStatus: string;
 
-  // ✅ NEW FIELD
+  //  NEW FIELD
   @IsString()
   @IsOptional()
   hasOutstandingMortgage?: string;
 
-  // ✅ NESTED OBJECT
+  //  NESTED OBJECT
   @ValidateNested()
   @Type(() => Object)
   @IsOptional()
@@ -44,7 +44,7 @@ export class PropertyDto {
     amountInArrears?: number;
   };
   @IsOptional()
-entityDetails?: {
+  entityDetails?: {
   entityName?: string;
   entityType?: string;
   companyRegistrationNumber?: string;

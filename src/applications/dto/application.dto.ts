@@ -11,7 +11,6 @@ export class ApplicationDto {
   solicitor?: any;
   additionalInfo?: any;
   consents?: { key: string; value: boolean }[];
-
   @IsNotEmpty({ message: 'Status is required' })
   @IsEnum(ApplicationStatus, {
     message: 'Invalid application status',

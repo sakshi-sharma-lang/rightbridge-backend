@@ -176,5 +176,21 @@ async updatePriority(
   return this.service.updatePriority(applicationId, body.priority); 
 }
 
+@Delete('applications/delete/:id')
+@UseGuards(JwtAuthGuard)
+async deleteApplication(
+  @Param('id') applicationId: string,
+  @Req() req: any,
+) {
+  const userId = req.user?.userId;
+
+  if (!userId) {
+    throw new UnauthorizedException('Invalid token');
+  }
+
+  return this.service.deleteDraftApplication(applicationId, userId);
+}
 
 }
+
+
