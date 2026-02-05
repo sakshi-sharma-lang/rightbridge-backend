@@ -564,7 +564,6 @@ if (search) {
   'loanRequirements.loanAmount': 1,
   'property.address': 1,
 })
-
       .sort({ updatedAt: -1 })
       .skip(skip)
       .limit(Number(limit))
@@ -600,11 +599,8 @@ if (search) {
       createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth },
     }),
   ]);
-
   // ================= FINAL CALCULATION =================
   const thisMonthChange = thisMonthCount - lastMonthCount;
-
-
   // ================= FORMAT TABLE =================
   const data = rows.map((item) => ({
   // applicant data is already inside item
@@ -616,15 +612,12 @@ if (search) {
   // const firstName = primaryApplicant?.firstName ?? '';
   // const lastName = primaryApplicant?.lastName ?? '';
 
-  // ✅ console if you want
+  //  console if you want
 
 
     appId: item.appId,
   
   applicantName: `${item?.applicants?.[0]?.firstName ?? ''} ${item?.applicants?.[0]?.lastName ?? ''}`.trim(),
-
-
-
    // applicantName: `${applicant?.firstName ?? ''} ${applicant?.lastName ?? ''}`.trim(),
     loanAmount: item.loanRequirements?.loanAmount ?? 0,
     propertyAddress: item.property?.address ?? '',
@@ -657,9 +650,7 @@ if (search) {
 
     return application;
   }
-
   async getApplicationSummary(applicationId: string) {
-
     const application = await this.applicationModel
       .findById(applicationId)
       .select({
@@ -667,7 +658,6 @@ if (search) {
         status: 1,
         createdAt: 1,
         updatedAt:1,
-
         // Applicant
         'applicants.firstName': 1,
          'applicants.lastName': 1,
@@ -726,10 +716,7 @@ if (search) {
       },
     };
   }
-
   async getApplicationDetails(query: any) {
-   
-
     const {
       status,
       loanType,
@@ -739,13 +726,10 @@ if (search) {
       page = 1,
       limit = 10,
     } = query;
-
-    // 🔒 BASE FILTER: ACTIVE applications are treated as NON-EXISTENT
+    //  BASE FILTER: ACTIVE applications are treated as NON-EXISTENT
     const baseFilter = { status: { $ne: 'active' } };
-
-    // 🔒 MAIN FILTER (used for list + filtered total)
+    //  MAIN FILTER (used for list + filtered total)
     const filter: any = { ...baseFilter };
-
     // ================= STATUS FILTER =================
     // NOTE: status=active is intentionally ignored
     if (status && status !== 'active') {
@@ -805,7 +789,7 @@ if (search) {
     { 'applicants.lastName': { $regex: raw, $options: 'i' } },
   ];
 
-  // ✅ Full name search (same applicant)
+  //  Full name search (same applicant)
   if (parts.length >= 2) {
     filter.$or.push({
       applicants: {
@@ -823,10 +807,7 @@ if (search) {
     });
   }
 }
-
-
     const skip = (Number(page) - 1) * Number(limit);
-
     // ================= TODAY RANGE =================
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
@@ -933,8 +914,6 @@ if (search) {
       data,
     };
   }
-
-
   async getAllApplicationbyAdmin(query: any) {
     const {
       status,
@@ -1149,7 +1128,6 @@ if (search) {
     .findOne({ userId: new Types.ObjectId(userId) })
     .sort({ createdAt: -1 }); // latest application
 }
-
   async deleteAdditionalDocument(
   applicationId: string,
   userId: string,
@@ -1340,8 +1318,5 @@ async deleteDraftApplication(applicationId: string, userId: string) {
     );
   }
 }
-
-
-
 
 }

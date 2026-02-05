@@ -147,7 +147,7 @@ applicants: Record<string, any>[];
     },
   solicitorStage: {
   type: Boolean,
-  required: true,
+  required: false,
 },
   }))
   solicitor: Record<string, any>;
