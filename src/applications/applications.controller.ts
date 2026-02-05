@@ -26,18 +26,12 @@ import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import * as multer from 'multer';
 import * as fs from 'fs';
 import * as path from 'path'
-
 import { diskStorage } from 'multer';
 import { extname } from 'path';
-
-
 @UseGuards(JwtAuthGuard)
 @Controller('')
-
-
 export class ApplicationsController {
   constructor(private readonly service: ApplicationsService) {}
-
 //    @Post('applications')
 //   create(@Req() req: any, @Body() body: any) {
 
@@ -130,8 +124,6 @@ updateApplicationDetails(
   if (!userId) {
     throw new UnauthorizedException('Invalid or missing token');
   }
-
-
   return this.service.updateApplicationDetails(id, body, userId);
 }
 

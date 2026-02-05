@@ -48,17 +48,10 @@ export class Application extends Document {
         required: true,
         enum: ['Under 3 years', '3 years or more'],
       },
-
-      kycEmailSent: { type: Boolean, default: false },
-      kycEmailSentAt: { type: Date, default: null },
-      kycStarted: { type: Boolean, default: false },
-      kycVerified: { type: Boolean, default: false },
-
       previousAddress: {
         previousResidentialAddress: { type: String },
         previousPostcode: { type: String },
       },
-
       companyAddress: { type: String },
       companyRegistrationNumber: { type: String },
     },
@@ -79,7 +72,6 @@ export class Application extends Document {
     },
   ],
 })
-
 applicants: Record<string, any>[];
   /* ================= POPUP + FORM: PROPERTY ================= */
   @Prop(raw({
@@ -107,9 +99,7 @@ applicants: Record<string, any>[];
     registeredAddress: String,
     postcode: String,
   },
-
   }))
-
   property: Record<string, any>;
   /* ================= POPUP + FORM: LOAN ================= */
   @Prop(raw({
@@ -125,7 +115,6 @@ applicants: Record<string, any>[];
     additionalSecurity: String,
   }))
   loanRequirements: Record<string, any>;
-
   /* ================= FORM: FINANCIAL ================= */
   @Prop(raw({
     depositAmount: Number,
@@ -136,7 +125,6 @@ applicants: Record<string, any>[];
     adverseCreditHistory: Boolean,
   }))
   financialInfo: Record<string, any>;
-
   /* ================= POPUP + FORM: EXIT ================= */
   @Prop(raw({
     exitRoute: String,
@@ -144,7 +132,6 @@ applicants: Record<string, any>[];
     exitDescription: String,
   }))
   exitStrategy: Record<string, any>;
-
   /* ================= POPUP + FORM: SOLICITOR ================= */
   @Prop(raw({
     firmName: String,
@@ -186,8 +173,7 @@ applicants: Record<string, any>[];
   @Prop({
   type: String,
   enum: Object.values(ApplicationStatus),
-    required: true,
-
+  required: true,
 })
 status: ApplicationStatus;
   @Prop({
@@ -195,7 +181,6 @@ status: ApplicationStatus;
     default: [],
   })
   applicationStatus: string[];
-
 @Prop({
   type: String,
   default: null,
@@ -203,15 +188,12 @@ status: ApplicationStatus;
 rejectReason?: string;
   @Prop({ default: true })
   isDraft: boolean;
-
-    @Prop({ unique: true })
-    appId: string;
-
-      @Prop()
+  @Prop({ unique: true })
+  appId: string;
+  @Prop()
   createdAt: Date;
   @Prop()
   updatedAt: Date;
-
   /* ================= PRIORITY ================= */
   @Prop({
     type: String,
@@ -219,28 +201,22 @@ rejectReason?: string;
   })
   priority: string;
   underwriter: string;
-
-@Prop({
-  type: [String],
-  default: [],
-})
+  @Prop({
+    type: [String],
+    default: [],
+  })
 application_stage_management: string[];
-
 commitment_fee: number;
-
 @Prop({
   type: [String],      // stores only file URLs
   default: [],
 })
 additionalInformationDocuments: string[];
-
 @Prop({
   type: String,
   default: '',
 })
 additionalInformationText: string;
-
-
 @Prop({
   type: {
     creditCheckConsent: { type: Boolean, required: true },
@@ -262,8 +238,6 @@ declarationsAndConsent: {
 dipconditional?: boolean | null;
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true })
   userId: any;
-
 }
-
 export const ApplicationSchema =
   SchemaFactory.createForClass(Application);
