@@ -3,10 +3,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model , Types } from 'mongoose';
 import { Application } from './schemas/application.schema';
 import { Counter } from './schemas/counter.schema';
-
 import * as crypto from 'crypto';
 import * as fs from 'fs';
-
 
 @Injectable()
 export class ApplicationsService {
@@ -22,8 +20,6 @@ export class ApplicationsService {
   const buffer = fs.readFileSync(filePath);
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
-
-
 private getPrimaryApplicant(app: any) {
   return app?.applicants?.[0] ?? null;
 }
@@ -231,15 +227,12 @@ async create(
       userId,
       isDraft: true,
     });
-
     const savedApplication = await application.save();
-
     return {
       success: true,
       message: 'Application created successfully',
       data: savedApplication,
     };
-
   } 
   catch (error) {
     if (error?.name === 'ValidationError') {
@@ -370,7 +363,6 @@ async updateApplicationDetails(
         return applicant;
       });
     }
-
     // 🔹 Update query
     const updated = await this.applicationModel.findOneAndUpdate(
       { _id: id, userId },
@@ -393,9 +385,7 @@ async updateApplicationDetails(
         'You are not authorized to update this application',
       );
     }
-
     return updated;
-
   } catch (error) {
     throw new InternalServerErrorException({
       message: 'Failed to update application',
@@ -403,8 +393,6 @@ async updateApplicationDetails(
     });
   }
 }
-
-
 
   /* ================= APP ID GENERATOR ================= */
   private async generateAppId(): Promise<string> {
@@ -639,7 +627,7 @@ if (search) {
     limit: Number(limit),
     data,
   };
-}
+ }
   /* ================= ADMIN GET USER APPLICATION ================= */
   async findUserApplicationByIdForAdmin(id: string): Promise<Application> {
     const application = await this.applicationModel.findById(id);
@@ -1206,7 +1194,6 @@ if (search) {
     });
   }
 }
-
 // applications.service.ts
 
 async updatePriority(applicationId: string, priority: string) {
@@ -1250,8 +1237,6 @@ async updatePriority(applicationId: string, priority: string) {
     });
   }
 }
-
-
 async deleteDraftApplication(applicationId: string, userId: string) {
   try {
 

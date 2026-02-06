@@ -145,9 +145,10 @@ applicants: Record<string, any>[];
     solicitorFirmConfirmation: {
       type: Boolean,
     },
-  solicitorStage: {
-  type: Boolean,
-  required: false,
+ solicitorStage: {
+  type: String,
+  required: true,
+  enum: ['solicitor_dip_stage', 'solicitor_later'],
 },
   }))
   solicitor: Record<string, any>;
