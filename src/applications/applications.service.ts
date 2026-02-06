@@ -5,6 +5,9 @@ import { Application } from './schemas/application.schema';
 import { Counter } from './schemas/counter.schema';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
+import { S3Helper } from '../common/s3.helper';
+
+
 
 @Injectable()
 export class ApplicationsService {
@@ -14,12 +17,17 @@ export class ApplicationsService {
 
     @InjectModel(Counter.name)
     private readonly counterModel: Model<Counter>,
+
   ) {}
 
   private getFileHash(filePath: string): string {
   const buffer = fs.readFileSync(filePath);
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
+private getFileHashFromBuffer(buffer: Buffer): string {
+  return crypto.createHash('sha256').update(buffer).digest('hex');
+}
+
 private getPrimaryApplicant(app: any) {
   return app?.applicants?.[0] ?? null;
 }
@@ -34,7 +42,6 @@ async create(
   message: string;
   data: Application;
 }> {
-
   try {
     const existingApplication = await this.applicationModel.findOne({
       userId,
@@ -45,46 +52,75 @@ async create(
         'You cannot create an application. Your application is already in progress.',
       );
     }
-
     const appId = await this.generateAppId();
     const documentUrls: string[] = [];
     const uploadedHashes = new Set<string>();
+    // if (files.length) {
+    //   const path = require('path');
+    //   const baseDir = path.join('additional-info/docs-uploads', appId);
+    //   fs.mkdirSync(baseDir, { recursive: true });
 
-    if (files.length) {
-      const path = require('path');
-      const baseDir = path.join('additional-info/docs-uploads', appId);
-      fs.mkdirSync(baseDir, { recursive: true });
+    //   for (const file of files) {
+    //     const fileHash = this.getFileHash(file.path);
 
+    //     if (uploadedHashes.has(fileHash)) {
+    //       fs.unlinkSync(file.path);
+    //       throw new BadRequestException(
+    //         `Duplicate file detected: ${file.originalname}`,
+    //       );
+    //     }
+
+    //     uploadedHashes.add(fileHash);
+
+    //     const duplicate = await this.applicationModel.findOne({
+    //       userId,
+    //       additionalInformationFileHashes: fileHash,
+    //     });
+
+    //     if (duplicate) {
+    //       fs.unlinkSync(file.path);
+    //       throw new BadRequestException(
+    //         `This document was already uploaded for this application.`,
+    //       );
+    //     }
+
+    //     const finalPath = path.join(baseDir, file.filename);
+    //     fs.renameSync(file.path, finalPath);
+
+    //     documentUrls.push(`/${finalPath.replace(/\\/g, '/')}`);
+    //   }
+    // }
+         if (files.length) {
+      const uploadedHashes = new Set<string>();
       for (const file of files) {
-        const fileHash = this.getFileHash(file.path);
-
+        //  hash from buffer (since memory storage)
+        const fileHash = this.getFileHashFromBuffer(file.buffer);
         if (uploadedHashes.has(fileHash)) {
-          fs.unlinkSync(file.path);
           throw new BadRequestException(
             `Duplicate file detected: ${file.originalname}`,
           );
         }
-
-        uploadedHashes.add(fileHash);
-
-        const duplicate = await this.applicationModel.findOne({
-          userId,
-          additionalInformationFileHashes: fileHash,
-        });
-
-        if (duplicate) {
-          fs.unlinkSync(file.path);
-          throw new BadRequestException(
-            `This document was already uploaded for this application.`,
-          );
-        }
-
-        const finalPath = path.join(baseDir, file.filename);
-        fs.renameSync(file.path, finalPath);
-
-        documentUrls.push(`/${finalPath.replace(/\\/g, '/')}`);
+      uploadedHashes.add(fileHash);
+      const duplicate = await this.applicationModel.findOne({
+        userId,
+        additionalInformationFileHashes: fileHash,
+      });
+      if (duplicate) {
+        throw new BadRequestException(
+          `This document was already uploaded for this application.`,
+        );
       }
-    }
+    //  S3 upload path structure
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const key = `applications/${year}/${month}/${day}/${appId}/additional-docs/${Date.now()}-${file.originalname}`;
+    const s3Url = await S3Helper.upload(file, key);
+
+    documentUrls.push(s3Url);
+  }
+}
 
     const property = body.property || {};
     const loanRequirements = body.loanRequirements || {};
@@ -92,7 +128,7 @@ async create(
     const solicitor = body.solicitor || {};
     const additionalInfo = body.additionalInfo || {};
 
-    // ✅ ONLY ADD THIS LINE (IMPORTANT)
+    //  ONLY ADD THIS LINE (IMPORTANT)
     const { applicants: bodyApplicants, ...safeBody } = body;
     delete safeBody.status;
     delete safeBody.rejectReason;
@@ -124,7 +160,7 @@ async create(
           companyRegistrationNumber: a.companyRegistrationNumber ?? '',
           userId: new Types.ObjectId(userId),
 
-          // ✅ backend generated (not from frontend)
+          //  backend generated (not from frontend)
           externalUserId: `${appId}_${userId}_${index + 1}`,
         }))
       : [];
@@ -164,14 +200,13 @@ async create(
               };
             }
           }
-
             } else {
               console.log("LTV SKIPPED — INVALID VALUES");
             }
-    const application = new this.applicationModel({
-      ...safeBody, // ✅ ONLY CHANGE HERE (was ...body)
-      applicants,
-      ...autoRejectStatus ,
+        const application = new this.applicationModel({
+          ...safeBody, 
+          applicants,
+          ...autoRejectStatus ,
 
       property: {
         address: property.address ?? '',
@@ -258,7 +293,6 @@ async create(
         'You are not authorized to access this application',
       );
     }
-
     return app;
   }
 
@@ -405,12 +439,9 @@ async updateApplicationDetails(
   }
 }
 
-
-
   /* ================= APP ID GENERATOR ================= */
   private async generateAppId(): Promise<string> {
     const year = new Date().getFullYear();
-
     const counter = await this.counterModel.findOneAndUpdate(
       { name: `application-${year}` },
       { $inc: { seq: 1 } },
@@ -420,7 +451,6 @@ async updateApplicationDetails(
     return `BL-${year}-${counter.seq.toString().padStart(4, '0')}`;
   }
  async getApplicationsAdmindashboard(query: any) {
-
   const {
     status,
     loanType,
@@ -1124,89 +1154,89 @@ if (search) {
       data,
     };
   }
- async findApplicationByUserId(userId: string) {
-  return this.applicationModel
-    .findOne({ userId: new Types.ObjectId(userId) })
-    .sort({ createdAt: -1 }); // latest application
-}
-  async deleteAdditionalDocument(
-  applicationId: string,
-  userId: string,
-  fileUrl: string,
-) {
-  const fs = require('fs');
-  const path = require('path');
-
-  try {
-    // ================= ID VALIDATION =================
-    if (!Types.ObjectId.isValid(applicationId)) {
-      throw new BadRequestException({
-        statusCode: 400,
-        message: 'Invalid application id',
-      });
-    }
-
-    // ================= FIND APPLICATION =================
-    const application = await this.applicationModel.findOne({
-      _id: applicationId,
-      userId,
-    });
-
-    if (!application) {
-      throw new NotFoundException({
-        statusCode: 404,
-        message: 'Application not found',
-      });
-    }
-
-    // ================= VALIDATE FILE =================
-    if (!fileUrl || !application.additionalInformationDocuments.includes(fileUrl)) {
-      throw new BadRequestException({
-        statusCode: 400,
-        message: 'Document not found in this application',
-      });
-    }
-
-    // ================= REMOVE FROM DATABASE =================
-    await this.applicationModel.updateOne(
-      { _id: applicationId },
-      { $pull: { additionalInformationDocuments: fileUrl } },
-    );
-
-    // ================= REMOVE FROM FILE SYSTEM =================
-    const absolutePath = path.join(process.cwd(), fileUrl);
-
-    if (fs.existsSync(absolutePath)) {
-      fs.unlinkSync(absolutePath);
-    }
-
-    return {
-      statusCode: 200,
-      message: 'Document deleted successfully',
-    };
-
-  } catch (error) {
-
-    // ================= HTTP EXCEPTIONS =================
-    if (error?.status) {
-      throw error;
-    }
-
-    // ================= MONGOOSE ID ERROR =================
-    if (error?.name === 'CastError') {
-      throw new BadRequestException({
-        statusCode: 400,
-        message: 'Invalid application id',
-      });
-    }
-
-    // ================= FALLBACK =================
-    throw new InternalServerErrorException({
-      statusCode: 500,
-      message: 'Failed to delete document',
-    });
+   async findApplicationByUserId(userId: string) {
+    return this.applicationModel
+      .findOne({ userId: new Types.ObjectId(userId) })
+      .sort({ createdAt: -1 }); // latest application
   }
-}
+    async deleteAdditionalDocument(
+    applicationId: string,
+    userId: string,
+    fileUrl: string,
+  ) {
+    const fs = require('fs');
+    const path = require('path');
+
+    try {
+      // ================= ID VALIDATION =================
+      if (!Types.ObjectId.isValid(applicationId)) {
+        throw new BadRequestException({
+          statusCode: 400,
+          message: 'Invalid application id',
+        });
+      }
+
+      // ================= FIND APPLICATION =================
+      const application = await this.applicationModel.findOne({
+        _id: applicationId,
+        userId,
+      });
+
+      if (!application) {
+        throw new NotFoundException({
+          statusCode: 404,
+          message: 'Application not found',
+        });
+      }
+
+      // ================= VALIDATE FILE =================
+      if (!fileUrl || !application.additionalInformationDocuments.includes(fileUrl)) {
+        throw new BadRequestException({
+          statusCode: 400,
+          message: 'Document not found in this application',
+        });
+      }
+
+      // ================= REMOVE FROM DATABASE =================
+      await this.applicationModel.updateOne(
+        { _id: applicationId },
+        { $pull: { additionalInformationDocuments: fileUrl } },
+      );
+
+      // ================= REMOVE FROM FILE SYSTEM =================
+      const absolutePath = path.join(process.cwd(), fileUrl);
+
+      if (fs.existsSync(absolutePath)) {
+        fs.unlinkSync(absolutePath);
+      }
+
+      return {
+        statusCode: 200,
+        message: 'Document deleted successfully',
+      };
+
+    } catch (error) {
+
+      // ================= HTTP EXCEPTIONS =================
+      if (error?.status) {
+        throw error;
+      }
+
+      // ================= MONGOOSE ID ERROR =================
+      if (error?.name === 'CastError') {
+        throw new BadRequestException({
+          statusCode: 400,
+          message: 'Invalid application id',
+        });
+      }
+
+      // ================= FALLBACK =================
+      throw new InternalServerErrorException({
+        statusCode: 500,
+        message: 'Failed to delete document',
+      });
+    }
+  }
 // applications.service.ts
 
 async updatePriority(applicationId: string, priority: string) {

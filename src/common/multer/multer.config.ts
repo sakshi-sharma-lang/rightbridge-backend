@@ -1,24 +1,26 @@
-import { diskStorage } from 'multer';
-import * as fs from 'fs';
-import { join } from 'path';
+import * as multer from 'multer';
 
 export const applicationDocMulter = {
-  storage: diskStorage({
-    destination: (req, file, cb) => {
-      const tempDir = join(process.cwd(), 'uploads', 'temp');
+  storage: multer.memoryStorage(),   // 🔴 REQUIRED FOR S3
 
-      // ✅ Auto-create folder if not exists
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-      }
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25MB
+  },
 
-      cb(null, tempDir);
-    },
+  fileFilter: (req, file, cb) => {
+    const allowedMimeTypes = [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/jpg',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
 
-    filename: (req, file, cb) => {
-      const uniqueName =
-        Date.now() + '-' + Math.round(Math.random() * 1e9) + '-' + file.originalname;
-      cb(null, uniqueName);
-    },
-  }),
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      return cb(new Error('Only pdf, jpg, png, doc allowed'), false);
+    }
+
+    cb(null, true);
+  },
 };

@@ -48,33 +48,21 @@ export class ApplicationsController {
 @Post('applications')
 @UseInterceptors(
   FilesInterceptor('documents', 10, {
-    limits: {
-      fileSize: 10 * 1024 * 1024, // 10 MB
-    },
+    storage: multer.memoryStorage(),  // MUST
+    limits: { fileSize: 10 * 1024 * 1024 },
+
     fileFilter: (req, file, cb) => {
       const allowed = ['.pdf', '.jpg', '.jpeg', '.png'];
       const ext = extname(file.originalname).toLowerCase();
 
       if (!allowed.includes(ext)) {
-        return cb(
-          new BadRequestException(
-            'Only PDF, JPG, and PNG files are allowed',
-          ),
-          false,
-        );
+        return cb(new BadRequestException('Only PDF/JPG/PNG allowed'), false);
       }
-
       cb(null, true);
     },
-    storage: diskStorage({
-      destination: './tmp', // temp folder
-      filename: (req, file, cb) => {
-        const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, unique + extname(file.originalname));
-      },
-    }),
   }),
 )
+
 create(
   @Req() req,
   @Body() body,
@@ -183,11 +171,9 @@ async deleteApplication(
   @Req() req: any,
 ) {
   const userId = req.user?.userId;
-
   if (!userId) {
     throw new UnauthorizedException('Invalid token');
   }
-
   return this.service.deleteDraftApplication(applicationId, userId);
 }
 
