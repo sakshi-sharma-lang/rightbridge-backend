@@ -351,6 +351,15 @@ async updateApplicationDetails(
     delete safeBody.applicationStatus;
     delete safeBody.application_stage_management;
 
+    // =========================================================
+    // 🔹 SOLICITOR LOGIC
+    // if solicitorFirmConfirmation = true → do NOT update solicitor
+    // if false → allow update
+    // =========================================================
+    if (safeBody?.solicitor?.solicitorFirmConfirmation === true) {
+      delete safeBody.solicitor; // keep old DB solicitor unchanged
+    }
+
     // 🔹 Preserve externalUserId in applicants
     if (Array.isArray(safeBody.applicants)) {
       safeBody.applicants = safeBody.applicants.map((applicant, index) => {
@@ -363,6 +372,7 @@ async updateApplicationDetails(
         return applicant;
       });
     }
+
     // 🔹 Update query
     const updated = await this.applicationModel.findOneAndUpdate(
       { _id: id, userId },
@@ -385,6 +395,7 @@ async updateApplicationDetails(
         'You are not authorized to update this application',
       );
     }
+
     return updated;
   } catch (error) {
     throw new InternalServerErrorException({
@@ -393,6 +404,8 @@ async updateApplicationDetails(
     });
   }
 }
+
+
 
   /* ================= APP ID GENERATOR ================= */
   private async generateAppId(): Promise<string> {
