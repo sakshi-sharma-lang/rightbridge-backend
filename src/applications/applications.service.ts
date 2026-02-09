@@ -353,8 +353,9 @@ async updateApplicationDetails(
 ): Promise<Application> {
   try {
 
-    // 🔹 STEP 1: Check DB first (application must exist)
+    // 🔹 STEP 1: Check DB first
     let pushStatusManagement: string | null = null;
+
     const existingApplication = await this.applicationModel.findOne({
       _id: id,
       userId,
@@ -366,27 +367,29 @@ async updateApplicationDetails(
       );
     }
 
-    // 🔹 STEP 2: Resolve values (Body → DB fallback)
+    // 🔹 STEP 2: Get loan + property values (body → db fallback)
     const loanAmount = Number(
       body?.loanRequirements?.loanAmount ??
-        body?.['loanRequirements.loanAmount'] ??
-        existingApplication?.loanRequirements?.loanAmount
+      body?.['loanRequirements.loanAmount'] ??
+      existingApplication?.loanRequirements?.loanAmount
     );
 
     const propertyValue = Number(
       body?.property?.estimatedValue ??
-        body?.['property.estimatedValue'] ??
-        existingApplication?.property?.estimatedValue
+      body?.['property.estimatedValue'] ??
+      existingApplication?.property?.estimatedValue
     );
 
-    // 🔴 STEP 3: If BOTH body + DB values are missing → BLOCK UPDATE
+    // 🔴 STEP 3: Validate required values
     if (isNaN(loanAmount) || isNaN(propertyValue) || propertyValue <= 0) {
       throw new BadRequestException(
         'Loan amount and property value are required to update application',
       );
     }
 
-    // 🔹 STEP 4: LTV calculation
+    // =========================================================
+    // 🔹 STEP 4: LTV LOGIC (ONLY THIS SYSTEM CONTROL)
+    // =========================================================
     let statusUpdate: any = {};
     const ltv = (loanAmount / propertyValue) * 100;
 
@@ -395,46 +398,20 @@ async updateApplicationDetails(
         status: 'AUTO_REJECTED',
         rejectReason: 'LTV_EXCEEDED',
       };
-    } else if (body?.status === 'dip_stage') {
-      statusUpdate = {
-        status: 'dip_stage',
-        application_stage_management: 'dip_submitted',
-        rejectReason: '',
-      };
     }
 
-    // 🔹 STEP 5: Sanitize body (DO NOT allow system fields)
+    // =========================================================
+    // 🔹 STEP 5: Allow frontend to update everything
+    // only protect system fields
+    // =========================================================
     const safeBody = { ...body };
 
-    delete safeBody.application_stage_management;
-    delete safeBody.status;
-    delete safeBody.rejectReason;
-    delete safeBody.isDraft;
-    delete safeBody.userId;
-    delete safeBody.appId;
-    delete safeBody.applicationStatus;
+    delete safeBody.userId;   // security
+    delete safeBody.appId;    // system generated
 
-    // ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐
-    // ⭐ FIX ADDED: Prevent loanRequirements overwrite
-    // ⭐ Merge existing DB values with new body values
-    // ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐
-    if (safeBody.loanRequirements) {
-      safeBody.loanRequirements = {
-        ...(existingApplication.loanRequirements || {}),
-        ...safeBody.loanRequirements,
-      };
-    }
-
-    // ⭐ FIX ADDED: Prevent property overwrite also (safe side)
-    if (safeBody.property) {
-      safeBody.property = {
-        ...(existingApplication.property || {}),
-        ...safeBody.property,
-      };
-    }
-    // ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐
-
-    // 🔹 STEP 6: ORIGINAL UPDATE (UNCHANGED STRUCTURE)
+    // =========================================================
+    // 🔹 STEP 6: Preserve externalUserId inside applicants
+    // =========================================================
     if (safeBody.applicants && Array.isArray(safeBody.applicants)) {
       safeBody.applicants = safeBody.applicants.map((applicant, index) => {
         const existingApplicant = existingApplication.applicants?.[index];
@@ -447,18 +424,23 @@ async updateApplicationDetails(
       });
     }
 
-    console.log("applicationStatus", body?.applicationStatus);
+    // =========================================================
+    // 🔹 Optional status history push
+    // =========================================================
     if (body?.applicationStatus) {
       pushStatusManagement = body.applicationStatus;
     }
 
+    // =========================================================
+    // 🔹 FINAL UPDATE
+    // =========================================================
     const updated = await this.applicationModel.findOneAndUpdate(
       { _id: id, userId },
       {
         $set: {
           ...safeBody,
           isDraft: false,
-          ...statusUpdate,
+          ...statusUpdate,   // only applies if LTV > 75
         },
 
         ...(pushStatusManagement && {
@@ -477,8 +459,9 @@ async updateApplicationDetails(
     }
 
     return updated;
+
   } catch (error) {
-    // 🔹 Known HTTP errors → rethrow
+
     if (
       error instanceof BadRequestException ||
       error instanceof ForbiddenException ||
@@ -487,7 +470,6 @@ async updateApplicationDetails(
       throw error;
     }
 
-    // 🔹 Unknown errors
     throw new InternalServerErrorException({
       message: 'Failed to update application',
       error: error?.message ?? 'Internal Server Error',
