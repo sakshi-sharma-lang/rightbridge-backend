@@ -388,7 +388,7 @@ async updateApplicationDetails(
     }
 
     // =========================================================
-    // 🔹 STEP 4: LTV LOGIC (ONLY THIS SYSTEM CONTROL)
+    // 🔹 STEP 4: LTV LOGIC
     // =========================================================
     let statusUpdate: any = {};
     const ltv = (loanAmount / propertyValue) * 100;
@@ -402,15 +402,16 @@ async updateApplicationDetails(
 
     // =========================================================
     // 🔹 STEP 5: Allow frontend to update everything
-    // only protect system fields
     // =========================================================
     const safeBody = { ...body };
 
-    delete safeBody.userId;   // security
-    delete safeBody.appId;    // system generated
+    // protect system fields
+    delete safeBody.userId;
+    delete safeBody.appId;
+    delete safeBody.applicationStatus; // ⭐ IMPORTANT FIX (prevent mongo conflict)
 
     // =========================================================
-    // 🔹 STEP 6: Preserve externalUserId inside applicants
+    // 🔹 STEP 6: Preserve externalUserId in applicants
     // =========================================================
     if (safeBody.applicants && Array.isArray(safeBody.applicants)) {
       safeBody.applicants = safeBody.applicants.map((applicant, index) => {
@@ -425,7 +426,7 @@ async updateApplicationDetails(
     }
 
     // =========================================================
-    // 🔹 Optional status history push
+    // 🔹 push applicationStatus history
     // =========================================================
     if (body?.applicationStatus) {
       pushStatusManagement = body.applicationStatus;
@@ -440,7 +441,7 @@ async updateApplicationDetails(
         $set: {
           ...safeBody,
           isDraft: false,
-          ...statusUpdate,   // only applies if LTV > 75
+          ...statusUpdate,
         },
 
         ...(pushStatusManagement && {
