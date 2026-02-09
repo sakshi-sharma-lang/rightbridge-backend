@@ -113,6 +113,10 @@ applicants: Record<string, any>[];
     refurbishmentCost: Number,
     borrowerContribution: Number,
     additionalSecurity: String,
+    equity_amount: {
+    type: Number,
+    default: 0
+  }
   }))
   loanRequirements: Record<string, any>;
   /* ================= FORM: FINANCIAL ================= */
