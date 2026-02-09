@@ -49,7 +49,7 @@ export class SurveyorsService {
           { new: true },
         );
 
-        // 🔥 TS safety check
+        //  TS safety check
         if (!record) {
           throw new InternalServerErrorException(
             'Failed to update surveyor record',
@@ -89,7 +89,7 @@ export class SurveyorsService {
     }
   }
 
-  // 📄 GET SURVEYORS BY APPLICATION
+  //  GET SURVEYORS BY APPLICATION
   async findByApplication(applicationId: string) {
     if (!Types.ObjectId.isValid(applicationId)) {
       throw new BadRequestException('Invalid application id');
@@ -114,7 +114,7 @@ export class SurveyorsService {
     };
   }
 
-  // ✏️ UPDATE SURVEYOR BY surveyorId
+  //  UPDATE SURVEYOR BY surveyorId
   async updateSurveyor(surveyorId: string, dto: UpdateSurveyorDto) {
     const updateFields: any = {};
 
@@ -150,7 +150,7 @@ export class SurveyorsService {
     };
   }
 
-  // ❌ DELETE SURVEYOR BY surveyorId
+  //  DELETE SURVEYOR BY surveyorId
   async deleteSurveyor(surveyorId: string) {
     const updated = await this.surveyorModel.findOneAndUpdate(
       { 'surveyors._id': new Types.ObjectId(surveyorId) },

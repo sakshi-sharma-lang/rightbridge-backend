@@ -365,19 +365,19 @@ async updateApplicationDetails(
         'You are not authorized to update this application',
       );
     }
+
     // 🔹 STEP 2: Resolve values (Body → DB fallback)
     const loanAmount = Number(
       body?.loanRequirements?.loanAmount ??
         body?.['loanRequirements.loanAmount'] ??
         existingApplication?.loanRequirements?.loanAmount
     );
+
     const propertyValue = Number(
       body?.property?.estimatedValue ??
         body?.['property.estimatedValue'] ??
         existingApplication?.property?.estimatedValue
     );
-
-
 
     // 🔴 STEP 3: If BOTH body + DB values are missing → BLOCK UPDATE
     if (isNaN(loanAmount) || isNaN(propertyValue) || propertyValue <= 0) {
@@ -390,19 +390,19 @@ async updateApplicationDetails(
     let statusUpdate: any = {};
     const ltv = (loanAmount / propertyValue) * 100;
 
+    if (ltv > 75) {
+      statusUpdate = {
+        status: 'AUTO_REJECTED',
+        rejectReason: 'LTV_EXCEEDED',
+      };
+    } else if (body?.status === 'dip_stage') {
+      statusUpdate = {
+        status: 'dip_stage',
+        application_stage_management: 'dip_submitted',
+        rejectReason: '',
+      };
+    }
 
-if (ltv > 75) {
-  statusUpdate = {
-    status: 'AUTO_REJECTED',
-    rejectReason: 'LTV_EXCEEDED',
-  };
-} else if (body?.status === 'dip_stage') {
-  statusUpdate = {
-    status: 'dip_stage',
-    application_stage_management: 'dip_submitted',
-    rejectReason:''
-  };
-}
     // 🔹 STEP 5: Sanitize body (DO NOT allow system fields)
     const safeBody = { ...body };
 
@@ -412,42 +412,60 @@ if (ltv > 75) {
     delete safeBody.isDraft;
     delete safeBody.userId;
     delete safeBody.appId;
-    delete safeBody.applicationStatus; 
+    delete safeBody.applicationStatus;
 
-    // 🔹 STEP 6: ORIGINAL UPDATE (UNCHANGED STRUCTURE)
-
-if (safeBody.applicants && Array.isArray(safeBody.applicants)) {
-  safeBody.applicants = safeBody.applicants.map((applicant, index) => {
-    const existingApplicant = existingApplication.applicants?.[index];
-
-    if (existingApplicant?.externalUserId) {
-      applicant.externalUserId = existingApplicant.externalUserId;
+    // ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐
+    // ⭐ FIX ADDED: Prevent loanRequirements overwrite
+    // ⭐ Merge existing DB values with new body values
+    // ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐
+    if (safeBody.loanRequirements) {
+      safeBody.loanRequirements = {
+        ...(existingApplication.loanRequirements || {}),
+        ...safeBody.loanRequirements,
+      };
     }
 
-    return applicant;
-  });
-}
+    // ⭐ FIX ADDED: Prevent property overwrite also (safe side)
+    if (safeBody.property) {
+      safeBody.property = {
+        ...(existingApplication.property || {}),
+        ...safeBody.property,
+      };
+    }
+    // ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐
 
+    // 🔹 STEP 6: ORIGINAL UPDATE (UNCHANGED STRUCTURE)
+    if (safeBody.applicants && Array.isArray(safeBody.applicants)) {
+      safeBody.applicants = safeBody.applicants.map((applicant, index) => {
+        const existingApplicant = existingApplication.applicants?.[index];
 
+        if (existingApplicant?.externalUserId) {
+          applicant.externalUserId = existingApplicant.externalUserId;
+        }
 
-    console.log("applicationStatus",body?.applicationStatus);
+        return applicant;
+      });
+    }
+
+    console.log("applicationStatus", body?.applicationStatus);
     if (body?.applicationStatus) {
       pushStatusManagement = body.applicationStatus;
     }
+
     const updated = await this.applicationModel.findOneAndUpdate(
       { _id: id, userId },
       {
         $set: {
           ...safeBody,
           isDraft: false,
-          ...statusUpdate, // applied ONLY if LTV > 75
+          ...statusUpdate,
         },
 
-          ...(pushStatusManagement && {
-      $push: {
-        applicationStatus: pushStatusManagement,
-      },
-    }),
+        ...(pushStatusManagement && {
+          $push: {
+            applicationStatus: pushStatusManagement,
+          },
+        }),
       },
       { new: true },
     );
@@ -476,6 +494,7 @@ if (safeBody.applicants && Array.isArray(safeBody.applicants)) {
     });
   }
 }
+
 
   /* ================= APP ID GENERATOR ================= */
   private async generateAppId(): Promise<string> {

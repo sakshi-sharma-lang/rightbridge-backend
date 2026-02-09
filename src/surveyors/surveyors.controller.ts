@@ -7,6 +7,9 @@ import {
   Param,
   Body,
   UseGuards,
+  Req,
+    ForbiddenException
+
 } from '@nestjs/common';
 import { SurveyorsService } from './surveyors.service';
 import { CreateSurveyorDto } from './dto/create-surveyor.dto';
@@ -14,17 +17,18 @@ import { UpdateSurveyorDto } from './dto/update-surveyor.dto';
 import { AdminJwtGuard } from '../auth/admin-jwt.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 @Controller('surveyors')
-@UseGuards(AdminJwtGuard)
+
 export class SurveyorsController {
   constructor(private readonly service: SurveyorsService) {}
 
-  // ➕ ADD surveyor (max 3)
+
   @Post()
+   @UseGuards(AdminJwtGuard)
   create(@Body() dto: CreateSurveyorDto) {
     return this.service.create(dto);
   }
 
-  // 📄 GET by application
+  //  GET by application
   @Get('admin/by-application/:applicationId')
     @UseGuards(AdminJwtGuard)
   findByApplication(@Param('applicationId') applicationId: string) {
@@ -32,8 +36,6 @@ export class SurveyorsController {
   }
 
 
-
-  // ✏️ UPDATE surveyor (by surveyorId inside array)
   @Patch('admin/:surveyorId')
   @UseGuards(AdminJwtGuard)
   updateSurveyor(
@@ -43,19 +45,22 @@ export class SurveyorsController {
     return this.service.updateSurveyor(surveyorId, dto);
   }
 
-  // ❌ DELETE surveyor (by surveyorId)
+  //  DELETE surveyor (by surveyorId)
   @Delete('admin/:surveyorId')
   @UseGuards(AdminJwtGuard)
   deleteSurveyor(@Param('surveyorId') surveyorId: string) {
     return this.service.deleteSurveyor(surveyorId);
   }
+ 
+@Get('/by-application/:applicationId')
+@UseGuards(JwtAuthGuard)
+userfindByApplication(
+  @Param('applicationId') applicationId: string,
+  @Req() req: any,
+) {
+  console.log('CUSTOMER TOKEN USER =>', req.user);
 
-   // 📄 GET by application
-  @Get('/by-application/:applicationId')
-    @UseGuards(JwtAuthGuard)
-  userfindByApplication(@Param('applicationId') applicationId: string) {
-    return this.service.userfindByApplication(applicationId);
-  }
-
+  return this.service.userfindByApplication(applicationId);
+}
 
 }
