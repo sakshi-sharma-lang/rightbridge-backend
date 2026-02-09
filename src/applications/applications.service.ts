@@ -1347,4 +1347,85 @@ async deleteDraftApplication(applicationId: string, userId: string) {
   }
 }
 
+
+async adminUpdateApplication(id: string, body: any, files: any[]) {
+  try {
+    console.log('\n========== ADMIN UPDATE START ==========');
+
+    if (!id) throw new BadRequestException('Application id required');
+
+    const application = await this.applicationModel.findById(id);
+    if (!application) throw new NotFoundException('Application not found');
+
+    console.log('STEP 1: BODY RECEIVED =>', JSON.stringify(body, null, 2));
+
+    const updateData: any = {};
+
+    // =========================================================
+    // 🔴 LOOP BODY & PREPARE SAFE UPDATE OBJECT
+    // =========================================================
+    for (const key in body) {
+      updateData[key] = body[key];
+    }
+
+    // =========================================================
+    // 🔴 CHECK EQUITY CHANGE (dot notation from frontend)
+    // =========================================================
+    const equityAmountChanged =
+      body['loanRequirements.equity_amount'] !== undefined;
+
+    const borrowerContributionChanged =
+      body['loanRequirements.borrowerContribution'] !== undefined;
+
+    const reasonChanged =
+      body['loanRequirements.equity_borrowerContribution_change_reason'] !==
+      undefined;
+
+    // =========================================================
+    // 🔴 AUTO SET DATE IF ANY EQUITY FIELD CHANGED
+    // =========================================================
+    if (equityAmountChanged || borrowerContributionChanged || reasonChanged) {
+      const now = new Date();
+
+      updateData['loanRequirements.equity_override_date'] = now;
+
+      console.log('✅ DATE AUTO SET =>', now);
+    } else {
+      console.log('❌ No equity change detected');
+    }
+
+    console.log('STEP 2: FINAL UPDATE OBJECT =>', updateData);
+
+    // =========================================================
+    // 🔴 UPDATE DB
+    // =========================================================
+    const updated = await this.applicationModel.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      {
+        new: true,
+        runValidators: false,
+        strict: false, // important for nested dot fields
+      },
+    );
+
+    console.log('STEP 3: DB RESULT =>', updated?.loanRequirements);
+    console.log('========== ADMIN UPDATE END ==========\n');
+
+    return {
+      success: true,
+      message: 'Admin updated successfully',
+      data: updated,
+    };
+  } catch (err) {
+    console.error('❌ ADMIN UPDATE ERROR:', err);
+    throw new InternalServerErrorException('Admin update failed');
+  }
+}
+
+
+
+
+
+
 }

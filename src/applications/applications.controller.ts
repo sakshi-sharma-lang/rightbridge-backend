@@ -177,6 +177,19 @@ async deleteApplication(
   return this.service.deleteDraftApplication(applicationId, userId);
 }
 
+@UseGuards(AdminJwtGuard)
+@Patch('applications/admin/update/:id')
+@UseInterceptors(AnyFilesInterceptor())
+async adminUpdateApplication(
+  @Param('id') id: string,
+  @Body() body: any,          // form-data fields
+  @UploadedFiles() files: Express.Multer.File[],  // files
+) {
+  return this.service.adminUpdateApplication(id, body, files);
+}
+
+
+
 }
 
 
