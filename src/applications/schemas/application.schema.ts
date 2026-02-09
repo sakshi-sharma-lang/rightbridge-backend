@@ -113,10 +113,32 @@ applicants: Record<string, any>[];
     refurbishmentCost: Number,
     borrowerContribution: Number,
     additionalSecurity: String,
-    equity_amount: {
-    type: Number,
-    default: 0
-  }
+    works_funded_by_loan: String,
+     equity_amount: {
+        type: Number,
+        default: 0
+      },
+
+      // 🔹 admin override reason (required when admin changes)
+      equity_override_reason: {
+        type: String,
+        default: null
+      },
+
+      // 🔹 which admin changed
+      equity_overridden_by: {
+        type: String,   // admin user id
+        default: null
+      },
+
+      // 🔹 when changed
+      equity_override_date: {
+        type: Date,
+        default: null
+      }
+
+
+
   }))
   loanRequirements: Record<string, any>;
   /* ================= FORM: FINANCIAL ================= */
