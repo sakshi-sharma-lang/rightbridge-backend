@@ -5,35 +5,36 @@ export type SurveyorDocument = Surveyor & Document;
 
 @Schema({ timestamps: true })
 export class Surveyor {
-  @Prop({ required: true, trim: true })
-  name: string;
 
- @Prop({
+  // one record per application
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Application',
     required: true,
-    enum: ['Rics_Accredited', 'Independent', 'Other'],
+    unique: true,
   })
-  companyType: string;
+  applicationId: Types.ObjectId;
 
-
-
-  @Prop({ required: true, min: 0 })
-  price: number;
-
-  @Prop({ required: true })
-  turnaroundTime: string;
-
-  @Prop({ required: true })
-  accreditation: string;
-
-  @Prop({ default: true })
-  isActive: boolean;
-
-   @Prop({
-    type: [{ type: Types.ObjectId, ref: 'Application' }],
-    required: true,
-  })
-
-    applicationIds: Types.ObjectId[];
+  // surveyor list
+  @Prop([
+    {
+      name: { type: String, required: true },
+      companyType: { type: String, required: true },
+      price: { type: Number, required: true },
+      turnaroundTime: { type: String, required: true },
+      accreditation: { type: String, required: true },
+      isActive: { type: Boolean, default: true },
+    },
+  ])
+  surveyors: {
+    _id?: Types.ObjectId;
+    name: string;
+    companyType: string;
+    price: number;
+    turnaroundTime: string;
+    accreditation: string;
+    isActive: boolean;
+  }[];
 }
 
 export const SurveyorSchema = SchemaFactory.createForClass(Surveyor);

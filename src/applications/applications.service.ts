@@ -353,7 +353,8 @@ async updateApplicationDetails(
 ): Promise<Application> {
   try {
 
-    // 🔹 Authorization check
+    // 🔹 STEP 1: Check DB first (application must exist)
+    let pushStatusManagement: string | null = null;
     const existingApplication = await this.applicationModel.findOne({
       _id: id,
       userId,
@@ -364,62 +365,89 @@ async updateApplicationDetails(
         'You are not authorized to update this application',
       );
     }
+    // 🔹 STEP 2: Resolve values (Body → DB fallback)
+    const loanAmount = Number(
+      body?.loanRequirements?.loanAmount ??
+        body?.['loanRequirements.loanAmount'] ??
+        existingApplication?.loanRequirements?.loanAmount
+    );
+    const propertyValue = Number(
+      body?.property?.estimatedValue ??
+        body?.['property.estimatedValue'] ??
+        existingApplication?.property?.estimatedValue
+    );
 
-    // 🔹 DIP stage logic
-    let statusUpdate: any = {};
-    if (body?.status === 'dip_stage') {
-      statusUpdate = {
-        status: 'dip_stage',
-        application_stage_management: 'dip_submitted',
-        rejectReason: '',
-      };
+
+
+    // 🔴 STEP 3: If BOTH body + DB values are missing → BLOCK UPDATE
+    if (isNaN(loanAmount) || isNaN(propertyValue) || propertyValue <= 0) {
+      throw new BadRequestException(
+        'Loan amount and property value are required to update application',
+      );
     }
 
-    // 🔹 Clean body (prevent system override)
+    // 🔹 STEP 4: LTV calculation
+    let statusUpdate: any = {};
+    const ltv = (loanAmount / propertyValue) * 100;
+
+
+if (ltv > 75) {
+  statusUpdate = {
+    status: 'AUTO_REJECTED',
+    rejectReason: 'LTV_EXCEEDED',
+  };
+} else if (body?.status === 'dip_stage') {
+  statusUpdate = {
+    status: 'dip_stage',
+    application_stage_management: 'dip_submitted',
+    rejectReason:''
+  };
+}
+    // 🔹 STEP 5: Sanitize body (DO NOT allow system fields)
     const safeBody = { ...body };
+
+    delete safeBody.application_stage_management;
     delete safeBody.status;
     delete safeBody.rejectReason;
     delete safeBody.isDraft;
     delete safeBody.userId;
     delete safeBody.appId;
-    delete safeBody.applicationStatus;
-    delete safeBody.application_stage_management;
+    delete safeBody.applicationStatus; 
 
-    // =========================================================
-    // 🔹 SOLICITOR LOGIC
-    // if solicitorFirmConfirmation = true → do NOT update solicitor
-    // if false → allow update
-    // =========================================================
-    if (safeBody?.solicitor?.solicitorFirmConfirmation === true) {
-      delete safeBody.solicitor; // keep old DB solicitor unchanged
+    // 🔹 STEP 6: ORIGINAL UPDATE (UNCHANGED STRUCTURE)
+
+if (safeBody.applicants && Array.isArray(safeBody.applicants)) {
+  safeBody.applicants = safeBody.applicants.map((applicant, index) => {
+    const existingApplicant = existingApplication.applicants?.[index];
+
+    if (existingApplicant?.externalUserId) {
+      applicant.externalUserId = existingApplicant.externalUserId;
     }
 
-    // 🔹 Preserve externalUserId in applicants
-    if (Array.isArray(safeBody.applicants)) {
-      safeBody.applicants = safeBody.applicants.map((applicant, index) => {
-        const existingApplicant = existingApplication.applicants?.[index];
+    return applicant;
+  });
+}
 
-        if (existingApplicant?.externalUserId) {
-          applicant.externalUserId = existingApplicant.externalUserId;
-        }
 
-        return applicant;
-      });
+
+    console.log("applicationStatus",body?.applicationStatus);
+    if (body?.applicationStatus) {
+      pushStatusManagement = body.applicationStatus;
     }
-
-    // 🔹 Update query
     const updated = await this.applicationModel.findOneAndUpdate(
       { _id: id, userId },
       {
         $set: {
           ...safeBody,
           isDraft: false,
-          ...statusUpdate,
+          ...statusUpdate, // applied ONLY if LTV > 75
         },
 
-        ...(body?.applicationStatus && {
-          $push: { applicationStatus: body.applicationStatus },
-        }),
+          ...(pushStatusManagement && {
+      $push: {
+        applicationStatus: pushStatusManagement,
+      },
+    }),
       },
       { new: true },
     );
@@ -432,6 +460,16 @@ async updateApplicationDetails(
 
     return updated;
   } catch (error) {
+    // 🔹 Known HTTP errors → rethrow
+    if (
+      error instanceof BadRequestException ||
+      error instanceof ForbiddenException ||
+      error instanceof NotFoundException
+    ) {
+      throw error;
+    }
+
+    // 🔹 Unknown errors
     throw new InternalServerErrorException({
       message: 'Failed to update application',
       error: error?.message ?? 'Internal Server Error',

@@ -1,6 +1,11 @@
-import { Injectable, NotFoundException  , InternalServerErrorException ,BadRequestException} from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model  , Types} from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Surveyor, SurveyorDocument } from './schemas/surveyor.schema';
 import { CreateSurveyorDto } from './dto/create-surveyor.dto';
 import { UpdateSurveyorDto } from './dto/update-surveyor.dto';
@@ -10,159 +15,181 @@ export class SurveyorsService {
   constructor(
     @InjectModel(Surveyor.name)
     private readonly surveyorModel: Model<SurveyorDocument>,
+      @InjectModel('Application')
+  private readonly applicationModel: Model<any>,
   ) {}
 
-async create(dto: CreateSurveyorDto) {
-  const applicationObjectIds = dto.applicationIds.map(
-    (id) => new Types.ObjectId(id),
-  );
+  // ➕ ADD SURVEYOR (max 3 per application)
+  async create(dto: CreateSurveyorDto) {
+    try {
+      const applicationId = new Types.ObjectId(dto.applicationId);
 
-  // 🔍 Check how many surveyors already assigned per application
-  const existingAssignments = await this.surveyorModel.aggregate([
-    {
-      $match: {
-        applicationIds: { $in: applicationObjectIds },
-      },
-    },
-    {
-      $unwind: '$applicationIds',
-    },
-    {
-      $match: {
-        applicationIds: { $in: applicationObjectIds },
-      },
-    },
-    {
-      $group: {
-        _id: '$applicationIds',
-        count: { $sum: 1 },
-      },
-    },
-  ]);
+      const surveyorData = {
+        name: dto.name,
+        companyType: dto.companyType,
+        price: dto.price,
+        turnaroundTime: dto.turnaroundTime,
+        accreditation: dto.accreditation,
+        isActive: true,
+      };
 
-  // ❌ Validate max 3 surveyors per application
-  for (const record of existingAssignments) {
-    if (record.count >= 3) {
-      throw new BadRequestException(
-        `Application ${record._id} already has 3 surveyors assigned`,
-      );
+      let record = await this.surveyorModel.findOne({ applicationId });
+
+      // if document already exists
+      if (record) {
+        if (record.surveyors.length >= 3) {
+          throw new BadRequestException(
+            'Maximum 3 surveyors allowed per application',
+          );
+        }
+
+        record = await this.surveyorModel.findOneAndUpdate(
+          { applicationId },
+          { $push: { surveyors: surveyorData } },
+          { new: true },
+        );
+
+        // 🔥 TS safety check
+        if (!record) {
+          throw new InternalServerErrorException(
+            'Failed to update surveyor record',
+          );
+        }
+
+        return {
+          success: true,
+          message: 'Surveyor added successfully',
+          totalSurveyors: record.surveyors.length,
+          data: record,
+        };
+      }
+
+      // first surveyor create document
+      record = await this.surveyorModel.create({
+        applicationId,
+        surveyors: [surveyorData],
+      });
+
+      if (!record) {
+        throw new InternalServerErrorException('Failed to create surveyor');
+      }
+
+      return {
+        success: true,
+        message: 'Surveyor added successfully',
+        totalSurveyors: record.surveyors.length,
+        data: record,
+      };
+
+    } catch (error) {
+      console.log('Create surveyor error:', error);
+      if (error instanceof BadRequestException) throw error;
+
+      throw new InternalServerErrorException('Failed to add surveyor');
     }
   }
 
-  // ✅ Safe to create
-  const payload = {
-    ...dto,
-    applicationIds: applicationObjectIds,
-  };
-
-  return await this.surveyorModel.create(payload);
-}
-
-
-  async findAll(query: any) {
-    const {
-      search,
-      isActive = true,
-      page = 1,
-      limit = 10,
-    } = query;
-
-    const filter: any = {};
-
-    if (typeof isActive !== 'undefined') {
-      filter.isActive = isActive === 'true' || isActive === true;
-    }
-
-    if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { accreditation: { $regex: search, $options: 'i' } },
-        { companyType: { $regex: search, $options: 'i' } },
-      ];
-    }
-
-    const skip = (Number(page) - 1) * Number(limit);
-
-    const [data, total] = await Promise.all([
-      this.surveyorModel
-        .find(filter)
-        .skip(skip)
-        .limit(Number(limit))
-        .sort({ createdAt: -1 }),
-      this.surveyorModel.countDocuments(filter),
-    ]);
-
-    return {
-      total,
-      page: Number(page),
-      limit: Number(limit),
-      data,
-    };
-  }
-
-
-
-async findByApplication(applicationId: string) {
-  try {
-    // 1️⃣ Validate applicationId
+  // 📄 GET SURVEYORS BY APPLICATION
+  async findByApplication(applicationId: string) {
     if (!Types.ObjectId.isValid(applicationId)) {
       throw new BadRequestException('Invalid application id');
     }
 
-    // 2️⃣ Find surveyors linked to this application
-    const surveyors = await this.surveyorModel.find({
-      applicationIds: new Types.ObjectId(applicationId),
-      isActive: true,
+    const record = await this.surveyorModel.findOne({
+      applicationId: new Types.ObjectId(applicationId),
     });
 
-    // 3️⃣ No surveyor found
-    if (!surveyors.length) {
-      throw new NotFoundException(
-        'No surveyor found for this application',
-      );
+    if (!record) {
+      return {
+        success: true,
+        message: 'No surveyors added yet',
+        data: [],
+      };
     }
 
-    // 4️⃣ Success response (NO data key)
     return {
-      statusCode: 200,
-      message: 'Surveyors fetched successfully',
-      surveyors,
+      success: true,
+      totalSurveyors: record.surveyors.length,
+      data: record,
     };
-  } catch (error) {
-    if (error.status) throw error;
-
-    throw new InternalServerErrorException(
-      'Failed to fetch surveyors',
-    );
   }
-}
 
+  // ✏️ UPDATE SURVEYOR BY surveyorId
+  async updateSurveyor(surveyorId: string, dto: UpdateSurveyorDto) {
+    const updateFields: any = {};
 
+    if (dto.name !== undefined)
+      updateFields['surveyors.$.name'] = dto.name;
 
+    if (dto.companyType !== undefined)
+      updateFields['surveyors.$.companyType'] = dto.companyType;
 
-  async update(id: string, dto: UpdateSurveyorDto) {
-    const surveyor = await this.surveyorModel.findByIdAndUpdate(
-      id,
-      dto,
+    if (dto.price !== undefined)
+      updateFields['surveyors.$.price'] = dto.price;
+
+    if (dto.turnaroundTime !== undefined)
+      updateFields['surveyors.$.turnaroundTime'] = dto.turnaroundTime;
+
+    if (dto.accreditation !== undefined)
+      updateFields['surveyors.$.accreditation'] = dto.accreditation;
+
+    const updated = await this.surveyorModel.findOneAndUpdate(
+      { 'surveyors._id': new Types.ObjectId(surveyorId) },
+      { $set: updateFields },
       { new: true },
     );
 
-    if (!surveyor) {
+    if (!updated) {
       throw new NotFoundException('Surveyor not found');
     }
 
-    return surveyor;
+    return {
+      success: true,
+      message: 'Surveyor updated successfully',
+      data: updated,
+    };
   }
 
-async delete(id: string) {
-  const surveyor = await this.surveyorModel.findByIdAndDelete(id);
+  // ❌ DELETE SURVEYOR BY surveyorId
+  async deleteSurveyor(surveyorId: string) {
+    const updated = await this.surveyorModel.findOneAndUpdate(
+      { 'surveyors._id': new Types.ObjectId(surveyorId) },
+      { $pull: { surveyors: { _id: new Types.ObjectId(surveyorId) } } },
+      { new: true },
+    );
 
-  if (!surveyor) {
-    throw new NotFoundException('Surveyor not found');
+    if (!updated) {
+      throw new NotFoundException('Surveyor not found');
+    }
+
+    return {
+      success: true,
+      message: 'Surveyor removed successfully',
+      data: updated,
+    };
   }
 
-  return { message: 'Surveyor deleted successfully' };
-}
+   async userfindByApplication(applicationId: string) {
+    if (!Types.ObjectId.isValid(applicationId)) {
+      throw new BadRequestException('Invalid application id');
+    }
 
-}
+    const record = await this.surveyorModel.findOne({
+      applicationId: new Types.ObjectId(applicationId),
+    });
 
+    if (!record) {
+      return {
+        success: true,
+        message: 'No surveyors added yet',
+        data: [],
+      };
+    }
+
+    return {
+      success: true,
+      totalSurveyors: record.surveyors.length,
+      data: record,
+    };
+  }
+}

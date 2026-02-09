@@ -6,55 +6,56 @@ import {
   Delete,
   Param,
   Body,
-  Query,
   UseGuards,
 } from '@nestjs/common';
 import { SurveyorsService } from './surveyors.service';
 import { CreateSurveyorDto } from './dto/create-surveyor.dto';
 import { UpdateSurveyorDto } from './dto/update-surveyor.dto';
 import { AdminJwtGuard } from '../auth/admin-jwt.guard';
-
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 @Controller('surveyors')
+@UseGuards(AdminJwtGuard)
 export class SurveyorsController {
   constructor(private readonly service: SurveyorsService) {}
 
-  // ➕ Add Surveyor Option
+  // ➕ ADD surveyor (max 3)
   @Post()
-  @UseGuards(AdminJwtGuard)
   create(@Body() dto: CreateSurveyorDto) {
     return this.service.create(dto);
   }
 
-  // 📄 List / Manage Surveyors
-  @Get()
-  @UseGuards(AdminJwtGuard)
-  findAll(@Query() query: any) {
-    return this.service.findAll(query);
+  // 📄 GET by application
+  @Get('admin/by-application/:applicationId')
+    @UseGuards(AdminJwtGuard)
+  findByApplication(@Param('applicationId') applicationId: string) {
+    return this.service.findByApplication(applicationId);
   }
 
-  // 🔍 Get Single Surveyor
-@Get('by-application/:applicationId')
-async findByApplication(
-  @Param('applicationId') applicationId: string,
-) {
-  return this.service.findByApplication(applicationId);
-}
 
 
-  // ✏️ Update Surveyor
-  @Patch(':id')
+  // ✏️ UPDATE surveyor (by surveyorId inside array)
+  @Patch('admin/:surveyorId')
   @UseGuards(AdminJwtGuard)
-  update(
-    @Param('id') id: string,
+  updateSurveyor(
+    @Param('surveyorId') surveyorId: string,
     @Body() dto: UpdateSurveyorDto,
   ) {
-    return this.service.update(id, dto);
+    return this.service.updateSurveyor(surveyorId, dto);
   }
 
-  // ❌ Soft Delete Surveyor
-  @Delete('delete/:id')
+  // ❌ DELETE surveyor (by surveyorId)
+  @Delete('admin/:surveyorId')
   @UseGuards(AdminJwtGuard)
-  remove(@Param('id') id: string) {
-    return this.service.delete(id);
+  deleteSurveyor(@Param('surveyorId') surveyorId: string) {
+    return this.service.deleteSurveyor(surveyorId);
   }
+
+   // 📄 GET by application
+  @Get('/by-application/:applicationId')
+    @UseGuards(JwtAuthGuard)
+  userfindByApplication(@Param('applicationId') applicationId: string) {
+    return this.service.userfindByApplication(applicationId);
+  }
+
+
 }
