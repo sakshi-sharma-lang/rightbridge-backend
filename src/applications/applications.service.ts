@@ -393,12 +393,20 @@ async updateApplicationDetails(
     let statusUpdate: any = {};
     const ltv = (loanAmount / propertyValue) * 100;
 
-    if (ltv > 75) {
-      statusUpdate = {
-        status: 'AUTO_REJECTED',
-        rejectReason: 'LTV_EXCEEDED',
-      };
-    }
+   if (ltv > 75) {
+  statusUpdate = {
+    status: 'AUTO_REJECTED',
+    rejectReason: 'LTV EXCEEDED',
+  };
+} else if (body?.status === 'dip_stage') {
+  statusUpdate = {
+    status: 'dip_stage',
+    application_stage_management: 'dip_submitted',
+    rejectReason:''
+  };
+}
+
+
 
     // =========================================================
     // 🔹 STEP 5: Allow frontend to update everything
@@ -408,7 +416,7 @@ async updateApplicationDetails(
     // protect system fields
     delete safeBody.userId;
     delete safeBody.appId;
-    delete safeBody.applicationStatus; // ⭐ IMPORTANT FIX (prevent mongo conflict)
+    delete safeBody.applicationStatus; 
 
     // =========================================================
     // 🔹 STEP 6: Preserve externalUserId in applicants
@@ -501,7 +509,6 @@ async updateApplicationDetails(
     limit = 10,
   } = query;
 
-  // ================= STATUS → UI LABEL MAP =================
   const STATUS_LABEL_MAP: Record<string, string> = {
     welcome_stage: 'Draft',
     dip_stage: 'DIP Submitted',
@@ -513,17 +520,13 @@ async updateApplicationDetails(
     decline_stage: 'DIP Declined',
   };
 
-  // 🔒 BASE FILTER: ACTIVE applications are treated as NON-EXISTENT
   const baseFilter = {
     status: { $nin: ['welcome_stage'] },
     isDraft: { $ne: true },
   };
 
-  // 🔒 MAIN FILTER (used for list + filtered total)
   const filter: any = { ...baseFilter };
 
-  // ================= STATUS FILTER =================
-  // NOTE: status=active is intentionally ignored
   if (status && status !== 'active') {
     filter.status = {
       $regex: `^${status.trim()}$`,
@@ -531,12 +534,10 @@ async updateApplicationDetails(
     };
   }
 
-  // ================= LOAN TYPE FILTER =================
   if (loanType) {
     filter['loanType.applicationType'] = loanType;
   }
 
-  // ================= DATE FILTER (CREATED AT - LIST) =================
   if (fromDate || toDate) {
     filter.createdAt = {};
 
@@ -553,7 +554,6 @@ async updateApplicationDetails(
     }
   }
 
-  // ================= CURRENT MONTH RANGE =================
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
@@ -561,55 +561,52 @@ async updateApplicationDetails(
   const endOfMonth = new Date();
   endOfMonth.setHours(23, 59, 59, 999);
 
-  // ================= LAST MONTH RANGE =================
   const startOfLastMonth = new Date(startOfMonth);
   startOfLastMonth.setMonth(startOfLastMonth.getMonth() - 1);
 
   const endOfLastMonth = new Date(startOfMonth);
   endOfLastMonth.setMilliseconds(-1);
 
-// ================= SEARCH =================
-if (search) {
-  const raw = search.trim();
-  const parts = raw.split(/\s+/);
+  // ================= SEARCH =================
+  if (search) {
+    const raw = search.trim();
+    const parts = raw.split(/\s+/);
 
-  filter.$or = [
-    { appId: { $regex: raw, $options: 'i' } },
-    { 'property.address': { $regex: raw, $options: 'i' } },
-    { 'applicants.firstName': { $regex: raw, $options: 'i' } },
-    { 'applicants.lastName': { $regex: raw, $options: 'i' } },
-  ];
+    filter.$or = [
+      { appId: { $regex: raw, $options: 'i' } },
+      { 'property.address': { $regex: raw, $options: 'i' } },
+      { 'applicants.firstName': { $regex: raw, $options: 'i' } },
+      { 'applicants.lastName': { $regex: raw, $options: 'i' } },
+    ];
 
-  // ✅ Full name search: "John11 Smith1111"
-  if (parts.length >= 2) {
-    filter.$or.push({
-      $and: [
-        {
-          'applicants.firstName': {
-            $regex: parts.slice(0, -1).join(' '),
-            $options: 'i',
+    if (parts.length >= 2) {
+      filter.$or.push({
+        $and: [
+          {
+            'applicants.firstName': {
+              $regex: parts.slice(0, -1).join(' '),
+              $options: 'i',
+            },
           },
-        },
-        {
-          'applicants.lastName': {
-            $regex: parts[parts.length - 1],
-            $options: 'i',
+          {
+            'applicants.lastName': {
+              $regex: parts[parts.length - 1],
+              $options: 'i',
+            },
           },
-        },
-      ],
-    });
+        ],
+      });
+    }
   }
-}
 
   const skip = (Number(page) - 1) * Number(limit);
-  // ================= TODAY RANGE =================
+
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
   const endOfToday = new Date();
   endOfToday.setHours(23, 59, 59, 999);
 
-  // ================= QUERY =================
   const [
     rows,
     total,
@@ -622,81 +619,67 @@ if (search) {
     thisMonthCount,
     lastMonthCount,
   ] = await Promise.all([
-
-    // 🔹 LIST DATA (active excluded)
     this.applicationModel
       .find(filter)
       .select({
-  appId: 1,
-  status: 1,
-  updatedAt: 1,
-  'applicants.firstName': 1,
-  'applicants.lastName': 1,
-  'loanRequirements.loanAmount': 1,
-  'property.address': 1,
-})
+        appId: 1,
+        status: 1,
+        updatedAt: 1,
+        'applicants.firstName': 1,
+        'applicants.lastName': 1,
+        'loanRequirements.loanAmount': 1,
+        'loanRequirements.loanPurpose': 1, // ⭐ added only this line
+        'property.address': 1,
+      })
       .sort({ updatedAt: -1 })
       .skip(skip)
       .limit(Number(limit))
       .lean(),
 
-    // 🔹 FILTERED TOTAL (active excluded)
     this.applicationModel.countDocuments(filter),
 
-    // 🔹 TOTAL APPLICATIONS (active excluded)
     this.applicationModel.countDocuments(baseFilter),
 
-    // 🔹 DIP TODAY (active excluded)
     this.applicationModel.countDocuments({
       ...baseFilter,
       updatedAt: { $gte: startOfToday, $lte: endOfToday },
     }),
 
-    // 🔹 STATUS COUNTS (your original logic untouched)
     this.applicationModel.countDocuments({ status: 'fee_required' }),
     this.applicationModel.countDocuments({ status: 'kyc_in_progress' }),
     this.applicationModel.countDocuments({ status: 'underwriting' }),
     this.applicationModel.countDocuments({ status: 'offer_issued' }),
 
-    // 🔹 THIS MONTH COUNT (active excluded)
     this.applicationModel.countDocuments({
       ...baseFilter,
       createdAt: { $gte: startOfMonth, $lte: endOfMonth },
     }),
 
-    // 🔹 LAST MONTH COUNT (active excluded)
     this.applicationModel.countDocuments({
       ...baseFilter,
       createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth },
     }),
   ]);
-  // ================= FINAL CALCULATION =================
+
   const thisMonthChange = thisMonthCount - lastMonthCount;
-  // ================= FORMAT TABLE =================
+
+  // ================= TABLE FORMAT =================
   const data = rows.map((item) => ({
-  // applicant data is already inside item
-  // const firstName = item?.applicant?.firstName ?? '';
-  // const lastName = item?.applicant?.lastName ?? '';
-
- // const primaryApplicant = item?.applicants?.[0];
-
-  // const firstName = primaryApplicant?.firstName ?? '';
-  // const lastName = primaryApplicant?.lastName ?? '';
-
-  //  console if you want
-
-
     appId: item.appId,
-  
-  applicantName: `${item?.applicants?.[0]?.firstName ?? ''} ${item?.applicants?.[0]?.lastName ?? ''}`.trim(),
-   // applicantName: `${applicant?.firstName ?? ''} ${applicant?.lastName ?? ''}`.trim(),
+    applicantName: `${item?.applicants?.[0]?.firstName ?? ''} ${item?.applicants?.[0]?.lastName ?? ''}`.trim(),
     loanAmount: item.loanRequirements?.loanAmount ?? 0,
     propertyAddress: item.property?.address ?? '',
-    status: STATUS_LABEL_MAP[item.status] || item.status,   // 👈 UI label
+
+    // ⭐ ONLY LOGIC ADDED HERE
+    status:
+      item?.loanRequirements?.loanPurpose === 'other' &&
+      (String(item?.status) === 'dip_submitted' || String(item?.status) === 'dip_stage')
+        ? 'Pending Admin Review'
+        : (STATUS_LABEL_MAP[item.status] || item.status),
+
     updatedAt: item.updatedAt,
   }));
 
-  // ================= RESPONSE =================
   return {
     totalApplications,
     dipToday,
@@ -710,7 +693,8 @@ if (search) {
     limit: Number(limit),
     data,
   };
- }
+}
+
   /* ================= ADMIN GET USER APPLICATION ================= */
   async findUserApplicationByIdForAdmin(id: string): Promise<Application> {
     const application = await this.applicationModel.findById(id);
@@ -985,21 +969,21 @@ if (search) {
       data,
     };
   }
-  async getAllApplicationbyAdmin(query: any) {
-    const {
-      status,
-      priority,
-      underwriter,
-      loanType,
-      fromDate,
-      toDate,
-      search,
-      page = 1,
-      limit = 10,
-      sort = 'recent', // recent | oldest | highest_amount | lowest_amount | priority
-    } = query;
+async getAllApplicationbyAdmin(query: any) {
+  const {
+    status,
+    priority,
+    underwriter,
+    loanType,
+    fromDate,
+    toDate,
+    search,
+    page = 1,
+    limit = 10,
+    sort = 'recent',
+  } = query;
 
-    const STATUS_LABEL_MAP: Record<string, string> = {
+  const STATUS_LABEL_MAP: Record<string, string> = {
     welcome_stage: 'Draft',
     dip_stage: 'DIP Submitted',
     kyc_stage: 'KYC Pending',
@@ -1010,190 +994,199 @@ if (search) {
     decline_stage: 'DIP Declined',
   };
 
-    // ================= BASE FILTER =================
-      const baseFilter = {
-      status: { $nin: ['welcome_stage'] },
-      isDraft: { $ne: true },
-    };
+  // ================= BASE FILTER =================
+  const baseFilter = {
+    status: { $nin: ['welcome_stage'] },
+    isDraft: { $ne: true },
+  };
 
-    const filter: any = { ...baseFilter };
+  const filter: any = { ...baseFilter };
 
-    // ================= STATUS FILTER =================
-    if (status && status !== 'all') {
-      filter.status = status;
+  // ================= STATUS FILTER =================
+  if (status && status !== 'all') {
+    filter.status = status;
+  }
+
+  // ================= PRIORITY FILTER =================
+  if (priority) {
+    filter.priority = priority;
+  }
+
+  // ================= LOAN TYPE FILTER =================
+  if (loanType) {
+    filter['loanType.applicationType'] = loanType;
+  }
+
+  // ================= DATE FILTER =================
+  if (fromDate || toDate) {
+    filter.createdAt = {};
+
+    if (fromDate) {
+      const start = new Date(fromDate);
+      start.setHours(0, 0, 0, 0);
+      filter.createdAt.$gte = start;
     }
 
-    // ================= PRIORITY FILTER =================
-    if (priority) {
-      filter.priority = priority;
+    if (toDate) {
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59, 999);
+      filter.createdAt.$lte = end;
     }
+  }
 
-    // ================= LOAN TYPE FILTER =================
-    if (loanType) {
-      filter['loanType.applicationType'] = loanType;
-    }
+  // ================= SEARCH =================
+  if (search) {
+    const raw = search.trim();
+    const parts = raw.split(/\s+/);
+    const orConditions: any[] = [
+      { appId: { $regex: raw, $options: 'i' } },
+      { 'property.address': { $regex: raw, $options: 'i' } },
+      { 'applicants.firstName': { $regex: raw, $options: 'i' } },
+      { 'applicants.lastName': { $regex: raw, $options: 'i' } },
+    ];
 
-    // ================= DATE FILTER =================
-    if (fromDate || toDate) {
-      filter.createdAt = {};
-
-      if (fromDate) {
-        const start = new Date(fromDate);
-        start.setHours(0, 0, 0, 0);
-        filter.createdAt.$gte = start;
-      }
-
-      if (toDate) {
-        const end = new Date(toDate);
-        end.setHours(23, 59, 59, 999);
-        filter.createdAt.$lte = end;
-      }
-    }
-
-// ================= SEARCH =================
-// ================= SEARCH =================
-if (search) {
-  const raw = search.trim();
-  const parts = raw.split(/\s+/);
-  const orConditions: any[] = [
-    { appId: { $regex: raw, $options: 'i' } },
-    { 'property.address': { $regex: raw, $options: 'i' } },
-    { 'applicants.firstName': { $regex: raw, $options: 'i' } },
-    { 'applicants.lastName': { $regex: raw, $options: 'i' } },
-  ];
-
-  //  Full name search (same applicant)
-  if (parts.length >= 2) {
-    orConditions.push({
-      applicants: {
-        $elemMatch: {
-          firstName: {
-            $regex: parts.slice(0, -1).join(' '),
-            $options: 'i',
-          },
-          lastName: {
-            $regex: parts[parts.length - 1],
-            $options: 'i',
+    if (parts.length >= 2) {
+      orConditions.push({
+        applicants: {
+          $elemMatch: {
+            firstName: {
+              $regex: parts.slice(0, -1).join(' '),
+              $options: 'i',
+            },
+            lastName: {
+              $regex: parts[parts.length - 1],
+              $options: 'i',
+            },
           },
         },
-      },
-    });
+      });
+    }
+
+    if (!isNaN(Number(raw))) {
+      orConditions.push({
+        'loanRequirements.loanAmount': Number(raw),
+      });
+    }
+
+    filter.$or = orConditions;
   }
 
-  // 🔹 Loan amount search (numeric)
-  if (!isNaN(Number(raw))) {
-    orConditions.push({
-      'loanRequirements.loanAmount': Number(raw),
-    });
-  }
+  // ================= SORT =================
+  let sortQuery: any = { updatedAt: -1 };
+  if (sort === 'oldest') sortQuery = { updatedAt: 1 };
+  if (sort === 'highest_amount')
+    sortQuery = { 'loanRequirements.loanAmount': -1 };
+  if (sort === 'lowest_amount')
+    sortQuery = { 'loanRequirements.loanAmount': 1 };
+  if (sort === 'priority') sortQuery = { priority: -1 };
 
-  filter.$or = orConditions;
-}
+  const skip = (Number(page) - 1) * Number(limit);
 
-    // ================= SORT =================
-    let sortQuery: any = { updatedAt: -1 };
-    if (sort === 'oldest') sortQuery = { updatedAt: 1 };
-    if (sort === 'highest_amount') sortQuery = { 'loanRequirements.loanAmount': -1 };
-    if (sort === 'lowest_amount') sortQuery = { 'loanRequirements.loanAmount': 1 };
-    if (sort === 'priority') sortQuery = { priority: -1 };
-    const skip = (Number(page) - 1) * Number(limit);
-    // ================= DASHBOARD FILTER =================
-    const dashboardFilter = { ...filter };
-    delete dashboardFilter.$or; // cards ignore search
-    // ================= QUERY =================
-    const [
-      rows,
-      total,
-      totalApplications,
-      awaitingFee,
-      kycInProgress,
-      underwritingQueue,
-      offersIssued,
-    ] = await Promise.all([
+  // ================= DASHBOARD FILTER =================
+  const dashboardFilter = { ...filter };
+  delete dashboardFilter.$or;
 
-      // -------- TABLE DATA --------
-      this.applicationModel
-        .find(filter)
-        .select({
-          _id: 1, 
-          appId: 1,
-          status: 1,
-          priority: 1,
-          updatedAt: 1,
-          'applicants.firstName': 1,
-           'applicants.lastName': 1,
-          'loanRequirements.loanAmount': 1,
-          'property.address': 1,
-        })
-        .sort(sortQuery)
-        .skip(skip)
-        .limit(Number(limit))
-        .lean(),
+  // ================= QUERY =================
+  const [
+    rows,
+    total,
+    totalApplications,
+    awaitingFee,
+    kycInProgress,
+    underwritingQueue,
+    offersIssued,
+  ] = await Promise.all([
+    this.applicationModel
+      .find(filter)
+      .select({
+        _id: 1,
+        appId: 1,
+        status: 1,
+        priority: 1,
+        updatedAt: 1,
+        'applicants.firstName': 1,
+        'applicants.lastName': 1,
+        'loanRequirements.loanAmount': 1,
+        'loanRequirements.loanPurpose': 1, // added only this line
+        'property.address': 1,
+      })
+      .sort(sortQuery)
+      .skip(skip)
+      .limit(Number(limit))
+      .lean(),
 
-      // -------- TABLE TOTAL --------
-      this.applicationModel.countDocuments(filter),
+    this.applicationModel.countDocuments(filter),
 
-      // -------- DASHBOARD COUNTS (STATUS-AWARE) --------
-      this.applicationModel.countDocuments(dashboardFilter),
+    this.applicationModel.countDocuments(dashboardFilter),
 
-      this.applicationModel.countDocuments({
-        ...dashboardFilter,
-        status: 'fee_required',
-      }),
+    this.applicationModel.countDocuments({
+      ...dashboardFilter,
+      status: 'fee_required',
+    }),
 
-      this.applicationModel.countDocuments({
-        ...dashboardFilter,
-        status: 'kyc_in_progress',
-      }),
+    this.applicationModel.countDocuments({
+      ...dashboardFilter,
+      status: 'kyc_in_progress',
+    }),
 
-      this.applicationModel.countDocuments({
-        ...dashboardFilter,
-        status: 'underwriting',
-      }),
+    this.applicationModel.countDocuments({
+      ...dashboardFilter,
+      status: 'underwriting',
+    }),
 
-      this.applicationModel.countDocuments({
-        ...dashboardFilter,
-        status: 'offer_issued',
-      }),
-    ]);
+    this.applicationModel.countDocuments({
+      ...dashboardFilter,
+      status: 'offer_issued',
+    }),
+  ]);
 
-    // ================= DASHBOARD CALC =================
-    const inProgress = kycInProgress + underwritingQueue;
-    const pendingAction = awaitingFee;
-    const completed = offersIssued;
+  // ================= DASHBOARD CALC =================
+  const inProgress = kycInProgress + underwritingQueue;
+  const pendingAction = awaitingFee;
+  const completed = offersIssued;
 
-    // ================= TABLE FORMAT =================
-    const data = rows.map((item) => ({
+  // ================= TABLE FORMAT =================
+  const data = rows.map((item) => {
+
+    let displayStatus = STATUS_LABEL_MAP[item.status] || item.status;
+
+    // ⭐ MAIN LOGIC (FINAL WORKING)
+    if (
+      item?.loanRequirements?.loanPurpose === 'other' &&
+      (String(item?.status) === 'dip_submitted' || String(item?.status) === 'dip_stage')
+    ) {
+      displayStatus = 'Pending Admin Review';
+    }
+
+    return {
       id: item._id,
       appId: item.appId,
       applicantName: `${item?.applicants?.[0]?.firstName ?? ''} ${item?.applicants?.[0]?.lastName ?? ''}`.trim(),
-     // applicantName: `${item.applicant?.firstName ?? ''} ${item.applicant?.lastName ?? ''}`.trim(),
       loanAmount: item.loanRequirements?.loanAmount ?? 0,
       propertyAddress: item.property?.address ?? '',
-      status: STATUS_LABEL_MAP[item.status] || item.status,
+      status: displayStatus,
       priority: item.priority ?? 'high',
       underwriter: item.underwriter ?? '',
-
       updatedAt: item.updatedAt,
-    }));
-
-    // ================= RESPONSE =================
-    return {
-      // 🔹 DASHBOARD
-      totalApplications,
-      inProgress,
-      pendingAction,
-      completed,
-
-      // 🔹 TABLE META
-      total,
-      page: Number(page),
-      limit: Number(limit),
-
-      // 🔹 TABLE DATA
-      data,
     };
-  }
+  });
+
+  // ================= RESPONSE =================
+  return {
+    totalApplications,
+    inProgress,
+    pendingAction,
+    completed,
+    total,
+    page: Number(page),
+    limit: Number(limit),
+    data,
+  };
+}
+
+
+
+
    async findApplicationByUserId(userId: string) {
     return this.applicationModel
       .findOne({ userId: new Types.ObjectId(userId) })
