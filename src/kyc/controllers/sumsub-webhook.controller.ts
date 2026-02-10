@@ -86,7 +86,7 @@ export class SumsubWebhookController {
        🔐 AML WEBHOOK — ALL AML CASES
        ====================================================== */
     if (type === 'amlCheckCompleted') {
-      console.log('✅ AML WEBHOOK RECEIVED');
+      console.log(' AML WEBHOOK RECEIVED');
       console.log('AML CHECK RESULT:', amlCheckResult);
 
       const amlResult = amlCheckResult?.overallResult || '';
@@ -104,7 +104,7 @@ export class SumsubWebhookController {
         },
       );
 
-      console.log('✅ AML DATA SAVED');
+      console.log(' AML DATA SAVED');
       return { ok: true };
     }
 
@@ -116,7 +116,7 @@ export class SumsubWebhookController {
       return { ok: true };
     }
 
-    console.log('✅ KYC REVIEW WEBHOOK RECEIVED');
+    console.log(' KYC REVIEW WEBHOOK RECEIVED');
 
     const kycAnswer = reviewResult?.reviewAnswer || 'PENDING';
     console.log('KYC REVIEW ANSWER:', kycAnswer);
@@ -169,7 +169,7 @@ export class SumsubWebhookController {
       },
     );
 
-    console.log('✅ KYC DATA SAVED');
+    console.log(' KYC DATA SAVED');
     console.log('========================================================');
 
     return { ok: true };

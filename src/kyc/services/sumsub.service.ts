@@ -49,7 +49,7 @@ export class SumsubService {
     try {
       externalUserId = externalUserId.trim();
 
-      // ✅ NEW CODE (IMPORTANT)
+      //  NEW CODE (IMPORTANT)
       const existing = await this.getApplicantByExternalUserId(externalUserId);
 
       if (existing?.id) {

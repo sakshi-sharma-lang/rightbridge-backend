@@ -6,7 +6,7 @@ import { randomUUID } from 'crypto';
 
 @Schema()
 export class DocumentItem {
-  // ✅ FIX: use Node built-in UUID (no ESM issue)
+  // FIX: use Node built-in UUID (no ESM issue)
   @Prop({ default: () => randomUUID() })
   uid?: string; // optional in TS
 
@@ -41,11 +41,11 @@ export class ApplicationDocument extends Document {
   @Prop({ required: true, index: true })
   userId: string;
 
-  // ✅ user uploaded documents
+  //  user uploaded documents
   @Prop({ type: [DocumentItemSchema], default: [] })
   documents: DocumentItem[];
 
-  // ✅ admin uploaded documents (grouped)
+  // admin uploaded documents (grouped)
   @Prop({
     type: {
       internal_document: { type: [DocumentItemSchema], default: [] },

@@ -90,7 +90,7 @@ export class AdminService {
         role: admin.role,
       },
       {
-        expiresIn: '1h', // ✅ token expires after 15 minutes
+        expiresIn: '1h', //  token expires after 15 minutes
       },
     );
 
@@ -252,7 +252,7 @@ export class AdminService {
   }
 
   async updateUserByAdmin(userId: string, data: any, jwtUser: any) {
-    // ✅ ALLOWED FIELDS
+    //  ALLOWED FIELDS
     const allowedFields = ['fullName', 'role', 'status'];
 
     // ❌ CHECK FOR INVALID FIELDS
@@ -310,12 +310,12 @@ export class AdminService {
       throw new NotFoundException('Admin not found');
     }
 
-    // ✅ Update fullName ONLY if provided
+    //  Update fullName ONLY if provided
     if (dto.fullName && dto.fullName.trim()) {
       admin.fullName = dto.fullName.trim();
     }
 
-    // ✅ Update email ONLY if provided AND changed
+    //  Update email ONLY if provided AND changed
     if (dto.email && dto.email !== admin.email) {
       const emailExists = await this.adminModel.findOne({
         email: dto.email,
@@ -346,19 +346,19 @@ export class AdminService {
       throw new NotFoundException('Admin not found');
     }
 
-    // ✅ Check current password
+    //  Check current password
     const isMatch = await bcrypt.compare(currentPassword, admin.password);
 
     if (!isMatch) {
       throw new BadRequestException('Current password is incorrect');
     }
 
-    // ✅ Check confirm password
+    //  Check confirm password
     if (newPassword !== confirmPassword) {
       throw new BadRequestException('Passwords do not match');
     }
 
-    // ✅ Prevent reusing same password
+    //  Prevent reusing same password
     const isSame = await bcrypt.compare(newPassword, admin.password);
     if (isSame) {
       throw new BadRequestException(
@@ -366,7 +366,7 @@ export class AdminService {
       );
     }
 
-    // ✅ Hash & save
+    //  Hash & save
     admin.password = await bcrypt.hash(newPassword, 10);
     await admin.save();
 

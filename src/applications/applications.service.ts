@@ -1417,7 +1417,7 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
     if (equityAmountChanged || borrowerContributionChanged || reasonChanged) {
       const now = new Date();
       updateData['loanRequirements.equity_override_date'] = now;
-    //  console.log('✅ DATE AUTO SET =>', now);
+    //  console.log(' DATE AUTO SET =>', now);
     } else {
     //  console.log('❌ No equity change detected');
     }
@@ -1532,7 +1532,7 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
               (updated as any)?.loanRequirements?.borrowerContribution,
           });
 
-          //console.log('✅ Email sent to:', email);
+          //console.log(' Email sent to:', email);
         }
       } catch (mailErr) {
        // console.log('❌ Email sending failed:', mailErr);

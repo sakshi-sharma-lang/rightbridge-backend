@@ -16,7 +16,7 @@ export class UsersController {
 
   
   @Post('register')
- async create(@Body() createUserDto: CreateUserDto) { // ✅ use DTO
+ async create(@Body() createUserDto: CreateUserDto) { //  use DTO
   const { email, phoneNumber, password, ...rest } = createUserDto;
 
   // 🔹 Check email
@@ -29,15 +29,15 @@ export class UsersController {
     const otp_expiry_time = 5;
 
     const updateData: any = {
-      ...rest,               // ✅ update all other fields
-      phoneNumber,           // ✅ update phone
+      ...rest,               //  update all other fields
+      phoneNumber,           //  update phone
       otp,
       otpExpiresAt,
       status: 'deactive',
       isOtpVerified: false,
     };
 
-    // ✅ Update password ONLY if provided
+    //  Update password ONLY if provided
     if (password) {
       updateData.password = await bcrypt.hash(password, 10);
     }
@@ -45,7 +45,7 @@ export class UsersController {
     await this.usersService.update(emailExists._id.toString(), updateData);
 
     await this.mailService.sendOtpVerificationEmail(
-      emailExists.email,     // ✅ email unchanged
+      emailExists.email,     //  email unchanged
       emailExists.firstName,
       otp,
       otp_expiry_time,
@@ -107,7 +107,7 @@ export class UsersController {
 }
 
 
-  // async create(@Body() createUserDto: CreateUserDto) { // ✅ use DTO
+  // async create(@Body() createUserDto: CreateUserDto) { //  use DTO
   //   const { email, phoneNumber, password } = createUserDto;
 
   //   // Check duplicates

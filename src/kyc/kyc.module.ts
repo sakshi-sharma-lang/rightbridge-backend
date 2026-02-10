@@ -13,7 +13,7 @@ import { Application, ApplicationSchema } from '../applications/schemas/applicat
       { name: Kyc.name, schema: KycSchema },
       { name: Application.name, schema: ApplicationSchema },
     ]),
-    MailModule, // ✅ ADD THIS
+    MailModule, //  ADD THIS
   ],
   controllers: [KycController, SumsubWebhookController],
   providers: [SumsubService],

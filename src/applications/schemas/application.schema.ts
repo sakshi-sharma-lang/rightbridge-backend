@@ -63,7 +63,7 @@ export class Application extends Document {
       message: 'At least one applicant is required',
     },
     {
-      // ✅ ADDED: unique email validation
+      //  ADDED: unique email validation
       validator: (v: any[]) => {
         const emails = v.map(a => a.email?.toLowerCase());
         return emails.length === new Set(emails).size;

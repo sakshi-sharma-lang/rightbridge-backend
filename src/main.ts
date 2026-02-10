@@ -8,7 +8,7 @@ import * as bodyParser from 'body-parser';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // ✅ Enable CORS
+  //  Enable CORS
   app.enableCors({
     origin: [
       'http://localhost:3000',
@@ -30,11 +30,11 @@ async function bootstrap() {
   // ================= SUMSUB WEBHOOK (RAW BODY) =================
  app.use(
   '/sumsub/webhook',
-  bodyParser.raw({ type: '*/*' }), // ✅ accept all content types
+  bodyParser.raw({ type: '*/*' }), //  accept all content types
 );
 
 
-  // ✅ IMPORTANT: restore JSON parser for all other routes
+  //  IMPORTANT: restore JSON parser for all other routes
   app.use(bodyParser.json());
   app.use(bodyParser.urlencoded({ extended: true }));
 

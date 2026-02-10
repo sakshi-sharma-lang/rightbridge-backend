@@ -17,7 +17,7 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
-    private readonly mailService: MailService, // ✅ inject mail service
+    private readonly mailService: MailService, //  inject mail service
     private readonly applicationsService: ApplicationsService,
     private readonly configService: ConfigService,
   ) {}
@@ -127,7 +127,7 @@ console.log("access_token",access_token);
   //   // Create reset link
   //   const resetLink = `${process.env.FRONTEND_URL}reset-password?token=${resetToken}`;
 
-  //   // ✅ JUST CALL TEMPLATE (NO HTML HERE)
+  //   //  JUST CALL TEMPLATE (NO HTML HERE)
   //   await this.mailService.sendForgotPasswordEmail(
   //     user.email,
   //     resetLink,
@@ -155,7 +155,7 @@ async forgotPassword(email: string, type?: string) {
   const MAX_REQUESTS = 3;
   const BLOCK_TIME_MINUTES = 15;
 
-  // ✅ Fix undefined values (important for TS + DB)
+  //  Fix undefined values (important for TS + DB)
   user.forgotPasswordCount = user.forgotPasswordCount ?? 0;
 
   if (user.forgotPasswordLastRequest) {
@@ -177,7 +177,7 @@ async forgotPassword(email: string, type?: string) {
     });
   }
 
-  // ✅ Increase counter
+  //  Increase counter
   user.forgotPasswordCount += 1;
   user.forgotPasswordLastRequest = now;
   await user.save();

@@ -169,7 +169,7 @@ export class PaymentsService {
       return res.status(400).json({ message: 'Invalid signature' });
     }
 
-    console.log('✅ Webhook verified');
+    console.log(' Webhook verified');
     console.log('Event ID:', event.id);
     console.log('Event Type:', event.type);
     console.log('Event Created:', new Date(event.created * 1000));
@@ -279,7 +279,7 @@ export class PaymentsService {
       return res.status(500).json({ message: 'Webhook processing failed' });
     }
 
-    console.log('✅ Webhook processed successfully');
+    console.log(' Webhook processed successfully');
     return res.json({ received: true });
   }
 

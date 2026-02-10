@@ -99,7 +99,7 @@ export class KycController {
           const applicationIdFromDb = application._id.toString();
           const userId = application.userId;
 
-          // ✅ Find existing KYC record
+          //  Find existing KYC record
           let kyc: HydratedDocument<Kyc> | null = null;
 
           kyc = await this.kycModel.findOne({ externalUserId });

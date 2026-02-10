@@ -215,7 +215,7 @@ async sendKycEmail(email: string, kycLink: string) {
       html,
     });
 
-    console.log('✅ Email sent successfully:', email);
+    console.log(' Email sent successfully:', email);
 
     return {
       success: true,
@@ -260,7 +260,7 @@ async sendEquityChangeEmail(data: {
       html,
     });
 
-    console.log('✅ Equity change email sent:', data.email);
+    console.log(' Equity change email sent:', data.email);
   } catch (error) {
     console.log('❌ Equity change email failed:', error);
   }
