@@ -13,6 +13,8 @@ import { Admin, AdminSchema } from './schemas/admin.schema';
 import { Counter, CounterSchema } from '../applications/schemas/counter.schema';
 import { MailModule } from '../mail/mail.module';
 import { ApplicationsModule } from '../applications/applications.module';
+import { InternalNotesModule } from './internal-notes/internal-notes.module';
+
 
 import {
   Application,
@@ -45,6 +47,8 @@ import { AdminApplicationsService } from './admin-applications.service';
 
     MailModule,
     ApplicationsModule,
+    InternalNotesModule,
+
   ],
   controllers: [AdminController, AdminApplicationsController],
   providers: [AdminService, AdminApplicationsService, AdminJwtStrategy],

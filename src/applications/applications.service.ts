@@ -353,140 +353,166 @@ export class ApplicationsService {
   //   return updated;
   // }
 
-  async updateApplicationDetails(
-    id: string,
-    body: any,
-    userId: string,
-  ): Promise<Application> {
-    try {
-      // 🔹 STEP 1: Check DB first
-      let pushStatusManagement: string | null = null;
+async updateApplicationDetails(
+  id: string,
+  body: any,
+  userId: string,
+): Promise<Application> {
+  try {
+    // 🔹 STEP 1: Check DB first
+    let pushStatusManagement: string | null = null;
 
-      const existingApplication = await this.applicationModel.findOne({
-        _id: id,
-        userId,
-      });
+    const existingApplication = await this.applicationModel.findOne({
+      _id: id,
+      userId,
+    });
 
-      if (!existingApplication) {
-        throw new ForbiddenException(
-          'You are not authorized to update this application',
-        );
-      }
-
-      // 🔹 STEP 2: Get loan + property values (body → db fallback)
-      const loanAmount = Number(
-        body?.loanRequirements?.loanAmount ??
-          body?.['loanRequirements.loanAmount'] ??
-          existingApplication?.loanRequirements?.loanAmount,
+    if (!existingApplication) {
+      throw new ForbiddenException(
+        'You are not authorized to update this application',
       );
-
-      const propertyValue = Number(
-        body?.property?.estimatedValue ??
-          body?.['property.estimatedValue'] ??
-          existingApplication?.property?.estimatedValue,
-      );
-
-      // 🔴 STEP 3: Validate required values
-      if (isNaN(loanAmount) || isNaN(propertyValue) || propertyValue <= 0) {
-        throw new BadRequestException(
-          'Loan amount and property value are required to update application',
-        );
-      }
-
-      // =========================================================
-      // 🔹 STEP 4: LTV LOGIC
-      // =========================================================
-      let statusUpdate: any = {};
-      const ltv = (loanAmount / propertyValue) * 100;
-
-      if (ltv > 75) {
-        statusUpdate = {
-          status: 'AUTO_REJECTED',
-          rejectReason: 'LTV EXCEEDED',
-        };
-      } else if (body?.status === 'dip_stage') {
-        statusUpdate = {
-          status: 'dip_stage',
-          application_stage_management: 'dip_submitted',
-          rejectReason: '',
-        };
-      }
-
-      // =========================================================
-      // 🔹 STEP 5: Allow frontend to update everything
-      // =========================================================
-      const safeBody = { ...body };
-
-      // protect system fields
-      delete safeBody.userId;
-      delete safeBody.appId;
-      delete safeBody.applicationStatus;
-
-      // =========================================================
-      // 🔹 STEP 6: Preserve externalUserId in applicants
-      // =========================================================
-      if (safeBody.applicants && Array.isArray(safeBody.applicants)) {
-        safeBody.applicants = safeBody.applicants.map((applicant, index) => {
-          const existingApplicant = existingApplication.applicants?.[index];
-
-          if (existingApplicant?.externalUserId) {
-            applicant.externalUserId = existingApplicant.externalUserId;
-          }
-
-          return applicant;
-        });
-      }
-
-      // =========================================================
-      // 🔹 push applicationStatus history
-      // =========================================================
-      if (body?.applicationStatus) {
-        pushStatusManagement = body.applicationStatus;
-      }
-
-      // =========================================================
-      // 🔹 FINAL UPDATE
-      // =========================================================
-      const updated = await this.applicationModel.findOneAndUpdate(
-        { _id: id, userId },
-        {
-          $set: {
-            ...safeBody,
-            isDraft: false,
-            ...statusUpdate,
-          },
-
-          ...(pushStatusManagement && {
-            $push: {
-              applicationStatus: pushStatusManagement,
-            },
-          }),
-        },
-        { new: true },
-      );
-
-      if (!updated) {
-        throw new ForbiddenException(
-          'You are not authorized to update this application',
-        );
-      }
-
-      return updated;
-    } catch (error) {
-      if (
-        error instanceof BadRequestException ||
-        error instanceof ForbiddenException ||
-        error instanceof NotFoundException
-      ) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException({
-        message: 'Failed to update application',
-        error: error?.message ?? 'Internal Server Error',
-      });
     }
+
+    // 🔹 STEP 2: Get loan + property values (body → db fallback)
+    const loanAmount = Number(
+      body?.['loanRequirements.loanAmount'] ??
+        body?.loanRequirements?.loanAmount ??
+        existingApplication?.loanRequirements?.loanAmount,
+    );
+
+    const propertyValue = Number(
+      body?.['property.estimatedValue'] ??
+        body?.property?.estimatedValue ??
+        existingApplication?.property?.estimatedValue,
+    );
+
+    // 🔴 STEP 3: Validate required values
+    if (isNaN(loanAmount) || isNaN(propertyValue) || propertyValue <= 0) {
+      throw new BadRequestException(
+        'Loan amount and property value are required to update application',
+      );
+    }
+
+    // =========================================================
+    // 🔹 STEP 4: LTV LOGIC
+    // =========================================================
+    let statusUpdate: any = {};
+    const ltv = (loanAmount / propertyValue) * 100;
+
+    if (ltv > 75) {
+      statusUpdate = {
+        status: 'AUTO_REJECTED',
+        rejectReason: 'LTV EXCEEDED',
+      };
+    } else if (body?.status === 'dip_stage') {
+      statusUpdate = {
+        status: 'dip_stage',
+        application_stage_management: 'dip_submitted',
+        rejectReason: '',
+      };
+    }
+
+    // =========================================================
+    // 🔹 STEP 5: PREPARE UPDATE OBJECT FROM FORMDATA / JSON
+    // =========================================================
+    const updateSet: any = {};
+
+    for (const key in body) {
+      if (
+        key === 'userId' ||
+        key === 'appId' ||
+        key === 'applicationStatus'
+      ) continue;
+
+      let value: any = body[key];
+
+      // if object or array → store directly
+      if (typeof value === 'object' && value !== null) {
+        updateSet[key] = value;
+        continue;
+      }
+
+      // convert numeric string → number (TS safe)
+      if (
+        typeof value === 'string' &&
+        value.trim() !== '' &&
+        !isNaN(Number(value))
+      ) {
+        value = Number(value);
+      }
+
+      updateSet[key] = value;
+    }
+
+    // always mark not draft
+    updateSet['isDraft'] = false;
+
+    // =========================================================
+    // 🔹 APPLY STATUS UPDATE
+    // =========================================================
+    if (statusUpdate?.status) {
+      updateSet['status'] = statusUpdate.status;
+      updateSet['rejectReason'] = statusUpdate.rejectReason || '';
+    }
+
+    if (statusUpdate?.application_stage_management) {
+      updateSet['application_stage_management'] =
+        statusUpdate.application_stage_management;
+    }
+
+    // =========================================================
+    // 🔹 PUSH STATUS HISTORY
+    // =========================================================
+    if (body?.applicationStatus) {
+      pushStatusManagement = body.applicationStatus;
+    }
+
+    // =========================================================
+    // 🔹 FINAL UPDATE
+    // =========================================================
+    const updateQuery: any = {
+      $set: updateSet,
+    };
+
+    if (pushStatusManagement) {
+      updateQuery.$push = {
+        applicationStatus: pushStatusManagement,
+      };
+    }
+
+    const updated = await this.applicationModel.findOneAndUpdate(
+      { _id: id, userId },
+      updateQuery,
+      { new: true },
+    );
+
+    if (!updated) {
+      throw new ForbiddenException(
+        'You are not authorized to update this application',
+      );
+    }
+
+    return updated;
+  } catch (error) {
+    console.log('UPDATE ERROR =>', error);
+
+    if (
+      error instanceof BadRequestException ||
+      error instanceof ForbiddenException ||
+      error instanceof NotFoundException
+    ) {
+      throw error;
+    }
+
+    throw new InternalServerErrorException({
+      message: 'Failed to update application',
+      error: error?.message ?? 'Internal Server Error',
+    });
   }
+}
+
+
+
 
   /* ================= APP ID GENERATOR ================= */
   private async generateAppId(): Promise<string> {
