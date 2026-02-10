@@ -14,9 +14,6 @@ import {
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-
-
-
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly service: PaymentsService) {}
@@ -42,7 +39,7 @@ export class PaymentsController {
   }
 
   /* ================= STRIPE WEBHOOK ================= */
- @Post('webhook')
+  @Post('webhook')
   async stripeWebhook(
     @Req() req: any,
     @Res() res: any,
@@ -51,8 +48,7 @@ export class PaymentsController {
     return this.service.handleStripeWebhook(req, signature, res);
   }
 
-
-    @Post('confirm')
+  @Post('confirm')
   @UseGuards(JwtAuthGuard)
   async confirmPayment(
     @Body('paymentIntentId') paymentIntentId: string,
@@ -61,12 +57,9 @@ export class PaymentsController {
     return this.service.confirmPayment(paymentIntentId, req.user.userId);
   }
 
-
-@Get('management')
-@UseGuards(JwtAuthGuard)
-async getPaymentsManagement(@Query() query: any) {
-  return this.service.getPaymentsManagement(query);
-}
-
-
+  @Get('management')
+  @UseGuards(JwtAuthGuard)
+  async getPaymentsManagement(@Query() query: any) {
+    return this.service.getPaymentsManagement(query);
+  }
 }

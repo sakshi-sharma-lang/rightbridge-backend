@@ -6,7 +6,6 @@ import { randomUUID } from 'crypto';
 
 @Schema()
 export class DocumentItem {
-
   // ✅ FIX: use Node built-in UUID (no ESM issue)
   @Prop({ default: () => randomUUID() })
   uid?: string; // optional in TS
@@ -36,7 +35,6 @@ export const DocumentItemSchema = SchemaFactory.createForClass(DocumentItem);
 
 @Schema({ timestamps: true })
 export class ApplicationDocument extends Document {
-
   @Prop({ required: true, index: true })
   applicationId: string;
 

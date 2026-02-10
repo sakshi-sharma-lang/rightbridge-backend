@@ -1,4 +1,10 @@
-import { Injectable, UnauthorizedException ,NotFoundException,BadRequestException , ForbiddenException} from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
@@ -17,21 +23,19 @@ import {
   ForgotPasswordDto,
   ResetPasswordDto,
   UpdateAdminProfileDto,
-  ChangePasswordDto,  
+  ChangePasswordDto,
 } from './dto';
-
-
 
 @Injectable()
 export class AdminService {
   constructor(
     @InjectModel(Admin.name)
     private readonly adminModel: Model<AdminDocument>,
-    @InjectModel(Counter.name)              
+    @InjectModel(Counter.name)
     private readonly counterModel: Model<Counter>,
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
-    private readonly configService: ConfigService, 
+    private readonly configService: ConfigService,
   ) {}
   async register(data: RegisterAdminDto) {
     const exists = await this.adminModel.findOne({ email: data.email });
@@ -71,31 +75,30 @@ export class AdminService {
     };
   }
   async login(email: string, password: string) {
-  const admin = await this.adminModel.findOne({ email });
+    const admin = await this.adminModel.findOne({ email });
 
-  if (!admin || !(await bcrypt.compare(password, admin.password))) {
-    throw new UnauthorizedException('Invalid email or password');
+    if (!admin || !(await bcrypt.compare(password, admin.password))) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    admin.lastLogin = new Date();
+    await admin.save();
+
+    const token = this.jwtService.sign(
+      {
+        id: admin._id,
+        role: admin.role,
+      },
+      {
+        expiresIn: '1h', // ✅ token expires after 15 minutes
+      },
+    );
+
+    return {
+      token,
+      expiresIn: '1h',
+    };
   }
-
-  admin.lastLogin = new Date();
-  await admin.save();
-
-  const token = this.jwtService.sign(
-    {
-      id: admin._id,
-      role: admin.role,
-    },
-    {
-      expiresIn: '1h', // ✅ token expires after 15 minutes
-    },
-  );
-
-  return {
-    token,
-    expiresIn: '1h',
-  };
-}
-
 
   async forgotPassword(email: string) {
     const admin = await this.adminModel.findOne({ email });
@@ -103,10 +106,7 @@ export class AdminService {
       return { message: 'If email exists, reset link sent' };
     }
 
-    const token = this.jwtService.sign(
-      { id: admin._id },
-      { expiresIn: '15m' },
-    );
+    const token = this.jwtService.sign({ id: admin._id }, { expiresIn: '15m' });
 
     const backendUrl = this.configService.get<string>('BACKEND_URL');
 
@@ -131,44 +131,34 @@ export class AdminService {
     return { message: 'Password reset successful' };
   }
   private generateRandomPassword(length: number = 10): string {
-  const chars =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$!%*?&';
-  let password = '';
+    const chars =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$!%*?&';
+    let password = '';
 
-  for (let i = 0; i < length; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
+    for (let i = 0; i < length; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
 
-  return password;
+    return password;
   }
   private async generateAppId(): Promise<string> {
     const counter = await this.counterModel.findOneAndUpdate(
-      { name: 'admin' },          // 🔑 counter key
+      { name: 'admin' }, // 🔑 counter key
       { $inc: { seq: 1 } },
-      { new: true, upsert: true }
+      { new: true, upsert: true },
     );
 
     return `USR-${counter.seq.toString().padStart(3, '0')}`;
   }
   async getUsersForAdmin(query: any, jwtUser: any) {
-
-    const {
-      role,
-      status,
-      search,
-      page = 1,
-      limit = 10,
-    } = query;
+    const { role, status, search, page = 1, limit = 10 } = query;
 
     const filter: any = {};
-  //  console.log("roles",jwtUser.role)
-    
+    //  console.log("roles",jwtUser.role)
+
     //   if (jwtUser.role !== 'super_admin') {
     //   throw new ForbiddenException('You are not allowed to view user data');
     // }
-
-
-
 
     // 🔹 ROLE FILTER
     if (role) {
@@ -209,7 +199,6 @@ export class AdminService {
           role: 1,
           status: 1,
           lastLogin: 1,
-        
         })
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -226,44 +215,43 @@ export class AdminService {
       this.adminModel.countDocuments({ role: 'underwriter' }),
     ]);
 
- return {
-  // 🔹 FLAT PAGINATION (as you requested)
-  total,
-  page: Number(page),
-  limit: Number(limit),
+    return {
+      // 🔹 FLAT PAGINATION (as you requested)
+      total,
+      page: Number(page),
+      limit: Number(limit),
 
-  // 🔹 DASHBOARD CARDS
-  stats: {
-    totalUsers,
-    activeUsers,
-    admins: adminCount,
-    underwriters: underwriterCount,
-  },
+      // 🔹 DASHBOARD CARDS
+      stats: {
+        totalUsers,
+        activeUsers,
+        admins: adminCount,
+        underwriters: underwriterCount,
+      },
 
-  // 🔹 TABLE DATA
-  data: users.map((u) => ({
-    id: u._id,
-    userId: u.appId,
-    name: u.fullName,
-    email: u.email,
-    role: u.role,
-    status: u.status,
-    lastLogin: u.lastLogin
-      ? new Date(u.lastLogin).toLocaleString('en-GB', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        })
-      : 'Never',
-  })),
-};
-
+      // 🔹 TABLE DATA
+      data: users.map((u) => ({
+        id: u._id,
+        userId: u.appId,
+        name: u.fullName,
+        email: u.email,
+        role: u.role,
+        status: u.status,
+        lastLogin: u.lastLogin
+          ? new Date(u.lastLogin).toLocaleString('en-GB', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: false,
+            })
+          : 'Never',
+      })),
+    };
   }
 
-  async updateUserByAdmin(userId: string, data: any ,  jwtUser: any) {
+  async updateUserByAdmin(userId: string, data: any, jwtUser: any) {
     // ✅ ALLOWED FIELDS
     const allowedFields = ['fullName', 'role', 'status'];
 
@@ -272,10 +260,9 @@ export class AdminService {
       (key) => !allowedFields.includes(key),
     );
 
-     if (jwtUser.role !== 'super_admin') {
+    if (jwtUser.role !== 'super_admin') {
       throw new ForbiddenException('Only super admin can update users');
     }
-
 
     if (invalidFields.length > 0) {
       throw new BadRequestException(
@@ -317,85 +304,75 @@ export class AdminService {
     };
   }
 
-async updateProfile(adminId: string, dto: UpdateAdminProfileDto) {
-  const admin = await this.adminModel.findById(adminId);
-  if (!admin) {
-    throw new NotFoundException('Admin not found');
-  }
-
-  // ✅ Update fullName ONLY if provided
-  if (dto.fullName && dto.fullName.trim()) {
-    admin.fullName = dto.fullName.trim();
-  }
-
-  // ✅ Update email ONLY if provided AND changed
-  if (dto.email && dto.email !== admin.email) {
-    const emailExists = await this.adminModel.findOne({
-      email: dto.email,
-      _id: { $ne: adminId },
-    });
-
-    if (emailExists) {
-      throw new BadRequestException('Email already in use');
+  async updateProfile(adminId: string, dto: UpdateAdminProfileDto) {
+    const admin = await this.adminModel.findById(adminId);
+    if (!admin) {
+      throw new NotFoundException('Admin not found');
     }
 
-    admin.email = dto.email;
+    // ✅ Update fullName ONLY if provided
+    if (dto.fullName && dto.fullName.trim()) {
+      admin.fullName = dto.fullName.trim();
+    }
+
+    // ✅ Update email ONLY if provided AND changed
+    if (dto.email && dto.email !== admin.email) {
+      const emailExists = await this.adminModel.findOne({
+        email: dto.email,
+        _id: { $ne: adminId },
+      });
+
+      if (emailExists) {
+        throw new BadRequestException('Email already in use');
+      }
+
+      admin.email = dto.email;
+    }
+
+    await admin.save();
+
+    return {
+      success: true,
+      message: 'Profile updated successfully',
+    };
   }
 
-  await admin.save();
+  async changePassword(adminId: string, dto: ChangePasswordDto) {
+    const { currentPassword, newPassword, confirmPassword } = dto;
 
-  return {
-    success: true,
-    message: 'Profile updated successfully',
-  };
-}
+    const admin = await this.adminModel.findById(adminId).select('+password'); // important
 
+    if (!admin) {
+      throw new NotFoundException('Admin not found');
+    }
 
-async changePassword(adminId: string, dto: ChangePasswordDto) {
-  const { currentPassword, newPassword, confirmPassword } = dto;
+    // ✅ Check current password
+    const isMatch = await bcrypt.compare(currentPassword, admin.password);
 
-  const admin = await this.adminModel
-    .findById(adminId)
-    .select('+password'); // important
+    if (!isMatch) {
+      throw new BadRequestException('Current password is incorrect');
+    }
 
-  if (!admin) {
-    throw new NotFoundException('Admin not found');
+    // ✅ Check confirm password
+    if (newPassword !== confirmPassword) {
+      throw new BadRequestException('Passwords do not match');
+    }
+
+    // ✅ Prevent reusing same password
+    const isSame = await bcrypt.compare(newPassword, admin.password);
+    if (isSame) {
+      throw new BadRequestException(
+        'New password must be different from current password',
+      );
+    }
+
+    // ✅ Hash & save
+    admin.password = await bcrypt.hash(newPassword, 10);
+    await admin.save();
+
+    return {
+      success: true,
+      message: 'Password changed successfully',
+    };
   }
-
-  // ✅ Check current password
-  const isMatch = await bcrypt.compare(
-    currentPassword,
-    admin.password,
-  );
-
-  if (!isMatch) {
-    throw new BadRequestException('Current password is incorrect');
-  }
-
-  // ✅ Check confirm password
-  if (newPassword !== confirmPassword) {
-    throw new BadRequestException('Passwords do not match');
-  }
-
-  // ✅ Prevent reusing same password
-  const isSame = await bcrypt.compare(newPassword, admin.password);
-  if (isSame) {
-    throw new BadRequestException(
-      'New password must be different from current password',
-    );
-  }
-
-  // ✅ Hash & save
-  admin.password = await bcrypt.hash(newPassword, 10);
-  await admin.save();
-
-  return {
-    success: true,
-    message: 'Password changed successfully',
-  };
-}
-
-
-
-
 }

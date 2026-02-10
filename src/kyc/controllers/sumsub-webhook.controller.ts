@@ -45,13 +45,8 @@ export class SumsubWebhookController {
       return { ok: true };
     }
 
-    const {
-      applicantId,
-      type,
-      reviewResult,
-      externalUserId,
-      amlCheckResult,
-    } = parsedBody;
+    const { applicantId, type, reviewResult, externalUserId, amlCheckResult } =
+      parsedBody;
 
     console.log('WEBHOOK TYPE:', type);
     console.log('APPLICANT ID:', applicantId);
@@ -84,10 +79,7 @@ export class SumsubWebhookController {
 
     if (kyc.applicantId !== applicantId) {
       console.log('ℹ️ Updating applicantId in DB');
-      await this.kycModel.updateOne(
-        { _id: kyc._id },
-        { applicantId },
-      );
+      await this.kycModel.updateOne({ _id: kyc._id }, { applicantId });
     }
 
     /* ======================================================
@@ -97,8 +89,7 @@ export class SumsubWebhookController {
       console.log('✅ AML WEBHOOK RECEIVED');
       console.log('AML CHECK RESULT:', amlCheckResult);
 
-      const amlResult =
-        amlCheckResult?.overallResult || '';
+      const amlResult = amlCheckResult?.overallResult || '';
 
       console.log('FINAL AML RESULT:', amlResult);
 
@@ -106,12 +97,10 @@ export class SumsubWebhookController {
         { _id: kyc._id },
         {
           amlResult,
-          amlStatus:
-            amlResult === 'RED' ? 'FAILED' : 'PASSED',
+          amlStatus: amlResult === 'RED' ? 'FAILED' : 'PASSED',
           rawWebhookPayload: parsedBody,
           reviewedAt: new Date(),
-          decisionReason:
-            amlResult === 'RED' ? 'AML' : undefined,
+          decisionReason: amlResult === 'RED' ? 'AML' : undefined,
         },
       );
 
@@ -136,9 +125,7 @@ export class SumsubWebhookController {
     console.log('CURRENT AML RESULT (DB):', amlResult);
 
     const uploadedDocuments =
-      reviewResult?.reviewDocuments?.map(
-        (doc) => doc.idDocType,
-      ) || [];
+      reviewResult?.reviewDocuments?.map((doc) => doc.idDocType) || [];
 
     let status: KycStatus = KycStatus.IN_PROGRESS;
 
@@ -166,8 +153,7 @@ export class SumsubWebhookController {
         uploadedDocuments,
 
         kycCompletedAt:
-          status === KycStatus.APPROVED ||
-          status === KycStatus.REJECTED
+          status === KycStatus.APPROVED || status === KycStatus.REJECTED
             ? new Date()
             : undefined,
 
@@ -175,15 +161,11 @@ export class SumsubWebhookController {
           status === KycStatus.APPROVED
             ? 'APPROVED'
             : status === KycStatus.REJECTED
-            ? 'REJECTED'
-            : undefined,
+              ? 'REJECTED'
+              : undefined,
 
         decisionReason:
-          amlResult === 'RED'
-            ? 'AML'
-            : kycAnswer === 'RED'
-            ? 'KYC'
-            : undefined,
+          amlResult === 'RED' ? 'AML' : kycAnswer === 'RED' ? 'KYC' : undefined,
       },
     );
 

@@ -15,7 +15,7 @@ import {
   imports: [
     MongooseModule.forFeature([
       { name: ApplicationDocument.name, schema: ApplicationDocumentSchema },
-      { name: Application.name, schema: ApplicationSchema }, 
+      { name: Application.name, schema: ApplicationSchema },
     ]),
   ],
   controllers: [ApplicationDocumentsController],

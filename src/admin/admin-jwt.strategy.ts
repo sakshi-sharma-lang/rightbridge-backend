@@ -22,9 +22,9 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
 
   async validate(payload: any) {
     // 🔐 Verify ADMIN from admin table
-      console.log('🟡 JWT PAYLOAD RECEIVED =>', payload);
+    console.log('🟡 JWT PAYLOAD RECEIVED =>', payload);
     const admin = await this.adminModel.findById(payload.id);
-      // console.log('🟢 ADMIN LOOKUP RESULT =>', admin ? admin._id : null);
+    // console.log('🟢 ADMIN LOOKUP RESULT =>', admin ? admin._id : null);
 
     if (!admin) {
       throw new UnauthorizedException('Invalid admin token');

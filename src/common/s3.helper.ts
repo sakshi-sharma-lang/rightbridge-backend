@@ -1,7 +1,10 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 
 export class S3Helper {
-
   private static getS3() {
     return new S3Client({
       region: process.env.AWS_REGION,

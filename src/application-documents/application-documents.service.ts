@@ -30,9 +30,10 @@ export class ApplicationDocumentsService {
     uploadedBy?: string,
   ) {
     try {
-      // 🔴 validations
+      //  validations
       if (!userId) throw new BadRequestException('userId is required');
-      if (!applicationId) throw new BadRequestException('applicationId is required');
+      if (!applicationId)
+        throw new BadRequestException('applicationId is required');
       if (!Types.ObjectId.isValid(applicationId))
         throw new BadRequestException('Invalid applicationId format');
 
@@ -51,15 +52,13 @@ export class ApplicationDocumentsService {
       const application = await this.applicationModel.findById(applicationId);
       if (!application) throw new BadRequestException('Application not found');
 
-      // 🔴 upload to S3
+      //  upload to S3
       const now = new Date();
 
-const year = now.getFullYear();
-const month = String(now.getMonth() + 1).padStart(2, '0');
-const day = String(now.getDate()).padStart(2, '0');
-
-const key = `userdocument/${year}/${month}/${day}/${applicationId}/${type}/${Date.now()}-${file.originalname}`;
-
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const key = `userdocument/${year}/${month}/${day}/${applicationId}/${type}/${Date.now()}-${file.originalname}`;
       const s3Url = await S3Helper.upload(file, key);
 
       const newDoc: DocumentItem = {
@@ -83,7 +82,7 @@ const key = `userdocument/${year}/${month}/${day}/${applicationId}/${type}/${Dat
         return { message: 'Document uploaded successfully', record };
       }
 
-      const index = record.documents.findIndex(d => d.type === type);
+      const index = record.documents.findIndex((d) => d.type === type);
 
       if (index !== -1) {
         // delete old from S3
@@ -139,9 +138,9 @@ const key = `userdocument/${year}/${month}/${day}/${applicationId}/${type}/${Dat
 
       const uploadedDocs = record?.documents || [];
 
-      const uploadedMap = new Map(uploadedDocs.map(doc => [doc.type, doc]));
+      const uploadedMap = new Map(uploadedDocs.map((doc) => [doc.type, doc]));
 
-      const documents = Object.keys(DOCUMENT_TYPE_MAP).map(type => {
+      const documents = Object.keys(DOCUMENT_TYPE_MAP).map((type) => {
         const doc = uploadedMap.get(type);
 
         return {
@@ -172,7 +171,7 @@ const key = `userdocument/${year}/${month}/${day}/${applicationId}/${type}/${Dat
   }
 
   private humanizeType(type: string): string {
-    return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
   // ================= ADMIN GET =================
@@ -193,7 +192,6 @@ const key = `userdocument/${year}/${month}/${day}/${applicationId}/${type}/${Dat
           documents: [],
         };
       }
-
       return {
         applicationId,
         adminDocumentUpload: {
@@ -232,7 +230,7 @@ const key = `userdocument/${year}/${month}/${day}/${applicationId}/${type}/${Dat
 
       if (type === 'credit_report' || type === 'internal_document') {
         updatedDoc = record.adminDocumentUpload?.[type]?.find(
-          d => d.uid === uid,
+          (d) => d.uid === uid,
         );
         if (updatedDoc) {
           updatedDoc.originalName = newName;
@@ -242,7 +240,7 @@ const key = `userdocument/${year}/${month}/${day}/${applicationId}/${type}/${Dat
 
       if (!updatedFrom) {
         updatedDoc = record.documents?.find(
-          d => d.uid === uid && d.type === type,
+          (d) => d.uid === uid && d.type === type,
         );
         if (updatedDoc) {
           updatedDoc.originalName = newName;
@@ -289,7 +287,7 @@ const key = `userdocument/${year}/${month}/${day}/${applicationId}/${type}/${Dat
 
       if (type === 'credit_report' || type === 'internal_document') {
         const index = record.adminDocumentUpload?.[type]?.findIndex(
-          d => d.uid === uid,
+          (d) => d.uid === uid,
         );
 
         if (index > -1) {
@@ -301,7 +299,7 @@ const key = `userdocument/${year}/${month}/${day}/${applicationId}/${type}/${Dat
 
       if (!deletedFrom) {
         const index = record.documents?.findIndex(
-          d => d.uid === uid && d.type === type,
+          (d) => d.uid === uid && d.type === type,
         );
 
         if (index > -1) {
@@ -334,66 +332,65 @@ const key = `userdocument/${year}/${month}/${day}/${applicationId}/${type}/${Dat
 
   // ================= ADMIN UPLOAD =================
   async uploadAdminDocument(
-  applicationId: string,
-  userId: string,
-  type: string,
-  file: Express.Multer.File,
-) {
-  try {
-    if (!applicationId || !userId)
-      throw new BadRequestException('applicationId & userId required');
+    applicationId: string,
+    userId: string,
+    type: string,
+    file: Express.Multer.File,
+  ) {
+    try {
+      if (!applicationId || !userId)
+        throw new BadRequestException('applicationId & userId required');
 
-    if (!file) throw new BadRequestException('File is required');
+      if (!file) throw new BadRequestException('File is required');
 
-    const allowedTypes = ['credit_report', 'internal_document'];
-    if (!allowedTypes.includes(type)) {
-      throw new BadRequestException(
-        'Admin can upload only credit_report or internal_document',
-      );
-    }
+      const allowedTypes = ['credit_report', 'internal_document'];
+      if (!allowedTypes.includes(type)) {
+        throw new BadRequestException(
+          'Admin can upload only credit_report or internal_document',
+        );
+      }
 
-    // 🔵 date folder structure
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
+      //  date folder structure
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
 
-    // 🔵 final S3 key format
-    const key = `admindocument/${year}/${month}/${day}/${applicationId}/${type}/${Date.now()}-${file.originalname}`;
+      //  final S3 key format
+      const key = `admindocument/${year}/${month}/${day}/${applicationId}/${type}/${Date.now()}-${file.originalname}`;
 
-    // 🔵 upload to S3
-    const s3Url = await S3Helper.upload(file, key);
+      //  upload to S3
+      const s3Url = await S3Helper.upload(file, key);
 
-    const newDoc: DocumentItem = {
-      type,
-      filePath: s3Url,
-      originalName: file.originalname,
-      size: file.size,
-      uploadedBy: 'admin',
-      createdAt: new Date(),
-    };
+      const newDoc: DocumentItem = {
+        type,
+        filePath: s3Url,
+        originalName: file.originalname,
+        size: file.size,
+        uploadedBy: 'admin',
+        createdAt: new Date(),
+      };
 
-    // 🔵 save in DB
-    await this.documentModel.findOneAndUpdate(
-      { applicationId, userId },
-      {
-        $push: {
-          [`adminDocumentUpload.${type}`]: newDoc,
+      //  save in DB
+      await this.documentModel.findOneAndUpdate(
+        { applicationId, userId },
+        {
+          $push: {
+            [`adminDocumentUpload.${type}`]: newDoc,
+          },
         },
-      },
-      { upsert: true, new: true },
-    );
+        { upsert: true, new: true },
+      );
 
-    return {
-      message: 'Admin document uploaded successfully',
-      data: newDoc,
-    };
-  } catch (error) {
-    if (error instanceof BadRequestException) throw error;
+      return {
+        message: 'Admin document uploaded successfully',
+        data: newDoc,
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
 
-    console.error('ADMIN UPLOAD ERROR:', error);
-    throw new InternalServerErrorException('Admin upload failed');
+      console.error('ADMIN UPLOAD ERROR:', error);
+      throw new InternalServerErrorException('Admin upload failed');
+    }
   }
-}
-
 }

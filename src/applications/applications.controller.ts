@@ -12,9 +12,8 @@ import {
   UseInterceptors,
   BadRequestException,
   UploadedFiles,
-  Delete,  
+  Delete,
   Put,
-
 } from '@nestjs/common';
 import { ApplicationsService } from './applications.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -25,57 +24,53 @@ import { AnyFilesInterceptor } from '@nestjs/platform-express';
 
 import * as multer from 'multer';
 import * as fs from 'fs';
-import * as path from 'path'
+import * as path from 'path';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 @UseGuards(JwtAuthGuard)
 @Controller('')
 export class ApplicationsController {
   constructor(private readonly service: ApplicationsService) {}
-//    @Post('applications')
-//   create(@Req() req: any, @Body() body: any) {
+  //    @Post('applications')
+  //   create(@Req() req: any, @Body() body: any) {
 
+  //   const userId = req.user?.userId;
+  //   if (!userId) {
+  //     throw new UnauthorizedException('Invalid or missing token');
+  //   }
 
-//   const userId = req.user?.userId;
-//   if (!userId) {
-//     throw new UnauthorizedException('Invalid or missing token');
-//   }
+  //   return this.service.create(body, userId);
+  // }
 
-//   return this.service.create(body, userId);
-// }
+  @Post('applications')
+  @UseInterceptors(
+    FilesInterceptor('documents', 10, {
+      storage: multer.memoryStorage(), // MUST
+      limits: { fileSize: 10 * 1024 * 1024 },
 
+      fileFilter: (req, file, cb) => {
+        const allowed = ['.pdf', '.jpg', '.jpeg', '.png'];
+        const ext = extname(file.originalname).toLowerCase();
 
-@Post('applications')
-@UseInterceptors(
-  FilesInterceptor('documents', 10, {
-    storage: multer.memoryStorage(),  // MUST
-    limits: { fileSize: 10 * 1024 * 1024 },
-
-    fileFilter: (req, file, cb) => {
-      const allowed = ['.pdf', '.jpg', '.jpeg', '.png'];
-      const ext = extname(file.originalname).toLowerCase();
-
-      if (!allowed.includes(ext)) {
-        return cb(new BadRequestException('Only PDF/JPG/PNG allowed'), false);
-      }
-      cb(null, true);
-    },
-  }),
-)
-
-create(
-  @Req() req,
-  @Body() body,
-  @UploadedFiles() files: Express.Multer.File[],
-) {
-  const userId = req.user?.userId;
-  if (!userId) throw new UnauthorizedException();
-  return this.service.create(body, userId, files);
-}
+        if (!allowed.includes(ext)) {
+          return cb(new BadRequestException('Only PDF/JPG/PNG allowed'), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  create(
+    @Req() req,
+    @Body() body,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    const userId = req.user?.userId;
+    if (!userId) throw new UnauthorizedException();
+    return this.service.create(body, userId, files);
+  }
 
   @Get('applications/:id')
   get(@Req() req: any, @Param('id') id: string) {
-
     const userId = req.user?.userId;
     if (!userId) {
       throw new UnauthorizedException('Invalid or missing token');
@@ -83,7 +78,7 @@ create(
     return this.service.findById(id, userId);
   }
 
-   @Get('applications/admin/:id') 
+  @Get('applications/admin/:id')
   @UseGuards(AdminJwtGuard)
   getUserApplicationForAdmin(@Param('id') id: string) {
     return this.service.findUserApplicationByIdForAdmin(id);
@@ -99,98 +94,85 @@ create(
   //   return this.service.update(id, body, userId);
   // }
 
-
   // Update appliaction details frontend api application tabs
-@Patch('applications/:id')
-@UseInterceptors(AnyFilesInterceptor())
-updateApplicationDetails(
-  @Req() req: any,
-  @Param('id') id: string,
-  @Body() body: any,
-) {
-  const userId = req.user?.userId;
-  if (!userId) {
-    throw new UnauthorizedException('Invalid or missing token');
+  @Patch('applications/:id')
+  @UseInterceptors(AnyFilesInterceptor())
+  updateApplicationDetails(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new UnauthorizedException('Invalid or missing token');
+    }
+    return this.service.updateApplicationDetails(id, body, userId);
   }
-  return this.service.updateApplicationDetails(id, body, userId);
-}
 
-
- 
- @Get('applications/admin/dashboard/overview')
-@UseGuards(AdminJwtGuard)
-getApplicationsAdmindashboard(@Query() query: any) {
-
-  return this.service.getApplicationsAdmindashboard(query);
-}
-
-@Get('applications/:id/summary')
-@UseGuards(JwtAuthGuard)
-getApplicationSummary(@Param('id') id: string) {
-  return this.service.getApplicationSummary(id);
-}
-
-// Application Details Section api frotnend user 2nd tabs
-
-@Get('applications/:applicationId/details')
-getApplicationDetails(
-  @Req() req: any,
-  @Param('applicationId') applicationId: string,
-) {
-  const userId = req.user?.userId;
-  if (!userId) {
-    throw new UnauthorizedException('Invalid or missing token');
+  @Get('applications/admin/dashboard/overview')
+  @UseGuards(AdminJwtGuard)
+  getApplicationsAdmindashboard(@Query() query: any) {
+    return this.service.getApplicationsAdmindashboard(query);
   }
-  return this.service.findById(applicationId, userId);
-}
 
-
-@UseGuards(JwtAuthGuard)
-@Delete('applications/delete-documents/:id')
-deleteAdditionalDocument(
-  @Req() req,
-  @Param('id') id: string,
-  @Body('fileUrl') fileUrl: string,
-) {
-  const userId = req.user.userId;
-  return this.service.deleteAdditionalDocument(id, userId, fileUrl);
-}
-
-@UseGuards(AdminJwtGuard)
-@Put('admin/update-priority/:id')
-async updatePriority(
-  @Param('id') applicationId: string,
-  @Body() body: { priority: string },
-) {
-  return this.service.updatePriority(applicationId, body.priority); 
-}
-
-@Delete('applications/delete/:id')
-@UseGuards(JwtAuthGuard)
-async deleteApplication(
-  @Param('id') applicationId: string,
-  @Req() req: any,
-) {
-  const userId = req.user?.userId;
-  if (!userId) {
-    throw new UnauthorizedException('Invalid token');
+  @Get('applications/:id/summary')
+  @UseGuards(JwtAuthGuard)
+  getApplicationSummary(@Param('id') id: string) {
+    return this.service.getApplicationSummary(id);
   }
-  return this.service.deleteDraftApplication(applicationId, userId);
+
+  // Application Details Section api frotnend user 2nd tabs
+
+  @Get('applications/:applicationId/details')
+  getApplicationDetails(
+    @Req() req: any,
+    @Param('applicationId') applicationId: string,
+  ) {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new UnauthorizedException('Invalid or missing token');
+    }
+    return this.service.findById(applicationId, userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('applications/delete-documents/:id')
+  deleteAdditionalDocument(
+    @Req() req,
+    @Param('id') id: string,
+    @Body('fileUrl') fileUrl: string,
+  ) {
+    const userId = req.user.userId;
+    return this.service.deleteAdditionalDocument(id, userId, fileUrl);
+  }
+
+  @UseGuards(AdminJwtGuard)
+  @Put('admin/update-priority/:id')
+  async updatePriority(
+    @Param('id') applicationId: string,
+    @Body() body: { priority: string },
+  ) {
+    return this.service.updatePriority(applicationId, body.priority);
+  }
+
+  @Delete('applications/delete/:id')
+  @UseGuards(JwtAuthGuard)
+  async deleteApplication(@Param('id') applicationId: string, @Req() req: any) {
+    const userId = req.user?.userId;
+    if (!userId) {
+      throw new UnauthorizedException('Invalid token');
+    }
+    return this.service.deleteDraftApplication(applicationId, userId);
+  }
+
+  @UseGuards(AdminJwtGuard)
+  @Patch('applications/admin/update/:id')
+  @UseInterceptors(AnyFilesInterceptor())
+  async adminUpdateApplication(
+    @Param('id') id: string,
+    @Body() body: any, // form-data fields
+    @UploadedFiles() files: Express.Multer.File[], // files
+  ) {
+    return this.service.adminUpdateApplication(id, body, files);
+  }
 }
-
-@UseGuards(AdminJwtGuard)
-@Patch('applications/admin/update/:id')
-@UseInterceptors(AnyFilesInterceptor())
-async adminUpdateApplication(
-  @Param('id') id: string,
-  @Body() body: any,          // form-data fields
-  @UploadedFiles() files: Express.Multer.File[],  // files
-) {
-  return this.service.adminUpdateApplication(id, body, files);
-}
-
-
-
-}
-
-

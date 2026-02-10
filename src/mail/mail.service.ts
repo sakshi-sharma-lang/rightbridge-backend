@@ -232,6 +232,39 @@ async sendKycEmail(email: string, kycLink: string) {
   }
 }
 
+// ================= EQUITY CHANGE EMAIL =================
+async sendEquityChangeEmail(data: {
+  email: string;
+  firstName: string;
+  applicationId: string;
+  reason: string;
+  borrowerContribution: number;
+})
+ {
+  try {
+   const html = this.loadTemplate('equity-change.html', {
+  FIRST_NAME: data.firstName,
+  APP_ID: data.applicationId,
+  REASON: data.reason,
+  CONTRIBUTION: String(data.borrowerContribution || 0),
+});
+
+
+    await this.transporter.sendMail({
+      from: `"RightBridge" <${
+        this.configService.get('SMTP_FROM') ||
+        this.configService.get('SMTP_USER')
+      }>`,
+      to: data.email,
+      subject: 'Borrower contribution updated by admin',
+      html,
+    });
+
+    console.log('✅ Equity change email sent:', data.email);
+  } catch (error) {
+    console.log('❌ Equity change email failed:', error);
+  }
+}
 
 
 

@@ -14,11 +14,12 @@ import { Counter, CounterSchema } from '../applications/schemas/counter.schema';
 import { MailModule } from '../mail/mail.module';
 import { ApplicationsModule } from '../applications/applications.module';
 
-import { Application, ApplicationSchema } from '../applications/schemas/application.schema'; 
-
+import {
+  Application,
+  ApplicationSchema,
+} from '../applications/schemas/application.schema';
 
 import { AdminApplicationsService } from './admin-applications.service';
-
 
 @Module({
   imports: [
@@ -38,20 +39,14 @@ import { AdminApplicationsService } from './admin-applications.service';
 
     MongooseModule.forFeature([
       { name: Admin.name, schema: AdminSchema },
-      { name: Counter.name, schema: CounterSchema }, 
-        { name: Application.name, schema: ApplicationSchema },  
-
+      { name: Counter.name, schema: CounterSchema },
+      { name: Application.name, schema: ApplicationSchema },
     ]),
 
     MailModule,
     ApplicationsModule,
   ],
-  controllers: [AdminController ,AdminApplicationsController
-],
-  providers: [
-    AdminService,
-  AdminApplicationsService,   
-    AdminJwtStrategy,
-  ],
+  controllers: [AdminController, AdminApplicationsController],
+  providers: [AdminService, AdminApplicationsService, AdminJwtStrategy],
 })
 export class AdminModule {}
