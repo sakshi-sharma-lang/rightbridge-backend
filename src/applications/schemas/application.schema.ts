@@ -227,7 +227,12 @@ rejectReason?: string;
     default: [],
   })
 application_stage_management: string[];
-commitment_fee: number;
+@Prop({
+  type: Number,
+  default: null,   
+})
+commitment_fee: number | null;
+
 @Prop({
   type: [String],      // stores only file URLs
   default: [],

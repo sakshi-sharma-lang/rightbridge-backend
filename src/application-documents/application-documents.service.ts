@@ -334,55 +334,66 @@ const key = `${year}/${month}/${day}/${applicationId}/${type}/${Date.now()}-${fi
 
   // ================= ADMIN UPLOAD =================
   async uploadAdminDocument(
-    applicationId: string,
-    userId: string,
-    type: string,
-    file: Express.Multer.File,
-  ) {
-    try {
-      if (!applicationId || !userId)
-        throw new BadRequestException('applicationId & userId required');
+  applicationId: string,
+  userId: string,
+  type: string,
+  file: Express.Multer.File,
+) {
+  try {
+    if (!applicationId || !userId)
+      throw new BadRequestException('applicationId & userId required');
 
-      if (!file) throw new BadRequestException('File is required');
+    if (!file) throw new BadRequestException('File is required');
 
-      const allowedTypes = ['credit_report', 'internal_document'];
-      if (!allowedTypes.includes(type)) {
-        throw new BadRequestException(
-          'Admin can upload only credit_report or internal_document',
-        );
-      }
-
-      const key = `application-documents/${applicationId}/admin/${Date.now()}-${file.originalname}`;
-      const s3Url = await S3Helper.upload(file, key);
-
-      const newDoc: DocumentItem = {
-        type,
-        filePath: s3Url,
-        originalName: file.originalname,
-        size: file.size,
-        uploadedBy: 'admin',
-        createdAt: new Date(),
-      };
-
-      await this.documentModel.findOneAndUpdate(
-        { applicationId, userId },
-        {
-          $push: {
-            [`adminDocumentUpload.${type}`]: newDoc,
-          },
-        },
-        { upsert: true, new: true },
+    const allowedTypes = ['credit_report', 'internal_document'];
+    if (!allowedTypes.includes(type)) {
+      throw new BadRequestException(
+        'Admin can upload only credit_report or internal_document',
       );
-
-      return {
-        message: 'Admin document uploaded successfully',
-        data: newDoc,
-      };
-    } catch (error) {
-      if (error instanceof BadRequestException) throw error;
-
-      console.error('ADMIN UPLOAD ERROR:', error);
-      throw new InternalServerErrorException('Admin upload failed');
     }
+
+    // 🔵 date folder structure
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+
+    // 🔵 final S3 key format
+    const key = `admindocument/${year}/${month}/${day}/${applicationId}/${type}/${Date.now()}-${file.originalname}`;
+
+    // 🔵 upload to S3
+    const s3Url = await S3Helper.upload(file, key);
+
+    const newDoc: DocumentItem = {
+      type,
+      filePath: s3Url,
+      originalName: file.originalname,
+      size: file.size,
+      uploadedBy: 'admin',
+      createdAt: new Date(),
+    };
+
+    // 🔵 save in DB
+    await this.documentModel.findOneAndUpdate(
+      { applicationId, userId },
+      {
+        $push: {
+          [`adminDocumentUpload.${type}`]: newDoc,
+        },
+      },
+      { upsert: true, new: true },
+    );
+
+    return {
+      message: 'Admin document uploaded successfully',
+      data: newDoc,
+    };
+  } catch (error) {
+    if (error instanceof BadRequestException) throw error;
+
+    console.error('ADMIN UPLOAD ERROR:', error);
+    throw new InternalServerErrorException('Admin upload failed');
   }
+}
+
 }

@@ -31,54 +31,89 @@ export class PaymentsService {
   /* ================= CREATE STRIPE PAYMENT ================= */
 /* ================= CREATE STRIPE PAYMENT ================= */
 async createPayment(applicationId: string, userId: string) {
-  // Try to find by MongoDB ObjectId first, then by appId
   let application;
+
   if (Types.ObjectId.isValid(applicationId)) {
     application = await this.applicationModel.findById(applicationId).lean();
   } else {
-    // If not a valid ObjectId, try to find by appId
     application = await this.applicationModel.findOne({ appId: applicationId }).lean();
   }
- 
+
   if (!application) {
     throw new BadRequestException('Application not found');
   }
- 
+
   if (application.userId.toString() !== userId) {
     throw new ForbiddenException('Not allowed');
   }
- 
-  // Use default commitment fee of 500 if not set
+
   const commitmentFee = Number(application.commitment_fee) || 500;
- 
-  // 🔒 PREVENT DOUBLE PAYMENT - Use MongoDB _id for payment lookup
-  const alreadyPaid = await this.paymentModel.findOne({
+
+  // 🔎 check existing payment
+  const existingPayment = await this.paymentModel.findOne({
     applicationId: application._id,
-    status: 'PAID',
   });
- 
-  if (alreadyPaid) {
-    throw new BadRequestException('Payment already completed');
+
+  // ================= IF EXISTS =================
+  if (existingPayment?.stripePaymentIntentId) {
+
+    const stripeIntent = await this.stripe.paymentIntents.retrieve(
+      existingPayment.stripePaymentIntentId,
+    );
+
+    // ⭐ update status from stripe
+    await this.paymentModel.updateOne(
+      { _id: existingPayment._id },
+      { status: stripeIntent.status },
+    );
+
+    return {
+      statusCode: 200,
+      message: 'Existing payment intent',
+      data: {
+        clientSecret: stripeIntent.client_secret,
+        paymentIntentId: stripeIntent.id,
+        stripeStatus: stripeIntent.status,
+        amount: stripeIntent.amount / 100,
+        currency: stripeIntent.currency,
+      },
+    };
   }
- 
+
+  // ================= CREATE NEW =================
   const intent = await this.stripe.paymentIntents.create({
-    amount: commitmentFee * 100, // Stripe expects smallest currency unit
+    amount: commitmentFee * 100,
     currency: 'gbp',
     metadata: {
       applicationId: application._id.toString(),
       userId,
     },
   });
- 
+
+  // ⭐ save only schema fields
+  await this.paymentModel.create({
+    applicationId: application._id,
+    userId,
+    amount: commitmentFee,
+    stripePaymentIntentId: intent.id,
+    status: intent.status, // exact stripe status
+  });
+
+  // ⭐ send full data to frontend
   return {
     statusCode: 201,
     message: 'Payment intent created',
     data: {
       clientSecret: intent.client_secret,
       paymentIntentId: intent.id,
+      stripeStatus: intent.status,
+      amount: intent.amount / 100,
+      currency: intent.currency,
     },
   };
 }
+
+
  
  
 /* ================= PAYMENT DETAILS ================= */
