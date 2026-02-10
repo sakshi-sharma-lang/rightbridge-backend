@@ -58,7 +58,7 @@ const year = now.getFullYear();
 const month = String(now.getMonth() + 1).padStart(2, '0');
 const day = String(now.getDate()).padStart(2, '0');
 
-const key = `${year}/${month}/${day}/${applicationId}/${type}/${Date.now()}-${file.originalname}`;
+const key = `userdocument/${year}/${month}/${day}/${applicationId}/${type}/${Date.now()}-${file.originalname}`;
 
       const s3Url = await S3Helper.upload(file, key);
 
