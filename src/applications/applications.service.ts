@@ -711,69 +711,75 @@ export class ApplicationsService {
 
     return application;
   }
-  async getApplicationSummary(applicationId: string) {
-    const application = await this.applicationModel
-      .findById(applicationId)
-      .select({
-        appId: 1,
-        status: 1,
-        createdAt: 1,
-        updatedAt: 1,
-        // Applicant
-        'applicants.firstName': 1,
-        'applicants.lastName': 1,
-        'applicants.email': 1,
-        // Loan
-        'loanRequirements.loanAmount': 1,
+ async getApplicationSummary(applicationId: string) {
+  const application = await this.applicationModel
+    .findById(applicationId)
+    .select({
+      appId: 1,
+      status: 1,
+      createdAt: 1,
+      updatedAt: 1,
 
-        // Property
-        'property.address': 1,
-        'property.estimatedValue': 1,
-      })
-      .lean();
+      // Applicant
+      'applicants.firstName': 1,
+      'applicants.lastName': 1,
+      'applicants.email': 1,
 
-    if (!application) {
-      throw new NotFoundException('Application not found');
-    }
+      // Loan
+      'loanRequirements.loanAmount': 1,
 
-    const loanAmount = application.loanRequirements?.loanAmount ?? 0;
-    const propertyValue = application.property?.estimatedValue ?? 0;
-    const updatedAt = application.updatedAt ?? 0;
+      // Property
+      'property.address': 1,
+      'property.estimatedValue': 1,
+    })
+    .lean();
 
-    return {
-      applicationId: application.appId,
-
-      submittedDate: application.updatedAt
-        ? new Intl.DateTimeFormat('en-GB', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-          }).format(new Date(application.updatedAt))
-        : null,
-
-      status: application.status,
-      //createdat: createdAt,
-
-      applicant: {
-        name: `${application?.applicants?.[0]?.firstName ?? ''} ${
-          application?.applicants?.[0]?.lastName ?? ''
-        }`.trim(),
-        email: application?.applicants?.[0]?.email ?? '',
-      },
-      loan: {
-        amount: loanAmount,
-        propertyValue,
-        ltv:
-          loanAmount && propertyValue
-            ? `${((loanAmount / propertyValue) * 100).toFixed(1)}%`
-            : null,
-      },
-
-      property: {
-        address: application.property?.address ?? '',
-      },
-    };
+  if (!application) {
+    throw new NotFoundException('Application not found');
   }
+
+  const loanAmount = application.loanRequirements?.loanAmount ?? 0;
+  const propertyValue = application.property?.estimatedValue ?? 0;
+
+  // 🔹 format status (remove underscore)
+  const formattedStatus = application.status
+    ? application.status.replace(/_/g, ' ')
+    : application.status;
+
+  return {
+    applicationId: application.appId,
+
+    submittedDate: application.updatedAt
+      ? new Intl.DateTimeFormat('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        }).format(new Date(application.updatedAt))
+      : null,
+
+    status: formattedStatus, // 👈 only change applied here
+
+    applicant: {
+      name: `${application?.applicants?.[0]?.firstName ?? ''} ${
+        application?.applicants?.[0]?.lastName ?? ''
+      }`.trim(),
+      email: application?.applicants?.[0]?.email ?? '',
+    },
+
+    loan: {
+      amount: loanAmount,
+      propertyValue,
+      ltv:
+        loanAmount && propertyValue
+          ? `${((loanAmount / propertyValue) * 100).toFixed(1)}%`
+          : null,
+    },
+
+    property: {
+      address: application.property?.address ?? '',
+    },
+  };
+}
   async getApplicationDetails(query: any) {
     const {
       status,
