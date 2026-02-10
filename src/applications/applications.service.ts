@@ -1347,14 +1347,14 @@ export class ApplicationsService {
         throw new BadRequestException('Only draft application can be deleted');
       }
 
-      // ✅ 5. Status check
+      //  5. Status check
       if (application.status !== 'welcome_stage') {
         throw new BadRequestException(
           'Only welcome stage draft application can be deleted',
         );
       }
 
-      // ✅ 6. Delete
+      //  6. Delete
       await this.applicationModel.deleteOne({ _id: appObjectId });
 
       return {
@@ -1362,7 +1362,7 @@ export class ApplicationsService {
         message: 'Application deleted successfully',
       };
     } catch (err) {
-      // ✅ Known errors → throw directly
+      //  Known errors → throw directly
       if (
         err instanceof BadRequestException ||
         err instanceof NotFoundException ||
@@ -1380,14 +1380,14 @@ export class ApplicationsService {
 
 async adminUpdateApplication(id: string, body: any, files: any[]) {
   try {
-    console.log('\n========== ADMIN UPDATE START ==========');
+    // console.log('\n========== ADMIN UPDATE START ==========');
 
     if (!id) throw new BadRequestException('Application id required');
 
     const application = await this.applicationModel.findById(id);
     if (!application) throw new NotFoundException('Application not found');
 
-    console.log('STEP 1: BODY RECEIVED =>', JSON.stringify(body, null, 2));
+   // console.log('STEP 1: BODY RECEIVED =>', JSON.stringify(body, null, 2));
 
     const updateData: any = {};
 
@@ -1417,12 +1417,12 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
     if (equityAmountChanged || borrowerContributionChanged || reasonChanged) {
       const now = new Date();
       updateData['loanRequirements.equity_override_date'] = now;
-      console.log('✅ DATE AUTO SET =>', now);
+    //  console.log('✅ DATE AUTO SET =>', now);
     } else {
-      console.log('❌ No equity change detected');
+    //  console.log('❌ No equity change detected');
     }
 
-    console.log('STEP 2: FINAL UPDATE OBJECT =>', updateData);
+  //  console.log('STEP 2: FINAL UPDATE OBJECT =>', updateData);
 
     // =========================================================
     // UPDATE DB
@@ -1437,7 +1437,7 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
       },
     );
 
-    console.log('STEP 3: DB RESULT =>', updated?.loanRequirements);
+   // console.log('STEP 3: DB RESULT =>', updated?.loanRequirements);
 
     // =========================================================
     // SEND EMAIL IF REASON EXISTS
@@ -1450,7 +1450,7 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
       reason !== null &&
       String(reason).trim() !== ''
     ) {
-      console.log('📧 Equity reason found → sending email');
+     // console.log('📧 Equity reason found → sending email');
 
       try {
         const emails: string[] = [];
@@ -1473,18 +1473,18 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
         let mainUserLastName = '';
         let mainUserEmail = '';
 
-        if ((updated as any)?.userId) {
-          const userDoc = await this.userModel
-            .findById((updated as any).userId)
-            .lean();
+        // if ((updated as any)?.userId) {
+        //   const userDoc = await this.userModel
+        //     .findById((updated as any).userId)
+        //     .lean();
 
-          if (userDoc?.email) {
-            emails.push(userDoc.email);
-            mainUserEmail = userDoc.email;
-            mainUserFirstName = userDoc.firstName || '';
-            mainUserLastName = userDoc.lastName || '';
-          }
-        }
+        //   if (userDoc?.email) {
+        //     emails.push(userDoc.email);
+        //     mainUserEmail = userDoc.email;
+        //     mainUserFirstName = userDoc.firstName || '';
+        //     mainUserLastName = userDoc.lastName || '';
+        //   }
+        // }
 
         // =====================================================
         // REMOVE DUPLICATES
@@ -1517,11 +1517,11 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
           // ================================
           // IF MAIN USER EMAIL
           // ================================
-          else if (email === mainUserEmail) {
-            const f = mainUserFirstName || '';
-            const l = mainUserLastName || '';
-            fullName = `${f} ${l}`.trim() || 'Customer';
-          }
+          // else if (email === mainUserEmail) {
+          //   const f = mainUserFirstName || '';
+          //   const l = mainUserLastName || '';
+          //   fullName = `${f} ${l}`.trim() || 'Customer';
+          // }
 
           await this.mailService.sendEquityChangeEmail({
             email,
@@ -1532,10 +1532,10 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
               (updated as any)?.loanRequirements?.borrowerContribution,
           });
 
-          console.log('✅ Email sent to:', email);
+          //console.log('✅ Email sent to:', email);
         }
       } catch (mailErr) {
-        console.log('❌ Email sending failed:', mailErr);
+       // console.log('❌ Email sending failed:', mailErr);
       }
     }
 
