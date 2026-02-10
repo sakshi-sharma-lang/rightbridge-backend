@@ -1,13 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
 
-export enum PaymentStatus {
-  PENDING = 'PENDING',   // intent created, waiting for Stripe
-  PAID = 'PAID',         // payment_intent.succeeded
-  FAILED = 'FAILED',     // payment_intent.payment_failed
-  REFUNDED = 'REFUNDED', // future-safe
-}
-
 @Schema({ timestamps: true })
 export class Payment {
   @Prop({ type: Types.ObjectId, ref: 'Application', required: true })
@@ -17,19 +10,17 @@ export class Payment {
   userId: Types.ObjectId;
 
   @Prop({ required: true })
-  amount: number; // ALWAYS from Stripe (intent.amount / 100)
+  amount: number;
 
   @Prop({ required: true, unique: true })
   stripePaymentIntentId: string;
 
-  @Prop({
-    enum: PaymentStatus,
-    default: PaymentStatus.PENDING,
-  })
-  status: PaymentStatus;
+  // 🔥 simple status field (store anything from Stripe)
+  @Prop({ type: String, default: 'requires_payment_method' })
+  status: string;
 }
 
 export const PaymentSchema = SchemaFactory.createForClass(Payment);
 
-// 🔒 Recommended index
+// recommended index
 PaymentSchema.index({ applicationId: 1, status: 1 });
