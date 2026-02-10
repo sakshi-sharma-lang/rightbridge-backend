@@ -567,7 +567,6 @@ async updateApplicationDetails(
   const endOfLastMonth = new Date(startOfMonth);
   endOfLastMonth.setMilliseconds(-1);
 
-  // ================= SEARCH =================
   if (search) {
     const raw = search.trim();
     const parts = raw.split(/\s+/);
@@ -628,7 +627,7 @@ async updateApplicationDetails(
         'applicants.firstName': 1,
         'applicants.lastName': 1,
         'loanRequirements.loanAmount': 1,
-        'loanRequirements.loanPurpose': 1, // ⭐ added only this line
+        'loanRequirements.loanPurpose': 1,
         'property.address': 1,
       })
       .sort({ updatedAt: -1 })
@@ -637,24 +636,19 @@ async updateApplicationDetails(
       .lean(),
 
     this.applicationModel.countDocuments(filter),
-
     this.applicationModel.countDocuments(baseFilter),
-
     this.applicationModel.countDocuments({
       ...baseFilter,
       updatedAt: { $gte: startOfToday, $lte: endOfToday },
     }),
-
     this.applicationModel.countDocuments({ status: 'fee_required' }),
     this.applicationModel.countDocuments({ status: 'kyc_in_progress' }),
     this.applicationModel.countDocuments({ status: 'underwriting' }),
     this.applicationModel.countDocuments({ status: 'offer_issued' }),
-
     this.applicationModel.countDocuments({
       ...baseFilter,
       createdAt: { $gte: startOfMonth, $lte: endOfMonth },
     }),
-
     this.applicationModel.countDocuments({
       ...baseFilter,
       createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth },
@@ -664,21 +658,31 @@ async updateApplicationDetails(
   const thisMonthChange = thisMonthCount - lastMonthCount;
 
   // ================= TABLE FORMAT =================
-  const data = rows.map((item) => ({
-    appId: item.appId,
-    applicantName: `${item?.applicants?.[0]?.firstName ?? ''} ${item?.applicants?.[0]?.lastName ?? ''}`.trim(),
-    loanAmount: item.loanRequirements?.loanAmount ?? 0,
-    propertyAddress: item.property?.address ?? '',
+  const data = rows.map((item) => {
 
-    // ⭐ ONLY LOGIC ADDED HERE
-    status:
+    let formattedStatus =
+      STATUS_LABEL_MAP[item.status] ||
+      String(item.status)
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+
+    // ⭐ pending admin review logic
+    if (
       item?.loanRequirements?.loanPurpose === 'other' &&
       (String(item?.status) === 'dip_submitted' || String(item?.status) === 'dip_stage')
-        ? 'Pending Admin Review'
-        : (STATUS_LABEL_MAP[item.status] || item.status),
+    ) {
+      formattedStatus = 'Pending Admin Review';
+    }
 
-    updatedAt: item.updatedAt,
-  }));
+    return {
+      appId: item.appId,
+      applicantName: `${item?.applicants?.[0]?.firstName ?? ''} ${item?.applicants?.[0]?.lastName ?? ''}`.trim(),
+      loanAmount: item.loanRequirements?.loanAmount ?? 0,
+      propertyAddress: item.property?.address ?? '',
+      status: formattedStatus,
+      updatedAt: item.updatedAt,
+    };
+  });
 
   return {
     totalApplications,
@@ -694,6 +698,7 @@ async updateApplicationDetails(
     data,
   };
 }
+
 
   /* ================= ADMIN GET USER APPLICATION ================= */
   async findUserApplicationByIdForAdmin(id: string): Promise<Application> {
@@ -1146,18 +1151,20 @@ async getAllApplicationbyAdmin(query: any) {
   const completed = offersIssued;
 
   // ================= TABLE FORMAT =================
-  const data = rows.map((item) => {
+  const data = rows.map((item) => {  
+  let displayStatus =
+    STATUS_LABEL_MAP[item.status] ||
+    String(item.status)
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase());
 
-    let displayStatus = STATUS_LABEL_MAP[item.status] || item.status;
-
-    // ⭐ MAIN LOGIC (FINAL WORKING)
-    if (
-      item?.loanRequirements?.loanPurpose === 'other' &&
-      (String(item?.status) === 'dip_submitted' || String(item?.status) === 'dip_stage')
-    ) {
-      displayStatus = 'Pending Admin Review';
-    }
-
+  // ⭐ Pending admin review logic (unchanged)
+  if (
+    item?.loanRequirements?.loanPurpose === 'other' &&
+    (String(item?.status) === 'dip_submitted' || String(item?.status) === 'dip_stage')
+  ) {
+    displayStatus = 'Pending Admin Review';
+  }
     return {
       id: item._id,
       appId: item.appId,
