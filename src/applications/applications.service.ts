@@ -359,220 +359,48 @@ async updateApplicationDetails(
   userId: string,
 ): Promise<Application> {
   try {
-    // 🔹 STEP 1: Check DB first
-    let pushStatusManagement: string | null = null;
+    console.log('\n========== UPDATE APPLICATION START ==========');
 
-    const existingApplication: any = await this.applicationModel.findOne({
+    if (!id) {
+      throw new BadRequestException('Application id required');
+    }
+
+    // 🔹 find application
+    const application = await this.applicationModel.findOne({
       _id: id,
       userId,
     });
 
-    if (!existingApplication) {
-      throw new ForbiddenException(
-        'You are not authorized to update this application',
-      );
+    if (!application) {
+      throw new ForbiddenException('Application not found');
     }
 
-    // =========================================================
-    // 🔹 STEP 2: Get loan + property values (body → db fallback)
-    // =========================================================
-    const loanAmount = Number(
-      body?.['loanRequirements.loanAmount'] ??
-        body?.loanRequirements?.loanAmount ??
-        existingApplication?.loanRequirements?.loanAmount,
-    );
-
-    const propertyValue = Number(
-      body?.['property.estimatedValue'] ??
-        body?.property?.estimatedValue ??
-        existingApplication?.property?.estimatedValue,
-    );
-
-    if (isNaN(loanAmount) || isNaN(propertyValue) || propertyValue <= 0) {
-      throw new BadRequestException(
-        'Loan amount and property value are required to update application',
-      );
-    }
+    console.log('STEP 1: FRONTEND BODY =>', JSON.stringify(body, null, 2));
 
     // =========================================================
-    // 🔹 STEP 3: LTV LOGIC
+    // 🔴 FULL UPDATE FROM FRONTEND
+    // whatever comes → save in DB
     // =========================================================
-    let statusUpdate: any = {};
-    const ltv = (loanAmount / propertyValue) * 100;
 
-    if (ltv > 75) {
-      statusUpdate = {
-        status: 'AUTO_REJECTED',
-        rejectReason: 'LTV EXCEEDED',
-      };
-    } else if (body?.status === 'dip_stage') {
-      statusUpdate = {
-        status: 'dip_stage',
-        application_stage_management: 'dip_submitted',
-        rejectReason: '',
-      };
-    }
+    Object.keys(body).forEach((key) => {
+      application[key] = body[key];
+    });
 
     // =========================================================
-    // 🔹 STEP 4: SAFE UPDATE PREPARATION (MAIN FIX)
+    // 🔹 SAVE
     // =========================================================
-    const updateSet: any = {};
+    const updated = await application.save();
 
-    for (const key in body) {
-      if (
-        key === 'userId' ||
-        key === 'appId' ||
-        key === 'applicationStatus'
-      )
-        continue;
-
-      let value: any = body[key];
-
-      if (value === undefined || value === null) continue;
-
-      // ❌ ignore empty string
-      if (value === '') continue;
-
-      // =====================================================
-      // 🟢 MERGE loanRequirements (MOST IMPORTANT)
-      // =====================================================
-      if (
-        key === 'loanRequirements' &&
-        typeof value === 'object' &&
-        !Array.isArray(value)
-      ) {
-        if (Object.keys(value).length === 0) continue;
-
-        updateSet[key] = {
-          ...(existingApplication.loanRequirements || {}),
-          ...value,
-        };
-        continue;
-      }
-
-      // =====================================================
-      // 🟢 MERGE property object
-      // =====================================================
-      if (
-        key === 'property' &&
-        typeof value === 'object' &&
-        !Array.isArray(value)
-      ) {
-        if (Object.keys(value).length === 0) continue;
-
-        updateSet[key] = {
-          ...(existingApplication.property || {}),
-          ...value,
-        };
-        continue;
-      }
-
-      // =====================================================
-      // 🟢 HANDLE NESTED FORM DATA (loanRequirements.loanAmount)
-      // =====================================================
-      if (key.includes('.')) {
-        const [parent, child] = key.split('.');
-
-        if (!updateSet[parent]) {
-          updateSet[parent] = {
-            ...(existingApplication[parent] || {}),
-          };
-        }
-
-        let finalVal: any = value;
-
-        if (
-          typeof finalVal === 'string' &&
-          finalVal.trim() !== '' &&
-          !isNaN(Number(finalVal))
-        ) {
-          finalVal = Number(finalVal);
-        }
-
-        updateSet[parent][child] = finalVal;
-        continue;
-      }
-
-      // =====================================================
-      // convert numeric string → number
-      // =====================================================
-      if (
-        typeof value === 'string' &&
-        value.trim() !== '' &&
-        !isNaN(Number(value))
-      ) {
-        value = Number(value);
-      }
-
-      updateSet[key] = value;
-    }
-
-    // always mark not draft
-    updateSet['isDraft'] = false;
-
-    // =========================================================
-    // 🔹 APPLY STATUS UPDATE
-    // =========================================================
-    if (statusUpdate?.status) {
-      updateSet['status'] = statusUpdate.status;
-      updateSet['rejectReason'] = statusUpdate.rejectReason || '';
-    }
-
-    if (statusUpdate?.application_stage_management) {
-      updateSet['application_stage_management'] =
-        statusUpdate.application_stage_management;
-    }
-
-    // =========================================================
-    // 🔹 PUSH STATUS HISTORY
-    // =========================================================
-    if (body?.applicationStatus) {
-      pushStatusManagement = body.applicationStatus;
-    }
-
-    // =========================================================
-    // 🔹 FINAL UPDATE QUERY
-    // =========================================================
-    const updateQuery: any = {
-      $set: updateSet,
-    };
-
-    if (pushStatusManagement) {
-      updateQuery.$push = {
-        applicationStatus: pushStatusManagement,
-      };
-    }
-
-    const updated = await this.applicationModel.findOneAndUpdate(
-      { _id: id, userId },
-      updateQuery,
-      { new: true },
-    );
-
-    if (!updated) {
-      throw new ForbiddenException(
-        'You are not authorized to update this application',
-      );
-    }
+    console.log('✅ APPLICATION UPDATED SUCCESS');
+    console.log('========== UPDATE END ==========\n');
 
     return updated;
   } catch (error) {
-    console.log('UPDATE ERROR =>', error);
-
-    if (
-      error instanceof BadRequestException ||
-      error instanceof ForbiddenException ||
-      error instanceof NotFoundException
-    ) {
-      throw error;
-    }
-
-    throw new InternalServerErrorException({
-      message: 'Failed to update application',
-      error: error?.message ?? 'Internal Server Error',
-    });
+    console.error('❌ UPDATE ERROR:', error);
+    throw new InternalServerErrorException(error.message);
   }
 }
+
 
 
 
