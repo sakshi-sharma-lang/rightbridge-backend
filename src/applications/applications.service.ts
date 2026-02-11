@@ -362,7 +362,7 @@ async updateApplicationDetails(
     // 🔹 STEP 1: Check DB first
     let pushStatusManagement: string | null = null;
 
-    const existingApplication = await this.applicationModel.findOne({
+    const existingApplication: any = await this.applicationModel.findOne({
       _id: id,
       userId,
     });
@@ -373,7 +373,9 @@ async updateApplicationDetails(
       );
     }
 
+    // =========================================================
     // 🔹 STEP 2: Get loan + property values (body → db fallback)
+    // =========================================================
     const loanAmount = Number(
       body?.['loanRequirements.loanAmount'] ??
         body?.loanRequirements?.loanAmount ??
@@ -386,7 +388,6 @@ async updateApplicationDetails(
         existingApplication?.property?.estimatedValue,
     );
 
-    // 🔴 STEP 3: Validate required values
     if (isNaN(loanAmount) || isNaN(propertyValue) || propertyValue <= 0) {
       throw new BadRequestException(
         'Loan amount and property value are required to update application',
@@ -394,7 +395,7 @@ async updateApplicationDetails(
     }
 
     // =========================================================
-    // 🔹 STEP 4: LTV LOGIC
+    // 🔹 STEP 3: LTV LOGIC
     // =========================================================
     let statusUpdate: any = {};
     const ltv = (loanAmount / propertyValue) * 100;
@@ -413,7 +414,7 @@ async updateApplicationDetails(
     }
 
     // =========================================================
-    // 🔹 STEP 5: PREPARE UPDATE OBJECT FROM FORMDATA / JSON
+    // 🔹 STEP 4: SAFE UPDATE PREPARATION (MAIN FIX)
     // =========================================================
     const updateSet: any = {};
 
@@ -422,17 +423,79 @@ async updateApplicationDetails(
         key === 'userId' ||
         key === 'appId' ||
         key === 'applicationStatus'
-      ) continue;
+      )
+        continue;
 
       let value: any = body[key];
 
-      // if object or array → store directly
-      if (typeof value === 'object' && value !== null) {
-        updateSet[key] = value;
+      if (value === undefined || value === null) continue;
+
+      // ❌ ignore empty string
+      if (value === '') continue;
+
+      // =====================================================
+      // 🟢 MERGE loanRequirements (MOST IMPORTANT)
+      // =====================================================
+      if (
+        key === 'loanRequirements' &&
+        typeof value === 'object' &&
+        !Array.isArray(value)
+      ) {
+        if (Object.keys(value).length === 0) continue;
+
+        updateSet[key] = {
+          ...(existingApplication.loanRequirements || {}),
+          ...value,
+        };
         continue;
       }
 
-      // convert numeric string → number (TS safe)
+      // =====================================================
+      // 🟢 MERGE property object
+      // =====================================================
+      if (
+        key === 'property' &&
+        typeof value === 'object' &&
+        !Array.isArray(value)
+      ) {
+        if (Object.keys(value).length === 0) continue;
+
+        updateSet[key] = {
+          ...(existingApplication.property || {}),
+          ...value,
+        };
+        continue;
+      }
+
+      // =====================================================
+      // 🟢 HANDLE NESTED FORM DATA (loanRequirements.loanAmount)
+      // =====================================================
+      if (key.includes('.')) {
+        const [parent, child] = key.split('.');
+
+        if (!updateSet[parent]) {
+          updateSet[parent] = {
+            ...(existingApplication[parent] || {}),
+          };
+        }
+
+        let finalVal: any = value;
+
+        if (
+          typeof finalVal === 'string' &&
+          finalVal.trim() !== '' &&
+          !isNaN(Number(finalVal))
+        ) {
+          finalVal = Number(finalVal);
+        }
+
+        updateSet[parent][child] = finalVal;
+        continue;
+      }
+
+      // =====================================================
+      // convert numeric string → number
+      // =====================================================
       if (
         typeof value === 'string' &&
         value.trim() !== '' &&
@@ -468,7 +531,7 @@ async updateApplicationDetails(
     }
 
     // =========================================================
-    // 🔹 FINAL UPDATE
+    // 🔹 FINAL UPDATE QUERY
     // =========================================================
     const updateQuery: any = {
       $set: updateSet,
@@ -510,6 +573,7 @@ async updateApplicationDetails(
     });
   }
 }
+
 
 
 
