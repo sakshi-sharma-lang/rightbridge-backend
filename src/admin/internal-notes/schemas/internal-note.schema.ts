@@ -1,7 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
-@Schema({ timestamps: true })
+@Schema({
+  timestamps: { createdAt: true, updatedAt: false } // ✅ fix here
+})
 export class InternalNote extends Document {
 
   @Prop({ type: Types.ObjectId, ref: 'applications', required: true })
@@ -13,8 +15,19 @@ export class InternalNote extends Document {
   @Prop()
   adminName: string;
 
-  @Prop({ required: true })
-  message: string;
+  @Prop({
+    type: [
+      {
+        message: { type: String, required: true },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+    default: [],
+  })
+  messages: {
+    message: string;
+    createdAt: Date;
+  }[];
 
   @Prop({ default: true })
   isActive: boolean;

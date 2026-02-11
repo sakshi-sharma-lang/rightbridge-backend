@@ -3,6 +3,7 @@ import { Document } from 'mongoose';
 
 @Schema({ timestamps: true })
 export class User extends Document {
+
   @Prop({ required: true })
   firstName: string;
 
@@ -15,7 +16,7 @@ export class User extends Document {
   @Prop({ required: true, unique: true })
   phoneNumber: string;
 
-   @Prop({ default: 'active'})
+  @Prop({ default: 'active'})
   status: string;
 
   @Prop({ required: true })
@@ -33,7 +34,7 @@ export class User extends Document {
   @Prop({ default: null })
   lastLogin?: Date;
 
-    @Prop({ default: null })
+  @Prop({ default: null })
   otp?: string;
 
   @Prop({ default: null })
@@ -42,17 +43,34 @@ export class User extends Document {
   @Prop({ default: false })
   isOtpVerified?: boolean;
 
-   @Prop({ default: false })
+  @Prop({ default: false })
   isForgetPasswordVerified?: boolean;
 
-@Prop({ default: 0 })
+  @Prop({ default: 0 })
   forgotPasswordCount?: number;
 
   @Prop({ default: null })
   forgotPasswordLastRequest?: Date;
 
+  // 🔷 SETTINGS
+  @Prop()
+  emailNotifications?: boolean;
 
+  @Prop()
+  smsNotifications?: boolean;
 
+  @Prop()
+  documentReminders?: boolean;
+
+  @Prop()
+  marketingEmails?: boolean;
+
+  // 🔷 ADD THIS FOR TIMESTAMPS FIX
+  @Prop()
+  createdAt?: Date;
+
+  @Prop()
+  updatedAt?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

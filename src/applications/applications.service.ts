@@ -442,9 +442,6 @@ async updateApplicationDetails(
   }
 }
 
-
-
-
   /* ================= APP ID GENERATOR ================= */
   private async generateAppId(): Promise<string> {
     const year = new Date().getFullYear();

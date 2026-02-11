@@ -12,7 +12,7 @@ import { SurveyorsModule } from './surveyors/surveyors.module';
 import { PaymentsModule } from './payments/payments.module';
 import { KycModule } from './kyc/kyc.module';
 import { ApplicationDocumentsModule } from './application-documents/application-documents.module'; 
-
+import { UserSettingsModule } from './user-settings/user-settings.module';
 
 
 @Module({
@@ -51,7 +51,9 @@ import { ApplicationDocumentsModule } from './application-documents/application-
     SurveyorsModule,
     PaymentsModule,  
     KycModule, 
-     ApplicationDocumentsModule,   
+     ApplicationDocumentsModule, 
+     UserSettingsModule,   
+  
 
   ],
 })

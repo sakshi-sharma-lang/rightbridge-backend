@@ -19,6 +19,9 @@ export class InternalNotesService {
     private adminModel: Model<Admin>,
   ) {}
 
+  // =====================================================
+  // ADD NOTE (SAVE IN SINGLE ROW)
+  // =====================================================
   async addNote(applicationId: string, admin: any, message: string) {
     try {
       console.log('\n========== ADD NOTE DEBUG ==========');
@@ -35,7 +38,6 @@ export class InternalNotesService {
 
       // 🔥 from JWT
       const adminId = admin?.adminId || admin?.id;
-
       console.log('ADMIN ID FROM TOKEN =>', adminId);
 
       if (!adminId)
@@ -51,14 +53,36 @@ export class InternalNotesService {
       if (!adminData)
         throw new BadRequestException('Admin not found in DB');
 
-      const note = await this.noteModel.create({
-        applicationId: new Types.ObjectId(applicationId),
-        adminId: new Types.ObjectId(adminId),
-        adminName: adminData.fullName,
-        message,
-      });
+      const appObjectId = new Types.ObjectId(applicationId);
+      const adminObjectId = new Types.ObjectId(adminId);
 
-      console.log('✅ NOTE SAVED WITH NAME =>', adminData.fullName);
+      // 🔥 FIND SAME ROW OR CREATE + PUSH MESSAGE
+      const note = await this.noteModel.findOneAndUpdate(
+        {
+          applicationId: appObjectId,
+          adminId: adminObjectId,
+        },
+        {
+          $setOnInsert: {
+            applicationId: appObjectId,
+            adminId: adminObjectId,
+            adminName: adminData.fullName,
+            isActive: true,
+          },
+          $push: {
+            messages: {
+              message: message,
+              createdAt: new Date(),
+            },
+          },
+        },
+        {
+          new: true,
+          upsert: true, // create if not exists
+        },
+      );
+
+      console.log('✅ NOTE ADDED IN SINGLE ROW');
 
       return {
         success: true,
@@ -79,6 +103,9 @@ export class InternalNotesService {
     }
   }
 
+  // =====================================================
+  // GET NOTES
+  // =====================================================
   async getNotes(applicationId: string) {
     try {
       if (!applicationId)
@@ -89,13 +116,16 @@ export class InternalNotesService {
           applicationId: new Types.ObjectId(applicationId),
           isActive: true,
         })
-        .sort({ createdAt: -1 });
+        .sort({ updatedAt: -1 });
 
-      // 🔥 ADD "time ago"
+      // 🔥 ADD timeAgo INSIDE EACH MESSAGE
       const formattedNotes = notes.map((note: any) => {
         const obj = note.toObject();
 
-        obj.timeAgo = dayjs(obj.createdAt).fromNow();
+        obj.messages = obj.messages.map((m: any) => ({
+          ...m,
+          timeAgo: dayjs(m.createdAt).fromNow(),
+        }));
 
         return obj;
       });
