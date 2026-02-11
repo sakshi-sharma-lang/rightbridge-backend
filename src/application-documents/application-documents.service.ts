@@ -130,19 +130,14 @@ export class ApplicationDocumentsService {
 
       if (!application)
         throw new BadRequestException('Application not found or access denied');
-
       const record = await this.documentModel.findOne({
         applicationId,
         userId,
       });
-
       const uploadedDocs = record?.documents || [];
-
       const uploadedMap = new Map(uploadedDocs.map((doc) => [doc.type, doc]));
-
       const documents = Object.keys(DOCUMENT_TYPE_MAP).map((type) => {
         const doc = uploadedMap.get(type);
-
         return {
           type,
           label: this.humanizeType(type),
