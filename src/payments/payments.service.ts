@@ -28,8 +28,6 @@ export class PaymentsService {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
   }
 
-  /* ================= CREATE STRIPE PAYMENT ================= */
-  /* ================= CREATE STRIPE PAYMENT ================= */
   async createPayment(applicationId: string, userId: string) {
     let application;
 
@@ -91,7 +89,7 @@ export class PaymentsService {
       },
     });
 
-    // ⭐ save only schema fields
+
     await this.paymentModel.create({
       applicationId: application._id,
       userId,

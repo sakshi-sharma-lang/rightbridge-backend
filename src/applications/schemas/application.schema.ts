@@ -121,13 +121,13 @@ applicants: Record<string, any>[];
       // 🔹 admin override reason (required when admin changes)
       equity_borrowerContribution_change_reason: {
         type: String,
-        default: null
+        default: ''
       },
 
       // 🔹 when changed
       equity_override_date: {
         type: Date,
-        default: null
+        default: ''
       }
 
   }))
