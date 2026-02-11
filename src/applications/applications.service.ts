@@ -352,7 +352,6 @@ export class ApplicationsService {
   //   }
   //   return updated;
   // }
-
 async updateApplicationDetails(
   id: string,
   body: any,
@@ -378,16 +377,15 @@ async updateApplicationDetails(
     console.log('STEP 1: FRONTEND BODY =>', JSON.stringify(body, null, 2));
 
     // =========================================================
-    // 🔴 FULL UPDATE FROM FRONTEND (YOUR ORIGINAL LOGIC)
+    // 🔴 FULL UPDATE FROM FRONTEND (UNCHANGED)
     // =========================================================
     Object.keys(body).forEach((key) => {
       application[key] = body[key];
     });
 
     // =========================================================
-    // 🟢 LTV + DRAFT LOGIC (ADDED ONLY THIS BLOCK)
+    // 🟢 LTV STATUS LOGIC (ADDED ONLY THIS)
     // =========================================================
-
     try {
       const loanAmount = Number(
         body?.loanRequirements?.loanAmount ??
@@ -401,37 +399,35 @@ async updateApplicationDetails(
         application?.property?.estimatedValue
       );
 
-      // only if values available
       if (!isNaN(loanAmount) && !isNaN(propertyValue) && propertyValue > 0) {
         const ltv = (loanAmount / propertyValue) * 100;
         console.log('LTV =>', ltv);
 
-        // 🔴 AUTO REJECT
+        // 🔴 AUTO REJECT IF >75
         if (ltv > 75) {
-          application.status = 'AUTO_REJECTED';
+          application.status = 'AUTO_REJECTED' as any;
           application.rejectReason = 'LTV EXCEEDED';
           application.isDraft = false;
         }
 
-        // 🟢 DIP CASE
+        // 🟢 IF DIP SUBMITTED
         else if (body?.status === 'dip_stage') {
-          application.status = 'dip_stage';
-          application.application_stage_management = ['dip_submitted'];
+          application.status = 'dip_stage' as any;
           application.rejectReason = '';
           application.isDraft = false;
         }
 
-        // 🟡 DRAFT CASE
-        else if (body?.isDraft === true) {
+        // 🟡 DRAFT SAVE
+        if (body?.isDraft === true) {
           application.isDraft = true;
         }
       }
-    } catch (ltvErr) {
-      console.log('LTV calculation skipped');
+    } catch (e) {
+      console.log('LTV check skipped');
     }
 
     // =========================================================
-    // 🔹 SAVE
+    // 🔹 SAVE (UNCHANGED)
     // =========================================================
     const updated = await application.save();
 
@@ -444,9 +440,6 @@ async updateApplicationDetails(
     throw new InternalServerErrorException(error.message);
   }
 }
-
-
-
 
 
 
