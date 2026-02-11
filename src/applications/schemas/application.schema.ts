@@ -94,6 +94,7 @@ applicants: Record<string, any>[];
     monthlyPayment: Number,
     chargePriority: String,
     otherKnownCharges: String,
+    noExistingCharge: String,
   },
    entityDetails: {
     entityName: String,

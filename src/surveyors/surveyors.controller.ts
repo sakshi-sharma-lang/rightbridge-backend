@@ -57,7 +57,7 @@ userfindByApplication(
   @Param('applicationId') applicationId: string,
   @Req() req: any,
 ) {
-  console.log('CUSTOMER TOKEN USER =>', req.user);
+
 
   return this.service.userfindByApplication(applicationId);
 }
