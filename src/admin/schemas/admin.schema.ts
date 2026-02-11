@@ -34,6 +34,12 @@ export class Admin {
   @Prop({ default: null })
   lastLogin: Date;
 
+ @Prop()
+  createdAt?: Date;
+
+  @Prop()
+  updatedAt?: Date;
+  
   @Prop()
 passwordUpdatedAt?: Date;
 

@@ -74,31 +74,64 @@ export class AdminService {
       },
     };
   }
-  async login(email: string, password: string) {
-    const admin = await this.adminModel.findOne({ email });
+async login(email: string, password: string) {
+  const admin = await this.adminModel.findOne({ email });
 
-    if (!admin || !(await bcrypt.compare(password, admin.password))) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
-
-    admin.lastLogin = new Date();
-    await admin.save();
-
-    const token = this.jwtService.sign(
-      {
-        id: admin._id,
-        role: admin.role,
-      },
-      {
-        expiresIn: '1h', //  token expires after 15 minutes
-      },
-    );
-
-    return {
-      token,
-      expiresIn: '1h',
-    };
+  if (!admin || !(await bcrypt.compare(password, admin.password))) {
+    throw new UnauthorizedException('Invalid email or password');
   }
+
+  //  update last login
+  admin.lastLogin = new Date();
+  await admin.save();
+
+  //  create JWT token
+  const token = this.jwtService.sign(
+    {
+      id: admin._id,
+      role: admin.role,
+      email: admin.email,
+    },
+    {
+      expiresIn: '8h',
+    },
+  );
+
+  //  get name from DB
+  let firstName =
+    (admin as any).firstName ||
+    ((admin as any).fullName ? (admin as any).fullName.split(' ')[0] : '');
+
+  let lastName =
+    (admin as any).lastName ||
+    ((admin as any).fullName
+      ? (admin as any).fullName.split(' ').slice(1).join(' ')
+      : '');
+
+  //  merge into single name
+  const name = `${firstName || ''} ${lastName || ''}`.trim();
+
+  return {
+    success: true,
+    message: 'Login successful',
+    token: token,
+    expiresIn: '8h',
+
+    admin: {
+      id: admin._id,
+      name: name,         
+      email: admin.email,
+      role: admin.role,
+      status: admin.status,
+      lastLogin: (admin as any).lastLogin || null,
+      createdAt: (admin as any).createdAt || null,
+    },
+  };
+}
+
+
+
+
 
   async forgotPassword(email: string) {
     const admin = await this.adminModel.findOne({ email });
