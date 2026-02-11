@@ -412,10 +412,11 @@ async updateApplicationDetails(
 
         // 🟢 IF DIP SUBMITTED
         else if (body?.status === 'dip_stage') {
-          application.status = 'dip_stage' as any;
-          application.rejectReason = '';
-          application.isDraft = false;
-        }
+        application.status = 'dip_stage' as any;
+        application.application_stage_management = ['dip_submitted']; // ✔ fixed
+        application.rejectReason = '';
+        application.isDraft = false;
+      }
 
         // 🟡 DRAFT SAVE
         if (body?.isDraft === true) {
