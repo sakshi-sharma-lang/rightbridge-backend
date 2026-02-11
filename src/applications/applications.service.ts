@@ -378,13 +378,57 @@ async updateApplicationDetails(
     console.log('STEP 1: FRONTEND BODY =>', JSON.stringify(body, null, 2));
 
     // =========================================================
-    // 🔴 FULL UPDATE FROM FRONTEND
-    // whatever comes → save in DB
+    // 🔴 FULL UPDATE FROM FRONTEND (YOUR ORIGINAL LOGIC)
     // =========================================================
-
     Object.keys(body).forEach((key) => {
       application[key] = body[key];
     });
+
+    // =========================================================
+    // 🟢 LTV + DRAFT LOGIC (ADDED ONLY THIS BLOCK)
+    // =========================================================
+
+    try {
+      const loanAmount = Number(
+        body?.loanRequirements?.loanAmount ??
+        body?.['loanRequirements.loanAmount'] ??
+        application?.loanRequirements?.loanAmount
+      );
+
+      const propertyValue = Number(
+        body?.property?.estimatedValue ??
+        body?.['property.estimatedValue'] ??
+        application?.property?.estimatedValue
+      );
+
+      // only if values available
+      if (!isNaN(loanAmount) && !isNaN(propertyValue) && propertyValue > 0) {
+        const ltv = (loanAmount / propertyValue) * 100;
+        console.log('LTV =>', ltv);
+
+        // 🔴 AUTO REJECT
+        if (ltv > 75) {
+          application.status = 'AUTO_REJECTED';
+          application.rejectReason = 'LTV EXCEEDED';
+          application.isDraft = false;
+        }
+
+        // 🟢 DIP CASE
+        else if (body?.status === 'dip_stage') {
+          application.status = 'dip_stage';
+          application.application_stage_management = ['dip_submitted'];
+          application.rejectReason = '';
+          application.isDraft = false;
+        }
+
+        // 🟡 DRAFT CASE
+        else if (body?.isDraft === true) {
+          application.isDraft = true;
+        }
+      }
+    } catch (ltvErr) {
+      console.log('LTV calculation skipped');
+    }
 
     // =========================================================
     // 🔹 SAVE
@@ -400,6 +444,7 @@ async updateApplicationDetails(
     throw new InternalServerErrorException(error.message);
   }
 }
+
 
 
 
