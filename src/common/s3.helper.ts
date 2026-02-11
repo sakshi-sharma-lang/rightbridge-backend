@@ -38,8 +38,7 @@ export class S3Helper {
 
       const s3 = this.getS3();
 
-      console.log('AWS KEY:', process.env.AWS_ACCESS_KEY_ID);
-      console.log('AWS REGION:', process.env.AWS_REGION);
+    
 
       await s3.send(
         new PutObjectCommand({

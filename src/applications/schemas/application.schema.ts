@@ -91,6 +91,9 @@ applicants: Record<string, any>[];
     amountOutstanding: Number,
     paymentsUpToDate: String,     
     amountInArrears: Number,
+    monthlyPayment: Number,
+    chargePriority: String,
+    otherKnownCharges: String,
   },
    entityDetails: {
     entityName: String,
