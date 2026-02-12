@@ -91,7 +91,7 @@ applicants: Record<string, any>[];
     amountOutstanding: Number,
     paymentsUpToDate: String,     
     amountInArrears: Number,
-    monthlyPayment: Number,
+    monthlyPayment: String,
     chargePriority: String,
     otherKnownCharges: String,
     noExistingCharge: String,
