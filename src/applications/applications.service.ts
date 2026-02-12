@@ -364,7 +364,6 @@ async updateApplicationDetails(
       throw new BadRequestException('Application id required');
     }
 
-    // 🔹 find application
     const application = await this.applicationModel.findOne({
       _id: id,
       userId,
@@ -376,6 +375,9 @@ async updateApplicationDetails(
 
     console.log('STEP 1: FRONTEND BODY =>', JSON.stringify(body, null, 2));
 
+    // ⭐ ONLY THIS LINE ADDED (SAFE)
+    body = this.safeDotToObject(body);
+
     // =========================================================
     // 🔴 FULL UPDATE FROM FRONTEND (UNCHANGED)
     // =========================================================
@@ -384,7 +386,7 @@ async updateApplicationDetails(
     });
 
     // =========================================================
-    // 🟢 LTV STATUS LOGIC (ADDED ONLY THIS)
+    // 🟢 LTV STATUS LOGIC (UNCHANGED)
     // =========================================================
     try {
       const loanAmount = Number(
@@ -403,22 +405,19 @@ async updateApplicationDetails(
         const ltv = (loanAmount / propertyValue) * 100;
         console.log('LTV =>', ltv);
 
-        // 🔴 AUTO REJECT IF >75
         if (ltv > 75) {
           application.status = 'AUTO_REJECTED' as any;
           application.rejectReason = 'LTV EXCEEDED';
           application.isDraft = false;
         }
 
-        // 🟢 IF DIP SUBMITTED
         else if (body?.status === 'dip_stage') {
-        application.status = 'dip_stage' as any;
-        application.application_stage_management = ['dip_submitted']; // ✔ fixed
-        application.rejectReason = '';
-        application.isDraft = false;
-      }
+          application.status = 'dip_stage' as any;
+          application.application_stage_management = ['dip_submitted'];
+          application.rejectReason = '';
+          application.isDraft = false;
+        }
 
-        // 🟡 DRAFT SAVE
         if (body?.isDraft === true) {
           application.isDraft = true;
         }
@@ -427,9 +426,6 @@ async updateApplicationDetails(
       console.log('LTV check skipped');
     }
 
-    // =========================================================
-    // 🔹 SAVE (UNCHANGED)
-    // =========================================================
     const updated = await application.save();
 
     console.log('✅ APPLICATION UPDATED SUCCESS');
@@ -441,6 +437,34 @@ async updateApplicationDetails(
     throw new InternalServerErrorException(error.message);
   }
 }
+private safeDotToObject(body: any) {
+  const result: any = { ...body };
+
+  Object.keys(body).forEach((key) => {
+    if (!key.includes('.')) return;
+
+    const value = body[key];
+    const keys = key.split('.');
+    let current = result;
+
+    keys.forEach((k, index) => {
+      if (index === keys.length - 1) {
+        if (!current[k]) current[k] = value;
+        else current[k] = value;
+      } else {
+        if (!current[k] || typeof current[k] !== 'object') {
+          current[k] = {};
+        }
+        current = current[k];
+      }
+    });
+
+    delete result[key];
+  });
+
+  return result;
+}
+
 
   /* ================= APP ID GENERATOR ================= */
   private async generateAppId(): Promise<string> {
