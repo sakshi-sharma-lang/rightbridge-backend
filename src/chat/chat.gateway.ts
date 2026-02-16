@@ -19,7 +19,6 @@ export class ChatGateway
   @WebSocketServer()
   server: Server;
 
-  // store multiple tabs
   private userSockets = new Map<string, Set<string>>();
   private adminSockets = new Map<string, Set<string>>();
 
@@ -48,6 +47,8 @@ export class ChatGateway
         if (set.size === 0) this.adminSockets.delete(adminId);
       }
     });
+
+    console.log('Socket disconnected:', socket.id);
   }
 
   // =====================================================
@@ -85,32 +86,51 @@ export class ChatGateway
   // =====================================================
   @SubscribeMessage('sendMessage')
   async sendMessage(@MessageBody() data: any) {
+    try {
+      let saved;
 
-    const saved = await this.chatService.saveMessage(data);
-
-    // 🔵 send to user
-    if (data.userId && this.userSockets.has(data.userId)) {
-      const sockets = this.userSockets.get(data.userId);
-      if (sockets) {
-        sockets.forEach(socketId => {
-          this.server.to(socketId).emit('receiveMessage', saved);
-        });
+      // 🔴 ADMIN MESSAGE
+      if (data.senderRole === 'admin') {
+        saved = await this.chatService.sendMessageByAdmin(data);
       }
-    }
-
-    // 🔵 send to admin
-    if (data.adminId && this.adminSockets.has(data.adminId)) {
-      const sockets = this.adminSockets.get(data.adminId);
-      if (sockets) {
-        sockets.forEach(socketId => {
-          this.server.to(socketId).emit('receiveMessage', saved);
-        });
+      // 🟢 USER MESSAGE
+      else {
+        saved = await this.chatService.sendMessageByUser(data);
       }
+
+      // ================================
+      // SEND TO USER SOCKETS
+      // ================================
+      if (data.userId && this.userSockets.has(data.userId)) {
+        const sockets = this.userSockets.get(data.userId);
+        if (sockets) {
+          sockets.forEach(socketId => {
+            this.server.to(socketId).emit('receiveMessage', saved);
+          });
+        }
+      }
+
+      // ================================
+      // SEND TO ADMIN SOCKETS
+      // ================================
+      if (data.adminId && this.adminSockets.has(data.adminId)) {
+        const sockets = this.adminSockets.get(data.adminId);
+        if (sockets) {
+          sockets.forEach(socketId => {
+            this.server.to(socketId).emit('receiveMessage', saved);
+          });
+        }
+      }
+
+      // ================================
+      // REFRESH SIDEBAR REALTIME
+      // ================================
+      this.server.emit('chatListUpdated');
+
+      return saved;
+
+    } catch (err) {
+      console.log('Socket send error:', err.message);
     }
-
-    // 🔵 refresh admin sidebar realtime
-    this.server.emit('chatListUpdated');
-
-    return saved;
   }
 }

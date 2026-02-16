@@ -1,55 +1,77 @@
 import { Controller, Get, Param, Post, Body } from '@nestjs/common';
 import { ChatService } from './chat.service';
 
-@Controller('chat')
+@Controller()
 export class ChatController {
   constructor(private chatService: ChatService) {}
 
   // =====================================================
-  // SEND MESSAGE (user/admin)
+  // 🟢 USER SEND MESSAGE
   // =====================================================
-  @Post('send')
-  async sendMessage(@Body() body: any) {
-    return this.chatService.saveMessage(body);
+  @Post('chat/send')
+  async sendUserMessage(@Body() body: any) {
+    return this.chatService.sendMessageByUser(body);
   }
 
   // =====================================================
-  // ⭐ SINGLE CHAT API (MAIN)
-  // userId + applicationId based
+  // 🔴 ADMIN SEND MESSAGE
   // =====================================================
-  @Get('single/:userId/:applicationId/:viewer')
+  @Post('admin/chat/send')
+  async sendAdminMessage(@Body() body: any) {
+    return this.chatService.sendMessageByAdmin(body);
+  }
+
+  // =====================================================
+  // ⭐ USER OLD ROUTE (DO NOT CHANGE)
+  // curl http://localhost:3092/chat/single/USER_ID/APPLICATION_ID/user
+  // =====================================================
+  @Get('chat/single/:userId/:applicationId/:viewer')
   async getSingleChat(
     @Param('userId') userId: string,
     @Param('applicationId') applicationId: string,
-    @Param('viewer') viewer: 'admin' | 'user',
+    @Param('viewer') viewer: string,
   ) {
-    return this.chatService.getChatByUserApplication(
-      userId,
-      applicationId,
-      viewer,
-    );
+    // only user allowed
+    if (viewer === 'user') {
+      return this.chatService.getUserChat(userId, applicationId);
+    }
+
+    return {
+      message: 'Only user allowed on this route',
+    };
   }
 
   // =====================================================
-  // ADMIN SIDEBAR (all chats)
+  // 🔴 ADMIN OPEN CHAT (separate)
   // =====================================================
-  @Get('admin')
+  @Get('admin/chat/:userId/:applicationId')
+  async getAdminChat(
+    @Param('userId') userId: string,
+    @Param('applicationId') applicationId: string,
+  ) {
+    return this.chatService.getAdminChat(userId, applicationId);
+  }
+
+  // =====================================================
+  // 🔴 ADMIN SIDEBAR
+  // =====================================================
+  @Get('admin/chat')
   async getAdminConversations() {
     return this.chatService.getAdminConversations();
   }
 
   // =====================================================
-  // USER SIDEBAR
+  // 🟢 USER SIDEBAR
   // =====================================================
-  @Get('user/:userId')
+  @Get('user/chat/sidebar/:userId')
   async getUserConversations(@Param('userId') id: string) {
     return this.chatService.getUserConversations(id);
   }
 
   // =====================================================
-  // ADMIN TOTAL UNREAD
+  // 🔔 ADMIN TOTAL UNREAD
   // =====================================================
-  @Get('admin/unread/total')
+  @Get('admin/chat/unread/total')
   async adminTotalUnread() {
     return this.chatService.getAdminTotalUnread();
   }
