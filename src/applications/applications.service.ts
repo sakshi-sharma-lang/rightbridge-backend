@@ -450,207 +450,209 @@ async updateApplicationDetails(
 
     return `BL-${year}-${counter.seq.toString().padStart(4, '0')}`;
   }
-  async getApplicationsAdmindashboard(query: any) {
-    const {
-      status,
-      loanType,
-      fromDate,
-      toDate,
-      search,
-      page = 1,
-      limit = 10,
-    } = query;
+async getApplicationsAdmindashboard(query: any) {
+  const {
+    status,
+    loanType,
+    fromDate,
+    toDate,
+    search,
+    page = 1,
+    limit = 10,
+  } = query;
 
-    const STATUS_LABEL_MAP: Record<string, string> = {
-      welcome_stage: 'Draft',
-      dip_stage: 'DIP Submitted',
-      kyc_stage: 'KYC Pending',
-      valuation_stage: 'Valuation',
-      underwriting_stage: 'Underwriting',
-      offersent_stage: 'Offer Sent',
-      completed_stage: 'Offer Accepted',
-      decline_stage: 'DIP Declined',
-    };
+  const STATUS_LABEL_MAP: Record<string, string> = {
+    welcome_stage: 'Draft',
+    dip_stage: 'DIP Submitted',
+    kyc_stage: 'KYC Pending',
+    valuation_stage: 'Valuation',
+    underwriting_stage: 'Underwriting',
+    offersent_stage: 'Offer Sent',
+    completed_stage: 'Offer Accepted',
+    decline_stage: 'DIP Declined',
+  };
 
-    const baseFilter = {
-      status: { $nin: ['welcome_stage'] },
-      isDraft: { $ne: true },
-    };
+  const baseFilter = {
+    status: { $nin: ['welcome_stage'] },
+    isDraft: { $ne: true },
+  };
 
-    const filter: any = { ...baseFilter };
+  const filter: any = { ...baseFilter };
 
-    if (status && status !== 'active') {
-      filter.status = {
-        $regex: `^${status.trim()}$`,
-        $options: 'i',
-      };
-    }
-
-    if (loanType) {
-      filter['loanType.applicationType'] = loanType;
-    }
-
-    if (fromDate || toDate) {
-      filter.createdAt = {};
-
-      if (fromDate) {
-        const start = new Date(fromDate);
-        start.setHours(0, 0, 0, 0);
-        filter.createdAt.$gte = start;
-      }
-
-      if (toDate) {
-        const end = new Date(toDate);
-        end.setHours(23, 59, 59, 999);
-        filter.createdAt.$lte = end;
-      }
-    }
-
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-
-    const endOfMonth = new Date();
-    endOfMonth.setHours(23, 59, 59, 999);
-
-    const startOfLastMonth = new Date(startOfMonth);
-    startOfLastMonth.setMonth(startOfLastMonth.getMonth() - 1);
-
-    const endOfLastMonth = new Date(startOfMonth);
-    endOfLastMonth.setMilliseconds(-1);
-
-    if (search) {
-      const raw = search.trim();
-      const parts = raw.split(/\s+/);
-
-      filter.$or = [
-        { appId: { $regex: raw, $options: 'i' } },
-        { 'property.address': { $regex: raw, $options: 'i' } },
-        { 'applicants.firstName': { $regex: raw, $options: 'i' } },
-        { 'applicants.lastName': { $regex: raw, $options: 'i' } },
-      ];
-
-      if (parts.length >= 2) {
-        filter.$or.push({
-          $and: [
-            {
-              'applicants.firstName': {
-                $regex: parts.slice(0, -1).join(' '),
-                $options: 'i',
-              },
-            },
-            {
-              'applicants.lastName': {
-                $regex: parts[parts.length - 1],
-                $options: 'i',
-              },
-            },
-          ],
-        });
-      }
-    }
-
-    const skip = (Number(page) - 1) * Number(limit);
-
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-
-    const endOfToday = new Date();
-    endOfToday.setHours(23, 59, 59, 999);
-
-    const [
-      rows,
-      total,
-      totalApplications,
-      dipToday,
-      awaitingFee,
-      kycInProgress,
-      underwritingQueue,
-      offersIssued,
-      thisMonthCount,
-      lastMonthCount,
-    ] = await Promise.all([
-      this.applicationModel
-        .find(filter)
-        .select({
-          appId: 1,
-          status: 1,
-          updatedAt: 1,
-          'applicants.firstName': 1,
-          'applicants.lastName': 1,
-          'loanRequirements.loanAmount': 1,
-          'loanRequirements.loanPurpose': 1,
-          'property.address': 1,
-        })
-        .sort({ updatedAt: -1 })
-        .skip(skip)
-        .limit(Number(limit))
-        .lean(),
-
-      this.applicationModel.countDocuments(filter),
-      this.applicationModel.countDocuments(baseFilter),
-      this.applicationModel.countDocuments({
-        ...baseFilter,
-        updatedAt: { $gte: startOfToday, $lte: endOfToday },
-      }),
-      this.applicationModel.countDocuments({ status: 'fee_required' }),
-      this.applicationModel.countDocuments({ status: 'kyc_in_progress' }),
-      this.applicationModel.countDocuments({ status: 'underwriting' }),
-      this.applicationModel.countDocuments({ status: 'offer_issued' }),
-      this.applicationModel.countDocuments({
-        ...baseFilter,
-        createdAt: { $gte: startOfMonth, $lte: endOfMonth },
-      }),
-      this.applicationModel.countDocuments({
-        ...baseFilter,
-        createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth },
-      }),
-    ]);
-
-    const thisMonthChange = thisMonthCount - lastMonthCount;
-
-    // ================= TABLE FORMAT =================
-    const data = rows.map((item) => {
-      let formattedStatus =
-        STATUS_LABEL_MAP[item.status] ||
-        String(item.status)
-          .replace(/_/g, ' ')
-          .replace(/\b\w/g, (c) => c.toUpperCase());
-
-      // ⭐ pending admin review logic
-      if (
-        item?.loanRequirements?.loanPurpose === 'other' &&
-        (String(item?.status) === 'dip_submitted' ||
-          String(item?.status) === 'dip_stage')
-      ) {
-        formattedStatus = 'Pending Admin Review';
-      }
-
-      return {
-        appId: item.appId,
-        applicantName:
-          `${item?.applicants?.[0]?.firstName ?? ''} ${item?.applicants?.[0]?.lastName ?? ''}`.trim(),
-        loanAmount: item.loanRequirements?.loanAmount ?? 0,
-        propertyAddress: item.property?.address ?? '',
-        status: formattedStatus,
-        updatedAt: item.updatedAt,
-      };
-    });
-
-    return {
-      totalApplications,
-      dipToday,
-      awaitingFee,
-      kycInProgress,
-      underwritingQueue,
-      offersIssued,
-      thisMonthChange,
-      total,
-      page: Number(page),
-      limit: Number(limit),
-      data,
+  if (status && status !== 'active') {
+    filter.status = {
+      $regex: `^${status.trim()}$`,
+      $options: 'i',
     };
   }
+
+  if (loanType) {
+    filter['loanType.applicationType'] = loanType;
+  }
+
+  if (fromDate || toDate) {
+    filter.createdAt = {};
+
+    if (fromDate) {
+      const start = new Date(fromDate);
+      start.setHours(0, 0, 0, 0);
+      filter.createdAt.$gte = start;
+    }
+
+    if (toDate) {
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59, 999);
+      filter.createdAt.$lte = end;
+    }
+  }
+
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const endOfMonth = new Date();
+  endOfMonth.setHours(23, 59, 59, 999);
+
+  const startOfLastMonth = new Date(startOfMonth);
+  startOfLastMonth.setMonth(startOfLastMonth.getMonth() - 1);
+
+  const endOfLastMonth = new Date(startOfMonth);
+  endOfLastMonth.setMilliseconds(-1);
+
+  if (search) {
+    const raw = search.trim();
+    const parts = raw.split(/\s+/);
+
+    filter.$or = [
+      { appId: { $regex: raw, $options: 'i' } },
+      { 'property.address': { $regex: raw, $options: 'i' } },
+      { 'applicants.firstName': { $regex: raw, $options: 'i' } },
+      { 'applicants.lastName': { $regex: raw, $options: 'i' } },
+    ];
+
+    if (parts.length >= 2) {
+      filter.$or.push({
+        $and: [
+          {
+            'applicants.firstName': {
+              $regex: parts.slice(0, -1).join(' '),
+              $options: 'i',
+            },
+          },
+          {
+            'applicants.lastName': {
+              $regex: parts[parts.length - 1],
+              $options: 'i',
+            },
+          },
+        ],
+      });
+    }
+  }
+
+  const skip = (Number(page) - 1) * Number(limit);
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
+
+  const [
+    rows,
+    total,
+    totalApplications,
+    dipToday,
+    awaitingFee,
+    kycInProgress,
+    underwritingQueue,
+    offersIssued,
+    thisMonthCount,
+    lastMonthCount,
+  ] = await Promise.all([
+    this.applicationModel
+      .find(filter)
+      .select({
+        _id: 1, // ⭐ IMPORTANT
+        appId: 1,
+        status: 1,
+        updatedAt: 1,
+        'applicants.firstName': 1,
+        'applicants.lastName': 1,
+        'loanRequirements.loanAmount': 1,
+        'loanRequirements.loanPurpose': 1,
+        'property.address': 1,
+      })
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(Number(limit))
+      .lean(),
+
+    this.applicationModel.countDocuments(filter),
+    this.applicationModel.countDocuments(baseFilter),
+    this.applicationModel.countDocuments({
+      ...baseFilter,
+      updatedAt: { $gte: startOfToday, $lte: endOfToday },
+    }),
+    this.applicationModel.countDocuments({ status: 'fee_required' }),
+    this.applicationModel.countDocuments({ status: 'kyc_in_progress' }),
+    this.applicationModel.countDocuments({ status: 'underwriting' }),
+    this.applicationModel.countDocuments({ status: 'offer_issued' }),
+    this.applicationModel.countDocuments({
+      ...baseFilter,
+      createdAt: { $gte: startOfMonth, $lte: endOfMonth },
+    }),
+    this.applicationModel.countDocuments({
+      ...baseFilter,
+      createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth },
+    }),
+  ]);
+
+  const thisMonthChange = thisMonthCount - lastMonthCount;
+
+  // ================= TABLE FORMAT =================
+  const data = rows.map((item) => {
+    let formattedStatus =
+      STATUS_LABEL_MAP[item.status] ||
+      String(item.status)
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+
+    if (
+      item?.loanRequirements?.loanPurpose === 'other' &&
+      (String(item?.status) === 'dip_submitted' ||
+        String(item?.status) === 'dip_stage')
+    ) {
+      formattedStatus = 'Pending Admin Review';
+    }
+
+    return {
+      _id: item._id.toString(), // ⭐ RETURN OID HERE
+      appId: item.appId,
+      applicantName:
+        `${item?.applicants?.[0]?.firstName ?? ''} ${item?.applicants?.[0]?.lastName ?? ''}`.trim(),
+      loanAmount: item.loanRequirements?.loanAmount ?? 0,
+      propertyAddress: item.property?.address ?? '',
+      status: formattedStatus,
+      updatedAt: item.updatedAt,
+    };
+  });
+
+  return {
+    totalApplications,
+    dipToday,
+    awaitingFee,
+    kycInProgress,
+    underwritingQueue,
+    offersIssued,
+    thisMonthChange,
+    total,
+    page: Number(page),
+    limit: Number(limit),
+    data,
+  };
+}
+
 
   /* ================= ADMIN GET USER APPLICATION ================= */
   async findUserApplicationByIdForAdmin(id: string): Promise<Application> {

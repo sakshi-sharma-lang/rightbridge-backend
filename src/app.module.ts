@@ -13,6 +13,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { KycModule } from './kyc/kyc.module';
 import { ApplicationDocumentsModule } from './application-documents/application-documents.module'; 
 import { UserSettingsModule } from './user-settings/user-settings.module';
+import { ChatModule } from './chat/chat.module';
 
 
 @Module({
@@ -51,10 +52,9 @@ import { UserSettingsModule } from './user-settings/user-settings.module';
     SurveyorsModule,
     PaymentsModule,  
     KycModule, 
-     ApplicationDocumentsModule, 
-     UserSettingsModule,   
-  
-
+    ApplicationDocumentsModule, 
+    UserSettingsModule,   
+    ChatModule,
   ],
 })
 export class AppModule {}
