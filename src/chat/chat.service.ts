@@ -14,42 +14,58 @@ export class ChatService {
   // =====================================================
   // CREATE OR GET CONVERSATION (SAFE)
   // =====================================================
-  async getOrCreateConversation(userId: string, applicationId: string) {
+ // =====================================================
+// CREATE OR GET CONVERSATION (FINAL SAFE)
+// =====================================================
+async getOrCreateConversation(userId: string, applicationId: string) {
 
-    if (!Types.ObjectId.isValid(userId))
-      throw new BadRequestException('Invalid userId');
+  if (!Types.ObjectId.isValid(userId)) {
+    throw new BadRequestException('Invalid userId');
+  }
 
-    if (!Types.ObjectId.isValid(applicationId))
-      throw new BadRequestException('Invalid applicationId');
+  if (!Types.ObjectId.isValid(applicationId)) {
+    throw new BadRequestException('Invalid applicationId');
+  }
 
-    const userObj = new Types.ObjectId(userId);
-    const appObj = new Types.ObjectId(applicationId);
+  const userObj = new Types.ObjectId(userId);
+  const appObj = new Types.ObjectId(applicationId);
 
-    let convo = await this.convoModel.findOne({
-      userId: userObj,
-      applicationId: appObj,
-    });
+  let convo = await this.convoModel.findOne({
+    userId: userObj,
+    applicationId: appObj,
+  });
 
-    // race condition safe
-    if (!convo) {
-      try {
-        convo = await this.convoModel.create({
-          userId: userObj,
-          applicationId: appObj,
-          unreadUser: 0,
-          unreadAdmin: 0,
-          status: 'open',
-        });
-      } catch (err) {
+  // if not exist create
+  if (!convo) {
+    try {
+      convo = await this.convoModel.create({
+        userId: userObj,
+        applicationId: appObj,
+        unreadUser: 0,
+        unreadAdmin: 0,
+        status: 'open',
+      });
+    } catch (err:any) {
+
+      // duplicate index case
+      if (err.code === 11000) {
         convo = await this.convoModel.findOne({
           userId: userObj,
           applicationId: appObj,
         });
+      } else {
+        throw err;
       }
     }
-
-    return convo;
   }
+
+  if (!convo) {
+    throw new BadRequestException('Conversation creation failed');
+  }
+
+  return convo;
+}
+
 
   // =====================================================
   // SEND MESSAGE
