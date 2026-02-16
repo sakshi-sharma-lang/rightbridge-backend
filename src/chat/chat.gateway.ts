@@ -27,8 +27,6 @@ export class ChatGateway
   }
 
   handleDisconnect(socket: Socket) {
-    console.log('Socket disconnected:', socket.id);
-
     this.userSockets.forEach((sId, userId) => {
       if (sId === socket.id) this.userSockets.delete(userId);
     });
@@ -38,42 +36,26 @@ export class ChatGateway
     });
   }
 
-  // register user
   @SubscribeMessage('registerUser')
-  registerUser(
-    @MessageBody() data: { userId: string },
-    @ConnectedSocket() socket: Socket,
-  ) {
+  registerUser(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
     this.userSockets.set(data.userId, socket.id);
   }
 
-  // register admin
   @SubscribeMessage('registerAdmin')
-  registerAdmin(
-    @MessageBody() data: { adminId: string },
-    @ConnectedSocket() socket: Socket,
-  ) {
+  registerAdmin(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
     this.adminSockets.set(data.adminId, socket.id);
   }
 
-  // send message realtime
   @SubscribeMessage('sendMessage')
-  async sendMessage(
-    @MessageBody() data: any,
-    @ConnectedSocket() socket: Socket,
-  ) {
-    const savedMessage = await this.chatService.saveMessage(data);
+  async sendMessage(@MessageBody() data: any) {
+    const saved = await this.chatService.saveMessage(data);
 
     const userSocket = this.userSockets.get(data.userId);
-    if (userSocket) {
-      this.server.to(userSocket).emit('receiveMessage', savedMessage);
-    }
+    if (userSocket) this.server.to(userSocket).emit('receiveMessage', saved);
 
     const adminSocket = this.adminSockets.get(data.adminId);
-    if (adminSocket) {
-      this.server.to(adminSocket).emit('receiveMessage', savedMessage);
-    }
+    if (adminSocket) this.server.to(adminSocket).emit('receiveMessage', saved);
 
-    return savedMessage;
+    return saved;
   }
 }

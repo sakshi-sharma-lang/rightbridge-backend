@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Conversation } from './schemas/conversation.schema';
 import { Message } from './schemas/message.schema';
 
@@ -11,51 +11,108 @@ export class ChatService {
     @InjectModel(Message.name) private msgModel: Model<Message>,
   ) {}
 
-  // ================= UNIQUE CONVERSATION =================
-  async getOrCreateConversation(userId: string, adminId: string) {
-    let convo = await this.convoModel.findOne({ userId, adminId });
+  // =====================================================
+  // GET OR CREATE CONVERSATION
+  // =====================================================
+  async getOrCreateConversation(
+    userId: string,
+    applicationId?: string,
+  ): Promise<any> {
+    if (!Types.ObjectId.isValid(userId))
+      throw new BadRequestException('Invalid userId');
 
-    if (!convo) {
-      convo = await this.convoModel.create({ userId, adminId });
+    const filter: any = {
+      userId: new Types.ObjectId(userId),
+    };
+
+    // optional application filter
+    if (applicationId && Types.ObjectId.isValid(applicationId)) {
+      filter.applicationId = new Types.ObjectId(applicationId);
     }
+
+    let convo = await this.convoModel.findOne(filter);
+
+   if (!convo) {
+      const createData: any = {
+        userId: new Types.ObjectId(userId),
+        unreadUser: 0,
+        unreadAdmin: 0,
+        status: 'open',
+      };
+
+      if (applicationId && Types.ObjectId.isValid(applicationId)) {
+        createData.applicationId = new Types.ObjectId(applicationId);
+      }
+
+      convo = (await this.convoModel.create(createData)) as any;
+    }
+
 
     return convo;
   }
 
-  // ================= SAVE MESSAGE (MAIN CORE) =================
+  // =====================================================
+  // SEND MESSAGE
+  // =====================================================
   async saveMessage(data: any) {
-    const { userId, adminId, message, senderRole } = data;
+    if (!data) throw new BadRequestException('Body required');
 
-    if (!userId || !adminId || !message) {
-      throw new BadRequestException('userId, adminId and message required');
+    const { userId, adminId, message, senderRole, applicationId } = data;
+
+    if (!userId) throw new BadRequestException('userId required');
+    if (!message || message.trim() === '')
+      throw new BadRequestException('Message empty');
+
+    if (!Types.ObjectId.isValid(userId))
+      throw new BadRequestException('Invalid userId');
+
+    if (senderRole === 'admin') {
+      if (!adminId) throw new BadRequestException('adminId required');
+      if (!Types.ObjectId.isValid(adminId))
+        throw new BadRequestException('Invalid adminId');
     }
 
-    // 🔥 role detect (secure)
     let senderType: 'admin' | 'user';
+    let senderId: string;
 
     if (senderRole === 'admin') {
       senderType = 'admin';
+      senderId = adminId;
     } else {
       senderType = 'user';
+      senderId = userId;
     }
 
-    const conversation = await this.getOrCreateConversation(userId, adminId);
+    // get conversation
+    const conversation = await this.getOrCreateConversation(
+      userId,
+      applicationId,
+    );
 
+    if (!conversation) {
+      throw new BadRequestException('Conversation not created');
+    }
+
+    // save message
     const msg = await this.msgModel.create({
       conversationId: conversation._id,
-      senderId: senderType === 'admin' ? adminId : userId,
+      senderId: new Types.ObjectId(senderId),
       senderType,
-      message,
+      message: message.trim(),
+      messageType: 'text',
+      isRead: false,
     });
 
-    // update conversation
-    conversation.lastMessage = message;
+    // update header
+    conversation.lastMessage = message.trim();
     conversation.lastMessageAt = new Date();
 
-    if (senderType === 'admin') {
-      conversation.unreadUser += 1;
-    } else {
-      conversation.unreadAdmin += 1;
+    if (senderType === 'admin') conversation.unreadUser += 1;
+    else conversation.unreadAdmin += 1;
+
+    // auto assign admin first reply
+    if (!conversation.assignedAdmin && senderType === 'admin') {
+      conversation.assignedAdmin = new Types.ObjectId(adminId);
     }
 
     await conversation.save();
@@ -63,37 +120,38 @@ export class ChatService {
     return msg;
   }
 
-  // ================= GET MESSAGES =================
+  // =====================================================
+  // GET FULL CHAT HISTORY
+  // =====================================================
   async getMessages(conversationId: string) {
+    if (!Types.ObjectId.isValid(conversationId))
+      throw new BadRequestException('Invalid conversationId');
+
     return this.msgModel
-      .find({ conversationId })
+      .find({ conversationId: new Types.ObjectId(conversationId) })
       .sort({ createdAt: 1 });
   }
 
-  // ================= ADMIN SIDEBAR =================
-  async getAdminConversations(adminId: string) {
+  // =====================================================
+  // ADMIN PANEL ALL CHATS
+  // =====================================================
+  async getAdminConversations() {
     return this.convoModel
-      .find({ adminId })
+      .find()
       .populate('userId', 'firstName lastName email')
+      .populate('assignedAdmin', 'name email')
       .sort({ updatedAt: -1 });
   }
 
-  // ================= USER SIDEBAR =================
+  // =====================================================
+  // USER SIDEBAR
+  // =====================================================
   async getUserConversations(userId: string) {
+    if (!Types.ObjectId.isValid(userId))
+      throw new BadRequestException('Invalid userId');
+
     return this.convoModel
-      .find({ userId })
-      .populate('adminId', 'firstName lastName')
+      .find({ userId: new Types.ObjectId(userId) })
       .sort({ updatedAt: -1 });
-  }
-
-  // ================= UNIQUE CHAT ROUTE =================
-  async getUniqueConversation(userId: string, adminId: string) {
-    let convo = await this.convoModel.findOne({ userId, adminId });
-
-    if (!convo) {
-      convo = await this.convoModel.create({ userId, adminId });
-    }
-
-    return convo;
   }
 }
