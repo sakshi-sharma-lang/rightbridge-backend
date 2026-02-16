@@ -6,7 +6,7 @@ export class ChatController {
   constructor(private chatService: ChatService) {}
 
   // =====================================================
-  // SEND MESSAGE
+  // SEND MESSAGE (user/admin)
   // =====================================================
   @Post('send')
   async sendMessage(@Body() body: any) {
@@ -14,19 +14,24 @@ export class ChatController {
   }
 
   // =====================================================
-  // GET CHAT MESSAGES (WITH SEEN LOGIC)
-  // admin or user must pass viewer type
+  // ⭐ SINGLE CHAT API (MAIN)
+  // userId + applicationId based
   // =====================================================
-  @Get('messages/:conversationId/:viewer')
-  async getMessages(
-    @Param('conversationId') id: string,
+  @Get('single/:userId/:applicationId/:viewer')
+  async getSingleChat(
+    @Param('userId') userId: string,
+    @Param('applicationId') applicationId: string,
     @Param('viewer') viewer: 'admin' | 'user',
   ) {
-    return this.chatService.getMessages(id, viewer);
+    return this.chatService.getChatByUserApplication(
+      userId,
+      applicationId,
+      viewer,
+    );
   }
 
   // =====================================================
-  // ADMIN SIDEBAR ALL CONVERSATIONS
+  // ADMIN SIDEBAR (all chats)
   // =====================================================
   @Get('admin')
   async getAdminConversations() {
@@ -42,19 +47,7 @@ export class ChatController {
   }
 
   // =====================================================
-  // ⭐ ADMIN OPEN SPECIFIC USER CHAT
-  // route: /chat/admin/user/:userId/:applicationId
-  // =====================================================
-  @Get('admin/user/:userId/:applicationId')
-  async adminOpenUserChat(
-    @Param('userId') userId: string,
-    @Param('applicationId') applicationId: string,
-  ) {
-    return this.chatService.getOrCreateConversation(userId, applicationId);
-  }
-
-  // =====================================================
-  // ⭐ ADMIN TOTAL UNREAD COUNT (TOP BADGE)
+  // ADMIN TOTAL UNREAD
   // =====================================================
   @Get('admin/unread/total')
   async adminTotalUnread() {
