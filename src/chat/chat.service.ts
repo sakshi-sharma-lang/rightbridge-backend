@@ -12,41 +12,41 @@ export class ChatService {
   ) {}
 
   // =====================================================
-  // GET OR CREATE CONVERSATION
+  // CREATE OR GET CONVERSATION (SAFE)
   // =====================================================
-  async getOrCreateConversation(
-    userId: string,
-    applicationId?: string,
-  ): Promise<any> {
+  async getOrCreateConversation(userId: string, applicationId: string) {
+
     if (!Types.ObjectId.isValid(userId))
       throw new BadRequestException('Invalid userId');
 
-    const filter: any = {
-      userId: new Types.ObjectId(userId),
-    };
+    if (!Types.ObjectId.isValid(applicationId))
+      throw new BadRequestException('Invalid applicationId');
 
-    // optional application filter
-    if (applicationId && Types.ObjectId.isValid(applicationId)) {
-      filter.applicationId = new Types.ObjectId(applicationId);
-    }
+    const userObj = new Types.ObjectId(userId);
+    const appObj = new Types.ObjectId(applicationId);
 
-    let convo = await this.convoModel.findOne(filter);
+    let convo = await this.convoModel.findOne({
+      userId: userObj,
+      applicationId: appObj,
+    });
 
-   if (!convo) {
-      const createData: any = {
-        userId: new Types.ObjectId(userId),
-        unreadUser: 0,
-        unreadAdmin: 0,
-        status: 'open',
-      };
-
-      if (applicationId && Types.ObjectId.isValid(applicationId)) {
-        createData.applicationId = new Types.ObjectId(applicationId);
+    // race condition safe
+    if (!convo) {
+      try {
+        convo = await this.convoModel.create({
+          userId: userObj,
+          applicationId: appObj,
+          unreadUser: 0,
+          unreadAdmin: 0,
+          status: 'open',
+        });
+      } catch (err) {
+        convo = await this.convoModel.findOne({
+          userId: userObj,
+          applicationId: appObj,
+        });
       }
-
-      convo = (await this.convoModel.create(createData)) as any;
     }
-
 
     return convo;
   }
@@ -55,27 +55,18 @@ export class ChatService {
   // SEND MESSAGE
   // =====================================================
   async saveMessage(data: any) {
-    if (!data) throw new BadRequestException('Body required');
 
-    const { userId, adminId, message, senderRole, applicationId } = data;
+    const { userId, adminId, message, senderRole, applicationId, fileUrl } = data;
 
     if (!userId) throw new BadRequestException('userId required');
-    if (!message || message.trim() === '')
-      throw new BadRequestException('Message empty');
-
-    if (!Types.ObjectId.isValid(userId))
-      throw new BadRequestException('Invalid userId');
-
-    if (senderRole === 'admin') {
-      if (!adminId) throw new BadRequestException('adminId required');
-      if (!Types.ObjectId.isValid(adminId))
-        throw new BadRequestException('Invalid adminId');
-    }
+    if (!applicationId) throw new BadRequestException('applicationId required');
+    if (!message && !fileUrl) throw new BadRequestException('message required');
 
     let senderType: 'admin' | 'user';
     let senderId: string;
 
     if (senderRole === 'admin') {
+      if (!adminId) throw new BadRequestException('adminId required');
       senderType = 'admin';
       senderId = adminId;
     } else {
@@ -83,34 +74,36 @@ export class ChatService {
       senderId = userId;
     }
 
-    // get conversation
-    const conversation = await this.getOrCreateConversation(
-      userId,
-      applicationId,
-    );
+    const conversation = await this.getOrCreateConversation(userId, applicationId);
 
+    // ⭐ typescript safety
     if (!conversation) {
-      throw new BadRequestException('Conversation not created');
+      throw new BadRequestException('Conversation creation failed');
     }
 
-    // save message
+    // create message
     const msg = await this.msgModel.create({
       conversationId: conversation._id,
+      applicationId: new Types.ObjectId(applicationId),
       senderId: new Types.ObjectId(senderId),
       senderType,
-      message: message.trim(),
-      messageType: 'text',
+      message: message || '',
+      fileUrl: fileUrl || null,
+      messageType: fileUrl ? 'image' : 'text',
       isRead: false,
     });
 
-    // update header
-    conversation.lastMessage = message.trim();
+    // update sidebar
+    conversation.lastMessage = fileUrl ? '📎 File/Image' : message;
     conversation.lastMessageAt = new Date();
 
-    if (senderType === 'admin') conversation.unreadUser += 1;
-    else conversation.unreadAdmin += 1;
+    if (senderType === 'admin') {
+      conversation.unreadUser += 1;
+    } else {
+      conversation.unreadAdmin += 1;
+    }
 
-    // auto assign admin first reply
+    // assign admin first reply
     if (!conversation.assignedAdmin && senderType === 'admin') {
       conversation.assignedAdmin = new Types.ObjectId(adminId);
     }
@@ -121,37 +114,79 @@ export class ChatService {
   }
 
   // =====================================================
-  // GET FULL CHAT HISTORY
+  // GET CHAT + MARK SEEN
   // =====================================================
-  async getMessages(conversationId: string) {
+  async getMessages(conversationId: string, viewer: 'admin'|'user') {
+
     if (!Types.ObjectId.isValid(conversationId))
       throw new BadRequestException('Invalid conversationId');
 
-    return this.msgModel
-      .find({ conversationId: new Types.ObjectId(conversationId) })
+    const convoObj = new Types.ObjectId(conversationId);
+
+    const messages = await this.msgModel
+      .find({ conversationId: convoObj })
       .sort({ createdAt: 1 });
+
+    // mark seen
+    if(viewer === 'admin'){
+      await this.msgModel.updateMany(
+        { conversationId: convoObj, senderType:'user', isRead:false },
+        { isRead:true, readAt:new Date() }
+      );
+
+      await this.convoModel.updateOne(
+        { _id: convoObj },
+        { unreadAdmin:0 }
+      );
+    }
+
+    if(viewer === 'user'){
+      await this.msgModel.updateMany(
+        { conversationId: convoObj, senderType:'admin', isRead:false },
+        { isRead:true, readAt:new Date() }
+      );
+
+      await this.convoModel.updateOne(
+        { _id: convoObj },
+        { unreadUser:0 }
+      );
+    }
+
+    return messages;
   }
 
   // =====================================================
-  // ADMIN PANEL ALL CHATS
+  // ADMIN SIDEBAR
   // =====================================================
   async getAdminConversations() {
     return this.convoModel
       .find()
-      .populate('userId', 'firstName lastName email')
-      .populate('assignedAdmin', 'name email')
-      .sort({ updatedAt: -1 });
+      .populate('userId','firstName lastName email')
+      .populate('assignedAdmin','firstName lastName email')
+      .sort({ updatedAt:-1 });
   }
 
   // =====================================================
   // USER SIDEBAR
   // =====================================================
-  async getUserConversations(userId: string) {
+  async getUserConversations(userId:string){
     if (!Types.ObjectId.isValid(userId))
       throw new BadRequestException('Invalid userId');
 
     return this.convoModel
-      .find({ userId: new Types.ObjectId(userId) })
-      .sort({ updatedAt: -1 });
+      .find({ userId:new Types.ObjectId(userId) })
+      .populate('assignedAdmin','firstName lastName email')
+      .sort({ updatedAt:-1 });
+  }
+
+  // =====================================================
+  // ADMIN TOTAL UNREAD
+  // =====================================================
+  async getAdminTotalUnread(){
+    const result = await this.convoModel.aggregate([
+      { $group:{ _id:null, total:{ $sum:"$unreadAdmin"} } }
+    ]);
+
+    return result[0]?.total || 0;
   }
 }
