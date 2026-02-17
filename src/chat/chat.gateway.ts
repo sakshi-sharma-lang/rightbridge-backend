@@ -51,6 +51,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         if (sockets.size === 0) {
           this.adminSockets.delete(adminId);
           this.server.emit('adminOffline', { adminId });
+          console.log('Admin offline:', adminId);
         }
       }
     }
@@ -65,6 +66,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() socket: Socket,
   ) {
     try {
+      // ================= USER =================
       if (data.role === 'user' && data.userId) {
         this.userSockets.set(data.userId, socket.id);
         socket.join(`user_${data.userId}`);
@@ -76,12 +78,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
       }
 
+      // ================= ADMIN =================
       if (data.role === 'admin' && data.adminId) {
-        if (!this.adminSockets.has(data.adminId)) {
-          this.adminSockets.set(data.adminId, new Set());
-        }
+        const adminSet = this.adminSockets.get(data.adminId) ?? new Set<string>();
+        adminSet.add(socket.id);
+        this.adminSockets.set(data.adminId, adminSet);
 
-        this.adminSockets.get(data.adminId).add(socket.id);
         socket.join(`admin_${data.adminId}`);
 
         console.log('Admin online:', data.adminId);
@@ -140,7 +142,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       let saved;
 
-      // save DB
+      // save in DB
       if (data.senderRole === 'admin') {
         saved = await this.chatService.sendMessageByAdmin(data);
       } else {
@@ -152,7 +154,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // realtime message
       this.server.to(room).emit('receiveMessage', saved);
 
-      // sidebar refresh
+      // sidebar refresh realtime
       this.server.emit('chatListUpdated');
 
       return saved;
