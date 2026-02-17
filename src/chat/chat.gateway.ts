@@ -34,14 +34,16 @@ export class ChatGateway implements OnModuleInit {
       this.wss.on('connection', (socket: WebSocket) => {
         console.log('🟢 CLIENT CONNECTED');
 
-        socket.on('message', async (data: any) => {
-          try {
-            const msg = JSON.parse(data.toString());
-            await this.routeMessage(socket, msg);
-          } catch {
-            console.log('Invalid JSON');
-          }
-        });
+  socket.on('message', async (data: any) => {
+  try {
+    const msg = JSON.parse(data.toString());
+    await this.routeMessage(socket, msg);
+  } catch (err) {
+    console.log("❌ REAL ERROR:", err);
+  }
+});
+
+
 
         socket.on('close', () => this.handleDisconnect(socket));
       });
