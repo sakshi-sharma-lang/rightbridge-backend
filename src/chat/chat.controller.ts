@@ -5,25 +5,44 @@ import { ChatService } from './chat.service';
 export class ChatController {
   constructor(private chatService: ChatService) {}
 
-  // =====================================================
-  // 🟢 USER SEND MESSAGE
-  // =====================================================
+  // USER SEND
   @Post('user/chat/send')
   async sendUserMessage(@Body() body: any) {
     return this.chatService.sendMessageByUser(body);
   }
 
-  // =====================================================
-  // 🔴 ADMIN SEND MESSAGE
-  // =====================================================
+  // ADMIN SEND
   @Post('admin/chat/send')
   async sendAdminMessage(@Body() body: any) {
     return this.chatService.sendMessageByAdmin(body);
   }
 
-  // =====================================================
-  // 🟢 USER OPEN SINGLE CHAT
-  // =====================================================
+  // ADMIN TOTAL UNREAD (SAFE ROUTE)
+@Get('admin/chat-total-unread')
+async adminTotalUnread() {
+  return this.chatService.getAdminTotalUnread();
+}
+
+//  USER TOTAL UNREAD (SAFE ROUTE)
+@Get('user/chat-total-unread/:userId')
+async userTotalUnread(@Param('userId') userId: string) {
+  return this.chatService.getUserTotalUnread(userId);
+}
+
+
+  // ADMIN SIDEBAR
+  @Get('admin/chat')
+  async getAdminConversations() {
+    return this.chatService.getAdminConversations();
+  }
+
+  // USER SIDEBAR
+  @Get('user/chat/sidebar/:userId')
+  async getUserConversations(@Param('userId') id: string) {
+    return this.chatService.getUserConversations(id);
+  }
+
+  // USER OPEN CHAT (KEEP BELOW)
   @Get('user/chat/:userId/:applicationId')
   async getUserChat(
     @Param('userId') userId: string,
@@ -32,38 +51,12 @@ export class ChatController {
     return this.chatService.getUserChat(userId, applicationId);
   }
 
-  // =====================================================
-  // 🔴 ADMIN OPEN SINGLE CHAT
-  // =====================================================
+  // ADMIN OPEN CHAT (KEEP LAST)
   @Get('admin/chat/:userId/:applicationId')
   async getAdminChat(
     @Param('userId') userId: string,
     @Param('applicationId') applicationId: string,
   ) {
     return this.chatService.getAdminChat(userId, applicationId);
-  }
-
-  // =====================================================
-  // 🔴 ADMIN SIDEBAR (ALL USERS)
-  // =====================================================
-  @Get('admin/chat')
-  async getAdminConversations() {
-    return this.chatService.getAdminConversations();
-  }
-
-  // =====================================================
-  // 🟢 USER SIDEBAR (ALL APPLICATIONS)
-  // =====================================================
-  @Get('user/chat/sidebar/:userId')
-  async getUserConversations(@Param('userId') id: string) {
-    return this.chatService.getUserConversations(id);
-  }
-
-  // =====================================================
-  // 🔔 ADMIN TOTAL UNREAD
-  // =====================================================
-  @Get('admin/chat/unread/total')
-  async adminTotalUnread() {
-    return this.chatService.getAdminTotalUnread();
   }
 }

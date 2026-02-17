@@ -138,48 +138,74 @@ export class ChatService {
   // =====================================================
   // 🟢 USER OPEN CHAT
   // =====================================================
-  async getUserChat(userId: string, applicationId: string) {
+  // =====================================================
+// 🟢 USER OPEN CHAT (MARK ADMIN MSG READ)
+// =====================================================
+async getUserChat(userId: string, applicationId: string) {
 
-    const conversation = await this.getOrCreateConversation(userId, applicationId);
+  const conversation = await this.getOrCreateConversation(userId, applicationId);
 
-    // mark admin msgs read
-    conversation.messages.forEach((msg: any) => {
-      if (msg.senderType === 'admin') {
-        msg.isRead = true;
-      }
-    });
+  let updated = false;
 
+  // mark only unread admin msgs as read
+  conversation.messages.forEach((msg: any) => {
+    if (msg.senderType === 'admin' && msg.isRead === false) {
+      msg.isRead = true;
+      updated = true;
+    }
+  });
+
+  // reset unread counter
+  if (conversation.unreadUser !== 0) {
     conversation.unreadUser = 0;
-    await conversation.save();
-
-    return {
-      conversationId: conversation._id,
-      messages: conversation.messages,
-    };
+    updated = true;
   }
 
-  // =====================================================
-  // 🔴 ADMIN OPEN CHAT
-  // =====================================================
-  async getAdminChat(userId: string, applicationId: string) {
+  if (updated) {
+    await conversation.save();
+  }
 
-    const conversation = await this.getOrCreateConversation(userId, applicationId);
+  return {
+    conversationId: conversation._id,
+    unreadUser: conversation.unreadUser,
+    messages: conversation.messages,
+  };
+}
 
-    // mark user msgs read
-    conversation.messages.forEach((msg: any) => {
-      if (msg.senderType === 'user') {
-        msg.isRead = true;
-      }
-    });
 
+
+// =====================================================
+async getAdminChat(userId: string, applicationId: string) {
+
+  const conversation = await this.getOrCreateConversation(userId, applicationId);
+
+  let updated = false;
+
+  // mark only unread user msgs as read
+  conversation.messages.forEach((msg: any) => {
+    if (msg.senderType === 'user' && msg.isRead === false) {
+      msg.isRead = true;
+      updated = true;
+    }
+  });
+
+  // reset unread counter
+  if (conversation.unreadAdmin !== 0) {
     conversation.unreadAdmin = 0;
-    await conversation.save();
-
-    return {
-      conversationId: conversation._id,
-      messages: conversation.messages,
-    };
+    updated = true;
   }
+
+  if (updated) {
+    await conversation.save();
+  }
+
+  return {
+    conversationId: conversation._id,
+    unreadAdmin: conversation.unreadAdmin,
+    messages: conversation.messages,
+  };
+}
+
 
   // =====================================================
   // 🔴 ADMIN SIDEBAR
@@ -206,15 +232,31 @@ export class ChatService {
       .sort({ updatedAt: -1 });
   }
 
-  // =====================================================
-  // 🔔 ADMIN TOTAL UNREAD
-  // =====================================================
+ 
+
   async getAdminTotalUnread() {
 
-    const result = await this.convoModel.aggregate([
-      { $group: { _id: null, total: { $sum: '$unreadAdmin' } } },
-    ]);
+  const result = await this.convoModel.aggregate([
+    { $group: { _id: null, total: { $sum: '$unreadAdmin' } } },
+  ]);
 
-    return result[0]?.total || 0;
-  }
+  return result[0]?.total || 0;
+}
+
+// =====================================================
+// 🟢 USER TOTAL UNREAD COUNT
+// =====================================================
+async getUserTotalUnread(userId: string) {
+
+  if (!Types.ObjectId.isValid(userId))
+    throw new BadRequestException('Invalid userId');
+
+  const result = await this.convoModel.aggregate([
+    { $match: { userId: new Types.ObjectId(userId) } },
+    { $group: { _id: null, total: { $sum: '$unreadUser' } } },
+  ]);
+
+  return result[0]?.total || 0;
+}
+
 }
