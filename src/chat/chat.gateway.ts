@@ -1,43 +1,52 @@
-import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
-import WebSocket, { WebSocketServer } from 'ws';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ChatService } from './chat.service';
+import * as WebSocket from 'ws';
+import { INestApplication } from '@nestjs/common';
 
 @Injectable()
-export class ChatGateway implements OnApplicationBootstrap {
+export class ChatGateway implements OnModuleInit {
   constructor(private chatService: ChatService) {}
 
-  private wss: WebSocketServer;
+  private wss: WebSocket.Server;
 
   private userSockets = new Map<string, WebSocket>();
   private adminSockets = new Map<string, Set<WebSocket>>();
 
-  onApplicationBootstrap() {
+  onModuleInit() {
 
-    const httpServer = (global as any).httpServer;
+    // wait little for server start
+    setTimeout(() => {
+      const server = (global as any).serverInstance;
 
-    if (!httpServer) {
-      console.log("❌ HTTP server not found for WS");
-      return;
-    }
+      if (!server) {
+        console.log("❌ WS FAILED: serverInstance not found");
+        return;
+      }
 
-    this.wss = new WebSocketServer({ server: httpServer });
+      this.wss = new WebSocket.Server({ 
+      server,
+      path: "/ws"
+    });
 
-    console.log("🚀 WebSocket attached to same server");
 
-    this.wss.on('connection', (socket: WebSocket) => {
-      console.log('🟢 Client connected');
+      console.log("🚀 WEBSOCKET STARTED SUCCESSFULLY");
 
-      socket.on('message', async (data: any) => {
-        try {
-          const msg = JSON.parse(data.toString());
-          await this.routeMessage(socket, msg);
-        } catch {
-          console.log('Invalid JSON');
-        }
+      this.wss.on('connection', (socket: WebSocket) => {
+        console.log('🟢 CLIENT CONNECTED');
+
+        socket.on('message', async (data: any) => {
+          try {
+            const msg = JSON.parse(data.toString());
+            await this.routeMessage(socket, msg);
+          } catch {
+            console.log('Invalid JSON');
+          }
+        });
+
+        socket.on('close', () => this.handleDisconnect(socket));
       });
 
-      socket.on('close', () => this.handleDisconnect(socket));
-    });
+    }, 2000);
   }
 
   async routeMessage(socket: WebSocket, data: any) {
@@ -46,20 +55,23 @@ export class ChatGateway implements OnApplicationBootstrap {
     if (data.type === 'sendMessage') await this.handleSendMessage(data);
   }
 
-  handleIdentify(socket: WebSocket, data: any) {
-    if (data.role === 'user') {
-      this.userSockets.set(data.userId, socket);
-      console.log('User online:', data.userId);
-    }
+ handleIdentify(socket: WebSocket, data: any) {
 
-    if (data.role === 'admin') {
-      if (!this.adminSockets.has(data.adminId))
-        this.adminSockets.set(data.adminId, new Set());
-
-      this.adminSockets.get(data.adminId)?.add(socket);
-      console.log('Admin online:', data.adminId);
-    }
+  if (data.role === 'user') {
+    this.userSockets.set(data.userId, socket);
+    console.log('User online:', data.userId);
   }
+
+  if (data.role === 'admin') {
+
+    const adminSet = this.adminSockets.get(data.adminId) ?? new Set<WebSocket>();
+    adminSet.add(socket);
+    this.adminSockets.set(data.adminId, adminSet);
+
+    console.log('Admin online:', data.adminId);
+  }
+}
+
 
   handleTyping(data: any) {
     this.adminSockets.forEach(set=>{

@@ -68,11 +68,12 @@ async function bootstrap() {
   // ================= START SERVER =================
   const port = process.env.PORT || 4000;
 
-  const server = await app.listen(port);
-  console.log(`🚀 Server running on port ${port}`);
+const server = await app.listen(port);
+console.log(`Server running on ${port}`);
 
-  // 🔥 VERY IMPORTANT FOR WEBSOCKET (DO NOT REMOVE)
-  (global as any).httpServer = server;
+// expose server
+(global as any).serverInstance = server;
+
 }
 
 bootstrap();
