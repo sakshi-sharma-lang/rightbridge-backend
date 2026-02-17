@@ -1,165 +1,152 @@
-import {
-  WebSocketGateway,
-  SubscribeMessage,
-  WebSocketServer,
-  ConnectedSocket,
-  MessageBody,
-  OnGatewayConnection,
-  OnGatewayDisconnect,
-} from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import WebSocket, { WebSocketServer } from 'ws';
 import { ChatService } from './chat.service';
+import * as http from 'http';
 
-@WebSocketGateway({ cors: { origin: '*' } })
-export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+@Injectable()
+export class ChatGateway implements OnModuleInit {
   constructor(private chatService: ChatService) {}
 
-  @WebSocketServer()
-  server: Server;
+  private wss: WebSocketServer;
 
-  // ================= SOCKET MAP =================
-  private userSockets = new Map<string, string>(); // userId -> socketId
-  private adminSockets = new Map<string, Set<string>>(); // adminId -> multiple sockets
-
-  // =====================================================
-  // CONNECTION
-  // =====================================================
-  handleConnection(socket: Socket) {
-    console.log('Socket connected:', socket.id);
-  }
+  // user & admin socket maps
+  private userSockets = new Map<string, WebSocket>();
+  private adminSockets = new Map<string, Set<WebSocket>>();
 
   // =====================================================
-  // DISCONNECT (offline detect)
+  // START WS SERVER
   // =====================================================
-  handleDisconnect(socket: Socket) {
-    console.log('Socket disconnected:', socket.id);
+  onModuleInit() {
 
-    // remove user
-    for (const [userId, sockId] of this.userSockets) {
-      if (sockId === socket.id) {
-        this.userSockets.delete(userId);
-        this.server.emit('userOffline', { userId });
-        console.log('User offline:', userId);
-      }
-    }
+    const server = http.createServer();
 
-    // remove admin
-    for (const [adminId, sockets] of this.adminSockets) {
-      if (sockets.has(socket.id)) {
-        sockets.delete(socket.id);
+    this.wss = new WebSocketServer({ server });
 
-        if (sockets.size === 0) {
-          this.adminSockets.delete(adminId);
-          this.server.emit('adminOffline', { adminId });
-          console.log('Admin offline:', adminId);
+    server.listen(3093, '0.0.0.0', () => {
+      console.log('🚀 PRODUCTION WS RUNNING');
+      console.log('WS URL: wss://rightbridgeapi.csdevhub.com:3093');
+    });
+
+    this.wss.on('connection', (socket: WebSocket) => {
+      console.log('🟢 Client connected');
+
+      socket.on('message', async (data: any) => {
+        try {
+          const msg = JSON.parse(data.toString());
+          await this.routeMessage(socket, msg);
+        } catch (err) {
+          console.log('❌ Invalid JSON');
         }
-      }
-    }
-  }
+      });
 
-  // =====================================================
-  // IDENTIFY USER/ADMIN (ONLINE TRACKING)
-  // =====================================================
-  @SubscribeMessage('identify')
-  identify(
-    @MessageBody() data: any,
-    @ConnectedSocket() socket: Socket,
-  ) {
-    try {
-      // ================= USER =================
-      if (data.role === 'user' && data.userId) {
-        this.userSockets.set(data.userId, socket.id);
-        socket.join(`user_${data.userId}`);
-
-        console.log('User online:', data.userId);
-
-        this.server.emit('userOnline', {
-          userId: data.userId,
-        });
-      }
-
-      // ================= ADMIN =================
-      if (data.role === 'admin' && data.adminId) {
-        const adminSet = this.adminSockets.get(data.adminId) ?? new Set<string>();
-        adminSet.add(socket.id);
-        this.adminSockets.set(data.adminId, adminSet);
-
-        socket.join(`admin_${data.adminId}`);
-
-        console.log('Admin online:', data.adminId);
-
-        this.server.emit('adminOnline', {
-          adminId: data.adminId,
-        });
-      }
-    } catch (err) {
-      console.log('identify error', err.message);
-    }
-  }
-
-  // =====================================================
-  // JOIN CONVERSATION ROOM (when chat open)
-  // =====================================================
-  @SubscribeMessage('joinConversation')
-  joinConversation(
-    @MessageBody() data: any,
-    @ConnectedSocket() socket: Socket,
-  ) {
-    if (!data.userId || !data.applicationId) return;
-
-    const room = `conv_${data.applicationId}_${data.userId}`;
-    socket.join(room);
-
-    console.log('Joined room:', room);
-  }
-
-  // =====================================================
-  // TYPING INDICATOR
-  // =====================================================
-  @SubscribeMessage('typing')
-  typing(
-    @MessageBody() data: any,
-    @ConnectedSocket() socket: Socket,
-  ) {
-    if (!data.userId || !data.applicationId) return;
-
-    const room = `conv_${data.applicationId}_${data.userId}`;
-
-    this.server.to(room).emit('typing', {
-      userId: data.userId,
-      isTyping: data.isTyping,
+      socket.on('close', () => {
+        this.handleDisconnect(socket);
+      });
     });
   }
 
   // =====================================================
-  // SEND REALTIME MESSAGE
+  // ROUTER
   // =====================================================
-  @SubscribeMessage('sendMessage')
-  async sendMessage(
-    @MessageBody() data: any,
-    @ConnectedSocket() socket: Socket,
-  ) {
-    try {
-      let saved;
+  async routeMessage(socket: WebSocket, data: any) {
 
-      // save in DB
-      if (data.senderRole === 'admin') {
-        saved = await this.chatService.sendMessageByAdmin(data);
-      } else {
-        saved = await this.chatService.sendMessageByUser(data);
+    if (data.type === 'identify') {
+      this.handleIdentify(socket, data);
+    }
+
+    if (data.type === 'typing') {
+      this.handleTyping(data);
+    }
+
+    if (data.type === 'sendMessage') {
+      await this.handleSendMessage(data);
+    }
+  }
+
+  // =====================================================
+  // IDENTIFY
+  // =====================================================
+  handleIdentify(socket: WebSocket, data: any) {
+
+    if (data.role === 'user') {
+      this.userSockets.set(data.userId, socket);
+      console.log('👤 User online:', data.userId);
+    }
+
+    if (data.role === 'admin') {
+      if (!this.adminSockets.has(data.adminId)) {
+        this.adminSockets.set(data.adminId, new Set());
       }
 
-      const room = `conv_${data.applicationId}_${data.userId}`;
+      this.adminSockets.get(data.adminId)?.add(socket);
+      console.log('👑 Admin online:', data.adminId);
+    }
+  }
 
-      // realtime message
-      this.server.to(room).emit('receiveMessage', saved);
+  // =====================================================
+  // TYPING
+  // =====================================================
+  handleTyping(data: any) {
+    this.adminSockets.forEach((set) => {
+      set.forEach((adminSocket) => {
+        adminSocket.send(JSON.stringify({
+          type: 'typing',
+          userId: data.userId
+        }));
+      });
+    });
+  }
 
-      // sidebar refresh realtime
-      this.server.emit('chatListUpdated');
+  // =====================================================
+  // SEND MESSAGE
+  // =====================================================
+  async handleSendMessage(data: any) {
 
-      return saved;
-    } catch (err) {
-      console.log('Socket error:', err.message);
+    let saved;
+
+    if (data.senderRole === 'admin') {
+      saved = await this.chatService.sendMessageByAdmin(data);
+    } else {
+      saved = await this.chatService.sendMessageByUser(data);
+    }
+
+    // send to user
+    const userSocket = this.userSockets.get(data.userId);
+    if (userSocket) {
+      userSocket.send(JSON.stringify({
+        type: 'receiveMessage',
+        data: saved
+      }));
+    }
+
+    // send to all admins
+    this.adminSockets.forEach((set) => {
+      set.forEach((adminSocket) => {
+        adminSocket.send(JSON.stringify({
+          type: 'receiveMessage',
+          data: saved
+        }));
+      });
+    });
+  }
+
+  // =====================================================
+  // DISCONNECT
+  // =====================================================
+  handleDisconnect(socket: WebSocket) {
+
+    for (const [userId, s] of this.userSockets) {
+      if (s === socket) {
+        this.userSockets.delete(userId);
+        console.log('🔴 User offline:', userId);
+      }
+    }
+
+    for (const [adminId, set] of this.adminSockets) {
+      if (set.has(socket)) {
+        set.delete(socket);
+        console.log('🔴 Admin offline:', adminId);
+      }
     }
   }
 }
