@@ -7,11 +7,9 @@ export class Conversation {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
-  // single admin system
   @Prop({ type: Types.ObjectId, ref: 'Admin', default: null })
   assignedAdmin: Types.ObjectId;
 
-  // application based chat (REQUIRED)
   @Prop({ type: Types.ObjectId, required: true })
   applicationId: Types.ObjectId;
 
@@ -29,11 +27,27 @@ export class Conversation {
 
   @Prop()
   lastMessageAt: Date;
+
+  // ⭐ TEXT CHAT ARRAY ONLY
+  @Prop({
+    type: [
+      {
+        senderId: { type: Types.ObjectId },
+        senderType: String, // user | admin
+        message: String,
+        messageType: { type: String, default: 'text' },
+        time: Date,
+        isRead: { type: Boolean, default: false },
+      },
+    ],
+    default: [],
+  })
+  messages: any[];
 }
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);
 
-// ⭐ IMPORTANT: one conversation per user per application
+// ⭐ ONLY ONE CONVERSATION PER USER + APPLICATION
 ConversationSchema.index(
   { userId: 1, applicationId: 1 },
   { unique: true }
