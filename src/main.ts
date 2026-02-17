@@ -28,13 +28,12 @@ async function bootstrap() {
   );
 
   // ================= SUMSUB WEBHOOK (RAW BODY) =================
- app.use(
-  '/sumsub/webhook',
-  bodyParser.raw({ type: '*/*' }), //  accept all content types
-);
+  app.use(
+    '/sumsub/webhook',
+    bodyParser.raw({ type: '*/*' }),
+  );
 
-
-  //  IMPORTANT: restore JSON parser for all other routes
+  // IMPORTANT: restore JSON parser for all other routes
   app.use(bodyParser.json());
   app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -66,9 +65,14 @@ async function bootstrap() {
     express.static(join(process.cwd(), 'uploads')),
   );
 
+  // ================= START SERVER =================
   const port = process.env.PORT || 4000;
-  await app.listen(port);
+
+  const server = await app.listen(port);
   console.log(`🚀 Server running on port ${port}`);
+
+  // 🔥 VERY IMPORTANT FOR WEBSOCKET (DO NOT REMOVE)
+  (global as any).httpServer = server;
 }
 
 bootstrap();
