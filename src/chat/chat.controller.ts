@@ -8,7 +8,7 @@ export class ChatController {
   // =====================================================
   // 🟢 USER SEND MESSAGE
   // =====================================================
-  @Post('chat/send')
+  @Post('user/chat/send')
   async sendUserMessage(@Body() body: any) {
     return this.chatService.sendMessageByUser(body);
   }
@@ -22,27 +22,18 @@ export class ChatController {
   }
 
   // =====================================================
-  // ⭐ USER OLD ROUTE (DO NOT CHANGE)
-  // curl http://localhost:3092/chat/single/USER_ID/APPLICATION_ID/user
+  // 🟢 USER OPEN SINGLE CHAT
   // =====================================================
-  @Get('chat/single/:userId/:applicationId/:viewer')
-  async getSingleChat(
+  @Get('user/chat/:userId/:applicationId')
+  async getUserChat(
     @Param('userId') userId: string,
     @Param('applicationId') applicationId: string,
-    @Param('viewer') viewer: string,
   ) {
-    // only user allowed
-    if (viewer === 'user') {
-      return this.chatService.getUserChat(userId, applicationId);
-    }
-
-    return {
-      message: 'Only user allowed on this route',
-    };
+    return this.chatService.getUserChat(userId, applicationId);
   }
 
   // =====================================================
-  // 🔴 ADMIN OPEN CHAT (separate)
+  // 🔴 ADMIN OPEN SINGLE CHAT
   // =====================================================
   @Get('admin/chat/:userId/:applicationId')
   async getAdminChat(
@@ -53,7 +44,7 @@ export class ChatController {
   }
 
   // =====================================================
-  // 🔴 ADMIN SIDEBAR
+  // 🔴 ADMIN SIDEBAR (ALL USERS)
   // =====================================================
   @Get('admin/chat')
   async getAdminConversations() {
@@ -61,7 +52,7 @@ export class ChatController {
   }
 
   // =====================================================
-  // 🟢 USER SIDEBAR
+  // 🟢 USER SIDEBAR (ALL APPLICATIONS)
   // =====================================================
   @Get('user/chat/sidebar/:userId')
   async getUserConversations(@Param('userId') id: string) {
