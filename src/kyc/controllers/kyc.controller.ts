@@ -226,43 +226,50 @@ export class KycController {
       );
     }
   }
+@Post('client-status/update')
+async saveOrUpdateKyc(@Body() body: any) {
+  try {
+    const { externalUserId, applicationId } = body;
 
-  @Post('client-status/update')
-  async saveOrUpdateKyc(@Body() body: any) {
-    try {
-      const { externalUserId } = body;
-
-      //  externalUserId is mandatory
-      if (!externalUserId) {
-        throw new BadRequestException('externalUserId is required');
-      }
-
-      // ❌ Never allow Mongo _id overwrite
-      delete body._id;
-
-      //  UPDATE IF EXISTS, CREATE IF NOT (BASED ON externalUserId)
-      const saved = await this.kycModel.findOneAndUpdate(
-        { externalUserId }, // 🔥 THIS IS THE KEY FIX
-        body,
-        {
-          upsert: true,
-          new: true,
-          runValidators: false,
-          strict: false, // allows extra webhook fields safely
-        },
-      );
-
-      return {
-        success: true,
-        action: 'UPSERTED',
-        kycId: saved._id,
-      };
-    } catch (error: any) {
-      throw new InternalServerErrorException(
-        error?.message || 'Failed to save KYC data',
+    if (!externalUserId && !applicationId) {
+      throw new BadRequestException(
+        'externalUserId or applicationId is required',
       );
     }
+
+    delete body._id;
+
+    const saved = await this.kycModel.findOneAndUpdate(
+      {
+        $or: [
+          { externalUserId: externalUserId || null },
+          { applicationId: applicationId || null },
+        ],
+      },
+      body,
+      {
+        upsert: true,
+        new: true,
+        runValidators: false,
+        strict: false,
+      },
+    );
+
+    return {
+      success: true,
+      message: 'KYC data saved successfully',
+      action: 'UPSERTED', // created or updated
+      kycId: saved._id,
+    };
+  } catch (error: any) {
+    throw new InternalServerErrorException(
+      error?.message || 'Failed to save KYC data',
+    );
   }
+}
+
+
+
   @Get('details')
   @UseGuards(AdminJwtGuard)
   async getKycDetails(@Query() query: any) {

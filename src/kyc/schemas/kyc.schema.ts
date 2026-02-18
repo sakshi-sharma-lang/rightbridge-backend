@@ -19,12 +19,9 @@ export class Kyc extends Document {
   @Prop()
   levelName: string;
 
-  @Prop({
-    type: String,
-    enum: Object.values(KycStatus),
-    default: KycStatus.NOT_STARTED,
-  })
-  status: KycStatus;
+ @Prop({ default: '' })
+status: string;
+
 
   // ===== KYC =====
   @Prop() reviewAnswer: string;
