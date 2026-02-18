@@ -333,7 +333,7 @@ export class PaymentsService {
 
   /* ================= GET PAYMENTS MANAGEMENT ================= */
 
-  async getPaymentsManagement(query: {
+async getPaymentsManagement(query: {
   page?: string;
   limit?: string;
   status?: string;
@@ -342,11 +342,11 @@ export class PaymentsService {
   fromDate?: string;
   toDate?: string;
   search?: string;
-  appId?: string; // filter by application appId
+  appId?: string;
 }) {
   try {
     /* =====================================================
-       PAGINATION (SAFE)
+       PAGINATION
     ===================================================== */
     const page = Math.max(Number(query.page || 1), 1);
     const limit = Math.max(Number(query.limit || 10), 1);
@@ -355,7 +355,7 @@ export class PaymentsService {
     const match: any = {};
 
     /* =====================================================
-       APPLICATION FILTER (BY appId)
+       FILTER BY appId
     ===================================================== */
     if (query.appId) {
       const application = await this.applicationModel
@@ -364,14 +364,14 @@ export class PaymentsService {
         .lean();
 
       if (!application) {
-        match._id = null; // valid request, no data
+        match._id = null;
       } else {
         match.applicationId = application._id.toString();
       }
     }
 
     /* =====================================================
-       TYPE FILTER (STRICT VALIDATION – STATIC DATA)
+       TYPE FILTER
     ===================================================== */
     if (query.type) {
       const allowedTypes = ['all', 'commitment', 'facility', 'other'];
@@ -383,12 +383,12 @@ export class PaymentsService {
       }
 
       if (query.type === 'facility' || query.type === 'other') {
-        match._id = null; // force empty result
+        match._id = null;
       }
     }
 
     /* =====================================================
-       STATUS FILTER (STRICT)
+       STATUS FILTER
     ===================================================== */
     if (query.status) {
       const allowedStatuses = ['completed', 'pending', 'failed'];
@@ -409,7 +409,7 @@ export class PaymentsService {
     }
 
     /* =====================================================
-       DATE RANGE FILTER (UI DROPDOWN)
+       DATE RANGE FILTER
     ===================================================== */
     if (query.dateRange) {
       const allowedRanges = ['today', 'week', 'month', 'all'];
@@ -440,7 +440,7 @@ export class PaymentsService {
     }
 
     /* =====================================================
-       CUSTOM DATE RANGE
+       CUSTOM DATE FILTER
     ===================================================== */
     if (!query.dateRange && (query.fromDate || query.toDate)) {
       match.createdAt = {};
@@ -463,7 +463,7 @@ export class PaymentsService {
     }
 
     /* =====================================================
-       SEARCH FILTER
+       SEARCH
     ===================================================== */
     if (query.search) {
       match.$or = [
@@ -474,7 +474,7 @@ export class PaymentsService {
     }
 
     /* =====================================================
-       DASHBOARD SUMMARY (GLOBAL – UNCHANGED)
+       DASHBOARD SUMMARY
     ===================================================== */
     const [totalPaidAgg, successful, pending, failed] = await Promise.all([
       this.paymentModel.aggregate([
@@ -505,40 +505,64 @@ export class PaymentsService {
     const totalRecords = await this.paymentModel.countDocuments(match);
 
     /* =====================================================
-       FETCH APPLICATION appId ONLY
+       FETCH APPLICATION DATA
     ===================================================== */
     const applicationIds = [
       ...new Set(
         payments
           .map((p) => p.applicationId?.toString())
           .filter(
-            (id) => id && require('mongoose').Types.ObjectId.isValid(id), // 🔥 FIX ADDED
+            (id) => id && require('mongoose').Types.ObjectId.isValid(id),
           ),
       ),
     ];
 
-    let applications: any[] = []; // 🔥 FIX ADDED
+    let applications: any[] = [];
 
     if (applicationIds.length > 0) {
       applications = await this.applicationModel
         .find({ _id: { $in: applicationIds } })
-        .select('_id appId')
+        .select('_id appId applicants')
         .lean();
     }
 
     const applicationMap = new Map(
-      applications.map((app) => [app._id.toString(), app.appId]),
+      applications.map((app) => {
+        const firstApplicant = app.applicants?.[0] || {};
+        return [
+          app._id.toString(),
+          {
+            appId: app.appId,
+            firstName: firstApplicant.firstName || null,
+            lastName: firstApplicant.lastName || null,
+          },
+        ];
+      }),
     );
 
     /* =====================================================
-       FINAL LIST (FLAT appId ONLY)
+       FINAL LIST
     ===================================================== */
-    const list = payments.map((p) => ({
-      ...p,
-      appId: applicationMap.get(p.applicationId?.toString()) || null,
-      type: 'Commitment Fee',
-      provider: 'Stripe',
-    }));
+    const list = payments.map((p) => {
+      const appData = applicationMap.get(
+        p.applicationId?.toString(),
+      ) as
+        | {
+            appId?: string;
+            firstName?: string;
+            lastName?: string;
+          }
+        | undefined;
+
+      return {
+        ...p,
+        appId: appData?.appId || null,
+        firstName: appData?.firstName || null,
+        lastName: appData?.lastName || null,
+        type: 'Commitment Fee',
+        provider: 'Stripe',
+      };
+    });
 
     return {
       statusCode: 200,
@@ -560,13 +584,14 @@ export class PaymentsService {
       },
     };
   } catch (error) {
-    if (error instanceof BadRequestException) {
-      throw error;
-    }
+    if (error instanceof BadRequestException) throw error;
 
     console.error('Payments management error:', error);
     throw new InternalServerErrorException('Failed to fetch payments');
   }
 }
+
+
+
 
 }
