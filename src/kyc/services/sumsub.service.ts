@@ -443,7 +443,7 @@ export class SumsubService {
         data: [
           {
             $project: {
-              _id: 0,
+               _id: '$kyc._id',  
               applicationId: '$application.appId',
               applicationObjectId: '$application._id',
               applicantId: '$applicant._id',
