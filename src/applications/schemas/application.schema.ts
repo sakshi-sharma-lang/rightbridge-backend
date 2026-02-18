@@ -118,6 +118,7 @@ applicants: Record<string, any>[];
     borrowerContribution: Number,
     additionalSecurity: String,
     works_funded_by_loan: String,
+    loan_comment: String,
      equity_amount: {
         type: Number,
         default: 0
@@ -215,6 +216,9 @@ rejectReason?: string;
   isDraft: boolean;
   @Prop({ unique: true })
   appId: string;
+   @Prop({ type: Boolean, default: null })
+    applicationEdit: boolean | null;
+
   @Prop()
   createdAt: Date;
   @Prop()
