@@ -373,20 +373,20 @@ async updateApplicationDetails(
       throw new ForbiddenException('Application not found');
     }
 
-    console.log('STEP 1: FRONTEND BODY =>', JSON.stringify(body, null, 2));
+   // console.log('STEP 1: FRONTEND BODY =>', JSON.stringify(body, null, 2));
 
-    // ⭐ ONLY THIS LINE ADDED (SAFE)
+    //  ONLY THIS LINE ADDED (SAFE)
     body = this.safeDotToObject(body);
 
     // =========================================================
-    // 🔴 FULL UPDATE FROM FRONTEND (UNCHANGED)
+    //  FULL UPDATE FROM FRONTEND (UNCHANGED)
     // =========================================================
     Object.keys(body).forEach((key) => {
       application[key] = body[key];
     });
 
     // =========================================================
-    // 🟢 LTV STATUS LOGIC (UNCHANGED)
+    //  LTV STATUS LOGIC (UNCHANGED)
     // =========================================================
     try {
       const loanAmount = Number(
@@ -403,7 +403,7 @@ async updateApplicationDetails(
 
       if (!isNaN(loanAmount) && !isNaN(propertyValue) && propertyValue > 0) {
         const ltv = (loanAmount / propertyValue) * 100;
-        console.log('LTV =>', ltv);
+      //  console.log('LTV =>', ltv);
 
         if (ltv > 75) {
           application.status = 'AUTO_REJECTED' as any;
@@ -411,14 +411,24 @@ async updateApplicationDetails(
           application.isDraft = false;
         }
 
-        else if (body?.status === 'dip_stage') {
+        else if (
+          body?.status === 'dip_stage' &&
+          body?.applicationEdit !== true &&
+          body?.applicationEdit !== 'true'
+        ) {
+       
           application.status = 'dip_stage' as any;
           application.application_stage_management = ['dip_submitted'];
           application.rejectReason = '';
           application.isDraft = false;
         }
 
-        if (body?.isDraft === true) {
+        if (
+          (body?.isDraft === true || body?.isDraft === 'true') &&
+          body?.applicationEdit !== true &&
+          body?.applicationEdit !== 'true'
+        ) {
+         
           application.isDraft = true;
         }
       }
@@ -428,8 +438,8 @@ async updateApplicationDetails(
 
     const updated = await application.save();
 
-    console.log('✅ APPLICATION UPDATED SUCCESS');
-    console.log('========== UPDATE END ==========\n');
+    // console.log('✅ APPLICATION UPDATED SUCCESS');
+    // console.log('========== UPDATE END ==========\n');
 
     return updated;
   } catch (error) {
@@ -437,6 +447,7 @@ async updateApplicationDetails(
     throw new InternalServerErrorException(error.message);
   }
 }
+
 
 
   /* ================= APP ID GENERATOR ================= */
