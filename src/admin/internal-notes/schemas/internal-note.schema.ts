@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
 @Schema({
-  timestamps: { createdAt: true, updatedAt: false } // ✅ fix here
+  timestamps: { createdAt: true, updatedAt: false } //  fix here
 })
 export class InternalNote extends Document {
 

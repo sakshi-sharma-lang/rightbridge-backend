@@ -82,7 +82,7 @@ export class InternalNotesService {
         },
       );
 
-      console.log('✅ NOTE ADDED IN SINGLE ROW');
+      console.log(' NOTE ADDED IN SINGLE ROW');
 
       return {
         success: true,
@@ -91,7 +91,7 @@ export class InternalNotesService {
       };
 
     } catch (error) {
-      console.log('❌ ADD NOTE ERROR', error);
+      console.log(' ADD NOTE ERROR', error);
 
       if (error?.name === 'CastError')
         throw new BadRequestException('Invalid applicationId/adminId format');

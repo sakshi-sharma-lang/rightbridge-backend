@@ -222,8 +222,8 @@ async sendKycEmail(email: string, kycLink: string) {
       messageId: info.messageId,
     };
   } catch (error: any) {
-    console.error('❌ Email sending failed:', email);
-    console.error('❌ SMTP Error:', error?.message || error);
+    console.error(' Email sending failed:', email);
+    console.error(' SMTP Error:', error?.message || error);
 
     return {
       success: false,
@@ -262,7 +262,7 @@ async sendEquityChangeEmail(data: {
 
     console.log(' Equity change email sent:', data.email);
   } catch (error) {
-    console.log('❌ Equity change email failed:', error);
+    console.log(' Equity change email failed:', error);
   }
 }
 

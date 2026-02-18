@@ -162,7 +162,7 @@ export class PaymentsService {
         process.env.STRIPE_WEBHOOK_SECRET as string,
       );
     } catch (err: any) {
-      console.error('❌ Webhook signature verification failed');
+      console.error(' Webhook signature verification failed');
       console.error('Error message:', err.message);
       return res.status(400).json({ message: 'Invalid signature' });
     }
@@ -272,7 +272,7 @@ export class PaymentsService {
           console.warn('⚠️ Unhandled Stripe event type:', event.type);
       }
     } catch (dbError) {
-      console.error('❌ Error while processing webhook event');
+      console.error(' Error while processing webhook event');
       console.error(dbError);
       return res.status(500).json({ message: 'Webhook processing failed' });
     }

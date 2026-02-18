@@ -65,7 +65,7 @@ export class ChatService {
   }
 
   // =====================================================
-  // 🟢 USER SEND MESSAGE → SAVE IN ARRAY
+  //  USER SEND MESSAGE → SAVE IN ARRAY
   // =====================================================
   async sendMessageByUser(data: any) {
 
@@ -77,7 +77,7 @@ export class ChatService {
 
     const conversation = await this.getOrCreateConversation(userId, applicationId);
 
-    // ⭐ PUSH INTO ARRAY (NOT NEW ROW)
+    //  PUSH INTO ARRAY (NOT NEW ROW)
     conversation.messages.push({
       senderId: new Types.ObjectId(userId),
       senderType: 'user',
@@ -136,10 +136,10 @@ export class ChatService {
   }
 
   // =====================================================
-  // 🟢 USER OPEN CHAT
+  // \ USER OPEN CHAT
   // =====================================================
   // =====================================================
-// 🟢 USER OPEN CHAT (MARK ADMIN MSG READ)
+// USER OPEN CHAT (MARK ADMIN MSG READ)
 // =====================================================
 async getUserChat(userId: string, applicationId: string) {
 
@@ -219,7 +219,7 @@ async getAdminChat(userId: string, applicationId: string) {
   }
 
   // =====================================================
-  // 🟢 USER SIDEBAR
+  //  USER SIDEBAR
   // =====================================================
   async getUserConversations(userId: string) {
 
@@ -244,7 +244,7 @@ async getAdminChat(userId: string, applicationId: string) {
 }
 
 // =====================================================
-// 🟢 USER TOTAL UNREAD COUNT
+//  USER TOTAL UNREAD COUNT
 // =====================================================
 async getUserTotalUnread(userId: string) {
 

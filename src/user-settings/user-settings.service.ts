@@ -156,7 +156,7 @@ async deleteAccount(userId: string) {
       );
     }
 
-    // 🟢 Delete user account
+    //  Delete user account
     await this.userModel.findByIdAndDelete(userId);
 
     return {
@@ -164,7 +164,7 @@ async deleteAccount(userId: string) {
       message: 'Your account has been deleted successfully.',
     };
   } catch (error) {
-    console.log('❌ DELETE ACCOUNT ERROR =>', error.message);
+    console.log(' DELETE ACCOUNT ERROR =>', error.message);
     throw error;
   }
 }

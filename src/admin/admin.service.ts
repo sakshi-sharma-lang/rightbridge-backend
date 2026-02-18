@@ -282,7 +282,7 @@ export class AdminService {
     //  ALLOWED FIELDS
     const allowedFields = ['fullName', 'role', 'status'];
 
-    // ❌ CHECK FOR INVALID FIELDS
+    //  CHECK FOR INVALID FIELDS
     const invalidFields = Object.keys(data).filter(
       (key) => !allowedFields.includes(key),
     );

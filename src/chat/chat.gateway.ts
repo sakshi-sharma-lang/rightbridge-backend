@@ -19,7 +19,7 @@ export class ChatGateway implements OnModuleInit {
       const server = (global as any).serverInstance;
 
       if (!server) {
-        console.log("❌ WS FAILED: serverInstance not found");
+        console.log(" WS FAILED: serverInstance not found");
         return;
       }
 
@@ -28,18 +28,17 @@ export class ChatGateway implements OnModuleInit {
       path: "/ws"
     });
 
-
       console.log("🚀 WEBSOCKET STARTED SUCCESSFULLY");
 
       this.wss.on('connection', (socket: WebSocket) => {
-        console.log('🟢 CLIENT CONNECTED');
+        console.log(' CLIENT CONNECTED');
 
   socket.on('message', async (data: any) => {
   try {
     const msg = JSON.parse(data.toString());
     await this.routeMessage(socket, msg);
   } catch (err) {
-    console.log("❌ REAL ERROR:", err);
+    console.log(" REAL ERROR:", err);
   }
 });
 
@@ -74,7 +73,6 @@ export class ChatGateway implements OnModuleInit {
   }
 }
 
-
   handleTyping(data: any) {
     this.adminSockets.forEach(set=>{
       set.forEach(admin=>{
@@ -82,7 +80,6 @@ export class ChatGateway implements OnModuleInit {
       });
     });
   }
-
   async handleSendMessage(data: any) {
     let saved;
 

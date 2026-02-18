@@ -75,7 +75,7 @@ async updateStageManagment(appId: string, stage: string, email: string) {
     await app.save();
 
     // =====================================================
-    // ✅ CHECK USER EMAIL NOTIFICATION SETTING
+    //  CHECK USER EMAIL NOTIFICATION SETTING
     // =====================================================
     let allowEmail = false;
 
@@ -87,7 +87,7 @@ async updateStageManagment(appId: string, stage: string, email: string) {
     }
 
     // =====================================================
-    // ✅ SEND EMAILS IF ENABLED
+    //  SEND EMAILS IF ENABLED
     // =====================================================
     if (allowEmail) {
 

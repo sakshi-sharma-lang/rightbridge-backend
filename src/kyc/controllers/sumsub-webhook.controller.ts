@@ -41,7 +41,7 @@ export class SumsubWebhookController {
     try {
       parsedBody = JSON.parse(rawBody);
     } catch {
-      console.log('❌ JSON PARSE FAILED');
+      console.log(' JSON PARSE FAILED');
       return { ok: true };
     }
 
@@ -53,7 +53,7 @@ export class SumsubWebhookController {
     console.log('EXTERNAL USER ID:', externalUserId);
 
     if (!applicantId) {
-      console.log('❌ Missing applicantId → ignored');
+      console.log(' Missing applicantId → ignored');
       return { ok: true };
     }
 
@@ -73,7 +73,7 @@ export class SumsubWebhookController {
     }
 
     if (!kyc) {
-      console.log('❌ KYC RECORD NOT FOUND → ignored');
+      console.log(' KYC RECORD NOT FOUND → ignored');
       return { ok: true };
     }
 

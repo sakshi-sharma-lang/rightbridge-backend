@@ -438,12 +438,12 @@ async updateApplicationDetails(
 
     const updated = await application.save();
 
-    // console.log('✅ APPLICATION UPDATED SUCCESS');
+    // console.log(' APPLICATION UPDATED SUCCESS');
     // console.log('========== UPDATE END ==========\n');
 
     return updated;
   } catch (error) {
-    console.error('❌ UPDATE ERROR:', error);
+    console.error(' UPDATE ERROR:', error);
     throw new InternalServerErrorException(error.message);
   }
 }
@@ -1370,7 +1370,7 @@ private safeDotToObject(body: any) {
         throw err;
       }
 
-      // ❌ Unknown error
+      //  Unknown error
       throw new InternalServerErrorException(
         'Something went wrong while deleting application',
       );
@@ -1418,7 +1418,7 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
       updateData['loanRequirements.equity_override_date'] = now;
     //  console.log(' DATE AUTO SET =>', now);
     } else {
-    //  console.log('❌ No equity change detected');
+    //  console.log(' No equity change detected');
     }
 
   //  console.log('STEP 2: FINAL UPDATE OBJECT =>', updateData);
@@ -1491,7 +1491,7 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
         const uniqueEmails = [...new Set(emails)];
 
         if (!uniqueEmails.length) {
-          console.log('❌ No emails found');
+          console.log(' No emails found');
         }
 
         // =====================================================
@@ -1534,7 +1534,7 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
           //console.log(' Email sent to:', email);
         }
       } catch (mailErr) {
-       // console.log('❌ Email sending failed:', mailErr);
+       // console.log(' Email sending failed:', mailErr);
       }
     }
 
@@ -1546,7 +1546,7 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
       data: updated,
     };
   } catch (err) {
-    console.error('❌ ADMIN UPDATE ERROR:', err);
+    console.error(' ADMIN UPDATE ERROR:', err);
     throw new InternalServerErrorException('Admin update failed');
   }
 }

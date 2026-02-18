@@ -8,7 +8,7 @@ import { AuthGuard } from '@nestjs/passport';
 export class InternalNotesController {
   constructor(private readonly notesService: InternalNotesService) {}
 
-  // ✅ ADD NOTE (controller should only call service)
+  //  ADD NOTE (controller should only call service)
   @Post(':applicationId')
   async addNote(
     @Param('applicationId') applicationId: string,
@@ -19,7 +19,7 @@ export class InternalNotesController {
     return this.notesService.addNote(applicationId, admin, dto.message);
   }
 
-  // ✅ GET NOTES
+  //  GET NOTES
   @Get(':applicationId')
   async getNotes(@Param('applicationId') applicationId: string) {
     return this.notesService.getNotes(applicationId);
