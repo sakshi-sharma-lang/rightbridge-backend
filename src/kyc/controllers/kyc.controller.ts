@@ -286,18 +286,46 @@ async saveOrUpdateKyc(@Body() body: any) {
     });
   }
 
-  @Get('sumsub-data')
-  @UseGuards(AdminJwtGuard)
-  async getSumsubData(@Query('applicantId') applicantId: string) {
-    if (!applicantId) {
-      throw new BadRequestException('applicantId is required');
+@Get('sumsub-data')
+@UseGuards(AdminJwtGuard)
+async getSumsubData(@Query('applicantId') applicantId: string) {
+  try {
+    // ===== VALIDATION =====
+    if (!applicantId || applicantId.trim() === '') {
+      throw new BadRequestException('applicantId query parameter is required');
     }
 
-    const data = await this.sumsubService.getApplicantById(applicantId);
+    // ===== FIND RECORD =====
+    const kyc = await this.kycModel.findOne({ applicantId }).lean();
 
+    // ===== NOT FOUND =====
+    if (!kyc) {
+      throw new NotFoundException(
+        `No KYC record found for applicantId: ${applicantId}`,
+      );
+    }
+
+    // ===== SUCCESS =====
     return {
       success: true,
-      data,
+      message: 'KYC data fetched successfully',
+      data: kyc,
     };
+  } catch (error: any) {
+    // known errors
+    if (
+      error instanceof BadRequestException ||
+      error instanceof NotFoundException
+    ) {
+      throw error;
+    }
+
+    // unknown error
+    throw new InternalServerErrorException(
+      error?.message || 'Unable to fetch KYC data at the moment',
+    );
   }
+}
+
+
 }
