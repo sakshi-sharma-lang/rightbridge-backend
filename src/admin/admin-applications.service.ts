@@ -128,8 +128,6 @@ async updateStageManagment(appId: string, stage: string, email: string) {
 }
 
 
-
-
 async declineDip(
   appId: string,
   reason: string,
@@ -214,9 +212,5 @@ async declineDip(
     };
   }
 }
-
-
-
-
 
 }
