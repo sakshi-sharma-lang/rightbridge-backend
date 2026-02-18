@@ -721,7 +721,7 @@ async getApplicationsAdmindashboard(query: any) {
         }).format(new Date(application.updatedAt))
       : null,
 
-    status: formattedStatus, // 👈 only change applied here
+    status: formattedStatus, //  only change applied here
 
     applicant: {
       name: `${application?.applicants?.[0]?.firstName ?? ''} ${

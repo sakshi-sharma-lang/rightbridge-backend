@@ -14,6 +14,7 @@ import { Counter, CounterSchema } from '../applications/schemas/counter.schema';
 import { MailModule } from '../mail/mail.module';
 import { ApplicationsModule } from '../applications/applications.module';
 import { InternalNotesModule } from './internal-notes/internal-notes.module';
+import { User, UserSchema } from '../users/schemas/user.schema'; 
 
 
 import {
@@ -43,6 +44,7 @@ import { AdminApplicationsService } from './admin-applications.service';
       { name: Admin.name, schema: AdminSchema },
       { name: Counter.name, schema: CounterSchema },
       { name: Application.name, schema: ApplicationSchema },
+     { name: User.name, schema: UserSchema },
     ]),
 
     MailModule,

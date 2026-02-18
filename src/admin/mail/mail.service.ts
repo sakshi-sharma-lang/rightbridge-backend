@@ -13,7 +13,7 @@ export class MailService {
     let html = fs.readFileSync(templatePath, 'utf8');
     html = html.replace('{{RESET_LINK}}', resetLink);
 
-    // 🔴 Replace this with nodemailer / SES / SendGrid
+    //  Replace this with nodemailer / SES / SendGrid
     console.log('Sending email to:', email);
     console.log(html);
   }
@@ -35,7 +35,7 @@ export class MailService {
       .replace('{{PASSWORD}}', password)
       .replace('{{LOGIN_URL}}', loginUrl);
 
-    // 🔴 Replace with Nodemailer / SES / SendGrid
+    //  Replace with Nodemailer / SES / SendGrid
     console.log('Sending Admin Registration Email to:', email);
     console.log(html);
   }

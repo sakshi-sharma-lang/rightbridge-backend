@@ -21,7 +21,7 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
   }
 
   async validate(payload: any) {
-    // 🔐 Verify ADMIN from admin table
+    //  Verify ADMIN from admin table
     const admin = await this.adminModel.findById(payload.id);
 
     if (!admin) {

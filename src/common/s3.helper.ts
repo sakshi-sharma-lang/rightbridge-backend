@@ -29,7 +29,7 @@ export class S3Helper {
         throw new BadRequestException('Uploaded file is empty');
       }
 
-      // 🔴 FILE SIZE VALIDATION (GLOBAL)
+      //  FILE SIZE VALIDATION (GLOBAL)
       if (file.size > this.MAX_FILE_SIZE) {
         throw new BadRequestException(
           'File size cannot exceed 10 MB',

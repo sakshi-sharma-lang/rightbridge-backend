@@ -1,7 +1,7 @@
 import * as multer from 'multer';
 
 export const applicationDocMulter = {
-  storage: multer.memoryStorage(),   // 🔴 REQUIRED FOR S3
+  storage: multer.memoryStorage(),   //  REQUIRED FOR S3
 
   limits: {
     fileSize: 25 * 1024 * 1024, // 25MB

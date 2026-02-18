@@ -62,13 +62,13 @@ const expiresIn = this.configService.get<string>('JWT_EXPIRES_IN');
 const access_token = this.jwtService.sign(payload); // expiry already applied by JwtModule
   await this.mailService.sendOtpVerificationEmail(
     user.email,
-      `${user.firstName} ${user.lastName}`, // 👈 merged
+      `${user.firstName} ${user.lastName}`, //  merged
 
     otp,
     otp_expiry_time
   );
 
-  // 🚫 Block login + send flag
+  //  Block login + send flag
   throw new UnauthorizedException({
     message: 'OTP verification pending. Verification email sent.',
     isOtpNotVerified: false,
@@ -169,7 +169,7 @@ async forgotPassword(email: string, type?: string) {
     }
   }
 
-  // 🚫 Block if limit exceeded
+  //  Block if limit exceeded
   if (user.forgotPasswordCount >= MAX_REQUESTS) {
     throw new BadRequestException({
       statusCode: 429,
@@ -295,7 +295,7 @@ async resetPassword(token: string, newPassword: string) {
 
   await this.mailService.sendWelcomeEmail(
     user.email,
-      `${user.firstName} ${user.lastName}`, // 👈 merged
+      `${user.firstName} ${user.lastName}`, //  merged
 
   );
 

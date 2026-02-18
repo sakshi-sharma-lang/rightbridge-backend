@@ -100,7 +100,7 @@ export class ChatService {
   }
 
   // =====================================================
-  // 🔴 ADMIN SEND MESSAGE
+  //  ADMIN SEND MESSAGE
   // =====================================================
   async sendMessageByAdmin(data: any) {
 
@@ -208,7 +208,7 @@ async getAdminChat(userId: string, applicationId: string) {
 
 
   // =====================================================
-  // 🔴 ADMIN SIDEBAR
+  //  ADMIN SIDEBAR
   // =====================================================
   async getAdminConversations() {
     return this.convoModel

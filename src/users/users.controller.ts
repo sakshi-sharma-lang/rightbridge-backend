@@ -22,7 +22,7 @@ export class UsersController {
   // 🔹 Check email
   const emailExists = await this.usersService.findByEmail(email);
 
-  // 🟡 ADD: Email exists but OTP NOT verified → update ALL fields except email
+  //  ADD: Email exists but OTP NOT verified → update ALL fields except email
   if (emailExists && !emailExists.isOtpVerified) {
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
     const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -58,7 +58,7 @@ export class UsersController {
     };
   }
 
-  // 🔴 EXISTING: Email already exists (verified user)
+  //  EXISTING: Email already exists (verified user)
   if (emailExists) {
     throw new BadRequestException('Email already exists');
   }
@@ -182,7 +182,7 @@ async updateUserOtp(@Body() dto: UpdateUserDto) {
     throw new BadRequestException('User not found');
   }
 
-  // 🚫 BLOCK IF ALREADY VERIFIED
+  //  BLOCK IF ALREADY VERIFIED
   // if (user.isOtpVerified === true) {
   //   throw new BadRequestException(
   //     'User already verified. OTP resend not allowed.',
@@ -207,7 +207,7 @@ if (dto.type === 'FORGOT_PASSWORD') {
   const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
   const otp_expiry_time = 5;
 
-  // 🔐 Update OTP fields only
+  //  Update OTP fields only
   user.otp = otp;
   user.otpExpiresAt = otpExpiresAt;
 

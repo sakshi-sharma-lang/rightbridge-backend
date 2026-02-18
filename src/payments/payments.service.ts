@@ -154,7 +154,7 @@ export class PaymentsService {
 
     let event: Stripe.Event;
 
-    // 🔐 STRIPE SIGNATURE VERIFICATION
+    //  STRIPE SIGNATURE VERIFICATION
     try {
       event = this.stripe.webhooks.constructEvent(
         req.body, // MUST be raw buffer

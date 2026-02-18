@@ -3,12 +3,14 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Application } from '../applications/schemas/application.schema';
 import { MailService } from '../mail/mail.service'; 
-
+import { User } from '../users/schemas/user.schema';  
 @Injectable()
 export class AdminApplicationsService {
   constructor(
     @InjectModel(Application.name)
     private readonly applicationModel: Model<Application>,
+    @InjectModel(User.name) 
+    private readonly userModel: Model<User>, 
       private readonly mailService: MailService,      
 
   ) {}
@@ -31,7 +33,7 @@ async updateStageManagment(appId: string, stage: string, email: string) {
       };
     }
 
-    // 🚫 Lock if DIP declined
+    //  Lock if DIP declined
     if (app.application_stage_management?.includes('dip_declined')) {
       return {
         statusCode: 403,
@@ -39,7 +41,6 @@ async updateStageManagment(appId: string, stage: string, email: string) {
       };
     }
 
-  
     const ALLOWED_STAGES = [
       'dip_approved',
       'kyc_confirm',
@@ -57,7 +58,7 @@ async updateStageManagment(appId: string, stage: string, email: string) {
       };
     }
 
-    // 🚫 Prevent duplicate stage
+    //  Prevent duplicate stage
     if (app.application_stage_management?.includes(stage)) {
       return {
         statusCode: 400,
@@ -65,19 +66,56 @@ async updateStageManagment(appId: string, stage: string, email: string) {
       };
     }
 
-    //  Save stage
+    // Save stage
     if (!Array.isArray(app.application_stage_management)) {
-  app.application_stage_management = [];
-}
+      app.application_stage_management = [];
+    }
 
-app.application_stage_management.push(stage);
-await app.save();
-    // 📧 Send email
-    await this.mailService.sendStageEmail(email, stage, appId);
+    app.application_stage_management.push(stage);
+    await app.save();
+
+    // =====================================================
+    // ✅ CHECK USER EMAIL NOTIFICATION SETTING
+    // =====================================================
+    let allowEmail = false;
+
+    if (app?.userId) {
+      const user = await this.userModel.findById(app.userId).lean();
+      if (user && user.emailNotifications === true) {
+        allowEmail = true;
+      }
+    }
+
+    // =====================================================
+    // ✅ SEND EMAILS IF ENABLED
+    // =====================================================
+    if (allowEmail) {
+
+      // ==============================
+      // 1️⃣ SEND TO USER TABLE EMAIL
+      // ==============================
+      // const mainUser = await this.userModel.findById(app.userId).lean();
+      // if (mainUser?.email) {
+      //   await this.mailService.sendStageEmail(mainUser.email, stage, appId);
+      // }
+
+      // ==============================
+      // 2️⃣ SEND TO ALL APPLICANTS EMAIL
+      // ==============================
+      if (Array.isArray(app.applicants)) {
+        for (const applicant of app.applicants) {
+          if (applicant?.email) {
+            await this.mailService.sendStageEmail(applicant.email, stage, appId);
+          }
+        }
+      }
+    }
 
     return {
       statusCode: 200,
-      message: 'Stage updated and email sent successfully',
+      message: allowEmail
+        ? 'Stage updated and email sent successfully'
+        : 'Stage updated successfully (email disabled by user)',
       data: app,
     };
   } catch (error) {
@@ -88,7 +126,6 @@ await app.save();
     };
   }
 }
-
 
 
 

@@ -135,7 +135,7 @@ async deleteAccount(userId: string) {
       throw new BadRequestException('User ID is required to delete the account.');
     }
 
-    // 🔴 Check if user has any application
+    //  Check if user has any application
     const userApps = await this.applicationModel.find({ userId });
 
     if (userApps.length === 0) {
@@ -144,7 +144,7 @@ async deleteAccount(userId: string) {
       );
     }
 
-    // 🔴 Check if any application is not completed
+    //  Check if any application is not completed
     const activeApp = userApps.find(
       (app) =>
         !app.application_stage_management?.includes('completed_stage'),

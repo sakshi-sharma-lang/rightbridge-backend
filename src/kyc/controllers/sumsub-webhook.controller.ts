@@ -83,7 +83,7 @@ export class SumsubWebhookController {
     }
 
     /* ======================================================
-       🔐 AML WEBHOOK — ALL AML CASES
+        AML WEBHOOK — ALL AML CASES
        ====================================================== */
     if (type === 'amlCheckCompleted') {
       console.log(' AML WEBHOOK RECEIVED');
