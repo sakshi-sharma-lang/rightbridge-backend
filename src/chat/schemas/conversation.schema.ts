@@ -28,21 +28,42 @@ export class Conversation {
   @Prop()
   lastMessageAt: Date;
 
-  // ⭐ TEXT CHAT ARRAY ONLY
-  @Prop({
-    type: [
-      {
-        senderId: { type: Types.ObjectId },
-        senderType: String, // user | admin
-        message: String,
-        messageType: { type: String, default: 'text' },
-        time: Date,
-        isRead: { type: Boolean, default: false },
+@Prop({
+  type: [
+    {
+      senderId: { type: Types.ObjectId, required: true },
+
+      senderType: {
+        type: String,
+        enum: ['user', 'admin'],
+        required: true,
       },
-    ],
-    default: [],
-  })
-  messages: any[];
+
+      message: {
+        type: String,
+        default: '',
+      },
+
+      messageType: {
+        type: String,
+        default: 'text', // only text
+      },
+
+      time: {
+        type: Date,
+        default: Date.now,
+      },
+
+      isRead: {
+        type: Boolean,
+        default: false,
+      },
+    },
+  ],
+  default: [],
+})
+messages: any[];
+
 }
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);

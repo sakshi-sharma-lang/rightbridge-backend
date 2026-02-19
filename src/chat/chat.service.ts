@@ -65,7 +65,7 @@ export class ChatService {
   }
 
   // =====================================================
-  //  USER SEND MESSAGE → SAVE IN ARRAY
+  // USER SEND MESSAGE
   // =====================================================
   async sendMessageByUser(data: any) {
 
@@ -77,7 +77,6 @@ export class ChatService {
 
     const conversation = await this.getOrCreateConversation(userId, applicationId);
 
-    //  PUSH INTO ARRAY (NOT NEW ROW)
     conversation.messages.push({
       senderId: new Types.ObjectId(userId),
       senderType: 'user',
@@ -94,13 +93,16 @@ export class ChatService {
     await conversation.save();
 
     return {
-      success: true,
-      message: 'Message saved in same conversation',
-    };
+  success: true,
+  message: 'Message sent',
+  conversationId: conversation._id,
+  unreadAdmin: conversation.unreadAdmin
+};
+
   }
 
   // =====================================================
-  //  ADMIN SEND MESSAGE
+  // ADMIN SEND MESSAGE
   // =====================================================
   async sendMessageByAdmin(data: any) {
 
@@ -130,85 +132,128 @@ export class ChatService {
     await conversation.save();
 
     return {
-      success: true,
-      message: 'Admin message saved',
+  success: true,
+  message: 'Message sent',
+  conversationId: conversation._id,
+  unreadUser: conversation.unreadUser
+};
+
+  }
+
+  // =====================================================
+  // USER OPEN CHAT (userId + appId)
+  // =====================================================
+  async getUserChat(userId: string, applicationId: string) {
+
+    const conversation = await this.getOrCreateConversation(userId, applicationId);
+
+    let updated = false;
+
+    conversation.messages.forEach((msg: any) => {
+      if (msg.senderType === 'admin' && msg.isRead === false) {
+        msg.isRead = true;
+        updated = true;
+      }
+    });
+
+    if (conversation.unreadUser !== 0) {
+      conversation.unreadUser = 0;
+      updated = true;
+    }
+
+    if (updated) {
+      await conversation.save();
+    }
+
+    return {
+      conversationId: conversation._id,
+      unreadUser: conversation.unreadUser,
+      messages: conversation.messages,
     };
   }
 
   // =====================================================
-  // \ USER OPEN CHAT
+  // USER OPEN CHAT BY APPLICATION ID ⭐ NEW
   // =====================================================
-  // =====================================================
-// USER OPEN CHAT (MARK ADMIN MSG READ)
-// =====================================================
-async getUserChat(userId: string, applicationId: string) {
+  async getUserChatByApplication(applicationId: string) {
 
-  const conversation = await this.getOrCreateConversation(userId, applicationId);
+    if (!Types.ObjectId.isValid(applicationId))
+      throw new BadRequestException('Invalid applicationId');
 
-  let updated = false;
+    const conversation = await this.convoModel.findOne({
+      applicationId: new Types.ObjectId(applicationId),
+    });
 
-  // mark only unread admin msgs as read
-  conversation.messages.forEach((msg: any) => {
-    if (msg.senderType === 'admin' && msg.isRead === false) {
-      msg.isRead = true;
+    if (!conversation) {
+      throw new BadRequestException('Conversation not found');
+    }
+
+    let updated = false;
+
+    conversation.messages.forEach((msg: any) => {
+      if (msg.senderType === 'admin' && msg.isRead === false) {
+        msg.isRead = true;
+        updated = true;
+      }
+    });
+
+    if (conversation.unreadUser !== 0) {
+      conversation.unreadUser = 0;
       updated = true;
     }
-  });
 
-  // reset unread counter
-  if (conversation.unreadUser !== 0) {
-    conversation.unreadUser = 0;
-    updated = true;
+    if (updated) await conversation.save();
+
+    return {
+      conversationId: conversation._id,
+      unreadUser: conversation.unreadUser,
+      messages: conversation.messages,
+    };
   }
-
-  if (updated) {
-    await conversation.save();
-  }
-
-  return {
-    conversationId: conversation._id,
-    unreadUser: conversation.unreadUser,
-    messages: conversation.messages,
-  };
-}
-
-
-
-// =====================================================
-async getAdminChat(userId: string, applicationId: string) {
-
-  const conversation = await this.getOrCreateConversation(userId, applicationId);
-
-  let updated = false;
-
-  // mark only unread user msgs as read
-  conversation.messages.forEach((msg: any) => {
-    if (msg.senderType === 'user' && msg.isRead === false) {
-      msg.isRead = true;
-      updated = true;
-    }
-  });
-
-  // reset unread counter
-  if (conversation.unreadAdmin !== 0) {
-    conversation.unreadAdmin = 0;
-    updated = true;
-  }
-
-  if (updated) {
-    await conversation.save();
-  }
-
-  return {
-    conversationId: conversation._id,
-    unreadAdmin: conversation.unreadAdmin,
-    messages: conversation.messages,
-  };
-}
-
 
   // =====================================================
-  //  ADMIN SIDEBAR
+  // ADMIN OPEN CHAT (BY APPLICATION ID)
+  // =====================================================
+  async getAdminChat(applicationId: string) {
+
+    if (!Types.ObjectId.isValid(applicationId))
+      throw new BadRequestException('Invalid applicationId');
+
+    const conversation = await this.convoModel.findOne({
+      applicationId: new Types.ObjectId(applicationId),
+    });
+
+    if (!conversation) {
+      throw new BadRequestException('Conversation not found for this application');
+    }
+
+    let updated = false;
+
+    conversation.messages.forEach((msg: any) => {
+      if (msg.senderType === 'user' && msg.isRead === false) {
+        msg.isRead = true;
+        updated = true;
+      }
+    });
+
+    if (conversation.unreadAdmin !== 0) {
+      conversation.unreadAdmin = 0;
+      updated = true;
+    }
+
+    if (updated) {
+      await conversation.save();
+    }
+
+    return {
+      conversationId: conversation._id,
+      unreadAdmin: conversation.unreadAdmin,
+      messages: conversation.messages,
+    };
+  }
+
+  // =====================================================
+  // ADMIN SIDEBAR
   // =====================================================
   async getAdminConversations() {
     return this.convoModel
@@ -219,7 +264,7 @@ async getAdminChat(userId: string, applicationId: string) {
   }
 
   // =====================================================
-  //  USER SIDEBAR
+  // USER SIDEBAR
   // =====================================================
   async getUserConversations(userId: string) {
 
@@ -232,31 +277,31 @@ async getAdminChat(userId: string, applicationId: string) {
       .sort({ updatedAt: -1 });
   }
 
- 
-
+  // =====================================================
+  // ADMIN TOTAL UNREAD
+  // =====================================================
   async getAdminTotalUnread() {
 
-  const result = await this.convoModel.aggregate([
-    { $group: { _id: null, total: { $sum: '$unreadAdmin' } } },
-  ]);
+    const result = await this.convoModel.aggregate([
+      { $group: { _id: null, total: { $sum: '$unreadAdmin' } } },
+    ]);
 
-  return result[0]?.total || 0;
-}
+    return result[0]?.total || 0;
+  }
 
-// =====================================================
-//  USER TOTAL UNREAD COUNT
-// =====================================================
-async getUserTotalUnread(userId: string) {
+  // =====================================================
+  // USER TOTAL UNREAD
+  // =====================================================
+  async getUserTotalUnread(userId: string) {
 
-  if (!Types.ObjectId.isValid(userId))
-    throw new BadRequestException('Invalid userId');
+    if (!Types.ObjectId.isValid(userId))
+      throw new BadRequestException('Invalid userId');
 
-  const result = await this.convoModel.aggregate([
-    { $match: { userId: new Types.ObjectId(userId) } },
-    { $group: { _id: null, total: { $sum: '$unreadUser' } } },
-  ]);
+    const result = await this.convoModel.aggregate([
+      { $match: { userId: new Types.ObjectId(userId) } },
+      { $group: { _id: null, total: { $sum: '$unreadUser' } } },
+    ]);
 
-  return result[0]?.total || 0;
-}
-
+    return result[0]?.total || 0;
+  }
 }

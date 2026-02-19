@@ -36,14 +36,14 @@ export class InternalNotesService {
       if (!admin)
         throw new BadRequestException('Admin not found in request');
 
-      // 🔥 from JWT
+      //  from JWT
       const adminId = admin?.adminId || admin?.id;
       console.log('ADMIN ID FROM TOKEN =>', adminId);
 
       if (!adminId)
         throw new BadRequestException('Invalid admin token: adminId missing');
 
-      // 🔥 FETCH ADMIN FROM DB
+      //  FETCH ADMIN FROM DB
       const adminData = await this.adminModel
         .findById(adminId)
         .select('fullName email');
@@ -56,7 +56,7 @@ export class InternalNotesService {
       const appObjectId = new Types.ObjectId(applicationId);
       const adminObjectId = new Types.ObjectId(adminId);
 
-      // 🔥 FIND SAME ROW OR CREATE + PUSH MESSAGE
+      //  FIND SAME ROW OR CREATE + PUSH MESSAGE
       const note = await this.noteModel.findOneAndUpdate(
         {
           applicationId: appObjectId,
@@ -118,7 +118,7 @@ export class InternalNotesService {
         })
         .sort({ updatedAt: -1 });
 
-      // 🔥 ADD timeAgo INSIDE EACH MESSAGE
+      //  ADD timeAgo INSIDE EACH MESSAGE
       const formattedNotes = notes.map((note: any) => {
         const obj = note.toObject();
 

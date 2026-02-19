@@ -12,9 +12,11 @@ export class ChatGateway implements OnModuleInit {
   private userSockets = new Map<string, WebSocket>();
   private adminSockets = new Map<string, Set<WebSocket>>();
 
+  // ⭐ NEW: application based rooms
+  private appRooms = new Map<string, Set<WebSocket>>();
+
   onModuleInit() {
 
-    // wait little for server start
     setTimeout(() => {
       const server = (global as any).serverInstance;
 
@@ -24,25 +26,23 @@ export class ChatGateway implements OnModuleInit {
       }
 
       this.wss = new WebSocket.Server({ 
-      server,
-      path: "/ws"
-    });
+        server,
+        path: "/ws"
+      });
 
       console.log("🚀 WEBSOCKET STARTED SUCCESSFULLY");
 
       this.wss.on('connection', (socket: WebSocket) => {
         console.log(' CLIENT CONNECTED');
 
-  socket.on('message', async (data: any) => {
-  try {
-    const msg = JSON.parse(data.toString());
-    await this.routeMessage(socket, msg);
-  } catch (err) {
-    console.log(" REAL ERROR:", err);
-  }
-});
-
-
+        socket.on('message', async (data: any) => {
+          try {
+            const msg = JSON.parse(data.toString());
+            await this.routeMessage(socket, msg);
+          } catch (err) {
+            console.log(" REAL ERROR:", err);
+          }
+        });
 
         socket.on('close', () => this.handleDisconnect(socket));
       });
@@ -56,30 +56,50 @@ export class ChatGateway implements OnModuleInit {
     if (data.type === 'sendMessage') await this.handleSendMessage(data);
   }
 
- handleIdentify(socket: WebSocket, data: any) {
+  handleIdentify(socket: WebSocket, data: any) {
 
-  if (data.role === 'user') {
-    this.userSockets.set(data.userId, socket);
-    console.log('User online:', data.userId);
+    if (data.role === 'user') {
+      this.userSockets.set(data.userId, socket);
+      console.log('User online:', data.userId);
+
+      // ⭐ join application room
+      if (data.applicationId) {
+        const room = this.appRooms.get(data.applicationId) ?? new Set<WebSocket>();
+        room.add(socket);
+        this.appRooms.set(data.applicationId, room);
+      }
+    }
+
+    if (data.role === 'admin') {
+
+      const adminSet = this.adminSockets.get(data.adminId) ?? new Set<WebSocket>();
+      adminSet.add(socket);
+      this.adminSockets.set(data.adminId, adminSet);
+
+      console.log('Admin online:', data.adminId);
+
+      // ⭐ join application room
+      if (data.applicationId) {
+        const room = this.appRooms.get(data.applicationId) ?? new Set<WebSocket>();
+        room.add(socket);
+        this.appRooms.set(data.applicationId, room);
+      }
+    }
   }
-
-  if (data.role === 'admin') {
-
-    const adminSet = this.adminSockets.get(data.adminId) ?? new Set<WebSocket>();
-    adminSet.add(socket);
-    this.adminSockets.set(data.adminId, adminSet);
-
-    console.log('Admin online:', data.adminId);
-  }
-}
 
   handleTyping(data: any) {
-    this.adminSockets.forEach(set=>{
-      set.forEach(admin=>{
-        admin.send(JSON.stringify({ type:"typing", userId:data.userId }));
+    const roomSockets = this.appRooms.get(data.applicationId);
+
+    if (roomSockets) {
+      roomSockets.forEach(sock => {
+        sock.send(JSON.stringify({
+          type: "typing",
+          userId: data.userId
+        }));
       });
-    });
+    }
   }
+
   async handleSendMessage(data: any) {
     let saved;
 
@@ -88,16 +108,17 @@ export class ChatGateway implements OnModuleInit {
     else
       saved = await this.chatService.sendMessageByUser(data);
 
-    const userSocket = this.userSockets.get(data.userId);
-    if (userSocket) {
-      userSocket.send(JSON.stringify({ type:"receiveMessage", data:saved }));
-    }
+    // ⭐ send only to same application room
+    const roomSockets = this.appRooms.get(data.applicationId);
 
-    this.adminSockets.forEach(set=>{
-      set.forEach(admin=>{
-        admin.send(JSON.stringify({ type:"receiveMessage", data:saved }));
+    if (roomSockets) {
+      roomSockets.forEach(sock => {
+        sock.send(JSON.stringify({
+          type: "receiveMessage",
+          data: saved
+        }));
       });
-    });
+    }
   }
 
   handleDisconnect(socket: WebSocket) {
@@ -106,6 +127,11 @@ export class ChatGateway implements OnModuleInit {
     }
 
     for (const [adminId, set] of this.adminSockets) {
+      if (set.has(socket)) set.delete(socket);
+    }
+
+
+    for (const [appId, set] of this.appRooms) {
       if (set.has(socket)) set.delete(socket);
     }
   }

@@ -4,7 +4,7 @@ import { SurveyorsController } from './surveyors.controller';
 import { SurveyorsService } from './surveyors.service';
 import { Surveyor, SurveyorSchema } from './schemas/surveyor.schema';
 
-// 🔥 import application schema
+//  import application schema
 import { Application, ApplicationSchema } from '../applications/schemas/application.schema';
 
 @Module({
@@ -12,7 +12,7 @@ import { Application, ApplicationSchema } from '../applications/schemas/applicat
     MongooseModule.forFeature([
       { name: Surveyor.name, schema: SurveyorSchema },
 
-      // 🔥 VERY IMPORTANT
+      //  VERY IMPORTANT
       { name: Application.name, schema: ApplicationSchema },
     ]),
   ],

@@ -15,7 +15,7 @@ export class Payment {
   @Prop({ required: true, unique: true })
   stripePaymentIntentId: string;
 
-  // 🔥 simple status field (store anything from Stripe)
+  //  simple status field (store anything from Stripe)
   @Prop({ type: String, default: 'requires_payment_method' })
   status: string;
 }
