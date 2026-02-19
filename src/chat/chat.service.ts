@@ -159,16 +159,15 @@ export class ChatService {
     const admin: any = await this.adminModel.findById(adminId).lean();
     if (!admin) throw new BadRequestException('Admin not found');
 
-    // 🔥 ROLE CHECK
+   
     // if (!['admin', 'super_admin'].includes(admin.role)) {
     //   throw new BadRequestException('You are not allowed to send messages');
     // }
 
-    // 🔥 CHECK APPLICATION EXISTS
     const application = await this.applicationModel.findById(applicationId).lean();
     if (!application) throw new BadRequestException('Application not found');
 
-    // 🔥 CHECK USER BELONGS TO APPLICATION
+    
     if (application.userId.toString() !== userId.toString()) {
       throw new BadRequestException(
         'This user does not belong to this application',

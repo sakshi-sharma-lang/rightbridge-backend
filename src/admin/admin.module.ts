@@ -15,6 +15,8 @@ import { MailModule } from '../mail/mail.module';
 import { ApplicationsModule } from '../applications/applications.module';
 import { InternalNotesModule } from './internal-notes/internal-notes.module';
 import { User, UserSchema } from '../users/schemas/user.schema'; 
+import { Notification, NotificationSchema } from '../notification/schemas/notification.schema';
+import { NotificationModule } from '../notification/notification.module';
 
 
 import {
@@ -49,7 +51,8 @@ import { AdminApplicationsService } from './admin-applications.service';
 
     MailModule,
     ApplicationsModule,
-    InternalNotesModule,
+    InternalNotesModule,   
+    NotificationModule,
 
   ],
   controllers: [AdminController, AdminApplicationsController],

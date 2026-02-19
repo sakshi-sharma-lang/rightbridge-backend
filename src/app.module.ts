@@ -14,6 +14,7 @@ import { KycModule } from './kyc/kyc.module';
 import { ApplicationDocumentsModule } from './application-documents/application-documents.module'; 
 import { UserSettingsModule } from './user-settings/user-settings.module';
 import { ChatModule } from './chat/chat.module';
+import { NotificationModule } from './notification/notification.module';
 
 
 @Module({
@@ -55,6 +56,7 @@ import { ChatModule } from './chat/chat.module';
     ApplicationDocumentsModule, 
     UserSettingsModule,   
     ChatModule,
+    NotificationModule,
   ],
 })
 export class AppModule {}

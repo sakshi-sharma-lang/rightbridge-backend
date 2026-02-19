@@ -3,17 +3,29 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Application } from '../applications/schemas/application.schema';
 import { MailService } from '../mail/mail.service'; 
-import { User } from '../users/schemas/user.schema';  
+import { User } from '../users/schemas/user.schema'; 
+
+import { Notification } from '../notification/schemas/notification.schema';
+import { NotificationGateway } from '../notification/notification.gateway';
+
+
+
 @Injectable()
 export class AdminApplicationsService {
-  constructor(
-    @InjectModel(Application.name)
-    private readonly applicationModel: Model<Application>,
-    @InjectModel(User.name) 
-    private readonly userModel: Model<User>, 
-      private readonly mailService: MailService,      
+ constructor(
+  @InjectModel(Application.name)
+  private readonly applicationModel: Model<Application>,
 
-  ) {}
+  @InjectModel(User.name)
+  private readonly userModel: Model<User>,
+
+  @InjectModel(Notification.name)
+  private readonly notificationModel: Model<Notification>,
+
+  private readonly mailService: MailService,
+  private readonly notificationGateway: NotificationGateway,
+) {}
+
 
 async updateStageManagment(appId: string, stage: string, email: string) {
   try {
@@ -75,6 +87,39 @@ async updateStageManagment(appId: string, stage: string, email: string) {
     await app.save();
 
     // =====================================================
+    // 🔔 SAVE NOTIFICATION + REALTIME EMIT (ADDED)
+    // =====================================================
+    if (app.userId) {
+      try {
+        const notificationMessage = `Your application stage updated to ${stage}`;
+
+        const notification = await this.notificationModel.create({
+          userId: app.userId,
+          applicationId: app._id,
+          stage: stage,
+          message: notificationMessage,
+          type: 'stage_update',
+          isRead: false,
+        });
+
+        this.notificationGateway.emitStageNotification(
+          app.userId.toString(),
+          {
+            notificationId: notification._id,
+            applicationId: app._id,
+            stage: stage,
+            message: notificationMessage,
+            isRead: false,
+            createdAt: notification.createdAt,
+          }
+        );
+
+      } catch (notificationError) {
+        console.error('Notification error:', notificationError.message);
+      }
+    }
+
+    // =====================================================
     //  CHECK USER EMAIL NOTIFICATION SETTING
     // =====================================================
     let allowEmail = false;
@@ -118,6 +163,7 @@ async updateStageManagment(appId: string, stage: string, email: string) {
         : 'Stage updated successfully (email disabled by user)',
       data: app,
     };
+
   } catch (error) {
     return {
       statusCode: 500,
@@ -126,6 +172,7 @@ async updateStageManagment(appId: string, stage: string, email: string) {
     };
   }
 }
+
 
 
 async declineDip(
