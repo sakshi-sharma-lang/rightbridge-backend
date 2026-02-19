@@ -92,13 +92,17 @@ export class ChatService {
 
     await conversation.save();
 
-    return {
-  success: true,
-  message: 'Message sent',
-  conversationId: conversation._id,
-  unreadAdmin: conversation.unreadAdmin
-};
+    const lastMsg = conversation.messages[conversation.messages.length - 1];
 
+    return {
+      success: true,
+      senderType: 'user',
+      message: lastMsg,
+      conversationId: conversation._id,
+      unreadAdmin: conversation.unreadAdmin,
+      applicationId,
+      userId
+    };
   }
 
   // =====================================================
@@ -131,17 +135,21 @@ export class ChatService {
 
     await conversation.save();
 
-    return {
-  success: true,
-  message: 'Message sent',
-  conversationId: conversation._id,
-  unreadUser: conversation.unreadUser
-};
+    const lastMsg = conversation.messages[conversation.messages.length - 1];
 
+    return {
+      success: true,
+      senderType: 'admin',
+      message: lastMsg,
+      conversationId: conversation._id,
+      unreadUser: conversation.unreadUser,
+      applicationId,
+      userId
+    };
   }
 
   // =====================================================
-  // USER OPEN CHAT (userId + appId)
+  // USER OPEN CHAT
   // =====================================================
   async getUserChat(userId: string, applicationId: string) {
 
@@ -173,7 +181,7 @@ export class ChatService {
   }
 
   // =====================================================
-  // USER OPEN CHAT BY APPLICATION ID ⭐ NEW
+  // USER OPEN CHAT BY APPLICATION ID
   // =====================================================
   async getUserChatByApplication(applicationId: string) {
 
@@ -212,7 +220,7 @@ export class ChatService {
   }
 
   // =====================================================
-  // ADMIN OPEN CHAT (BY APPLICATION ID)
+  // ADMIN OPEN CHAT
   // =====================================================
   async getAdminChat(applicationId: string) {
 
