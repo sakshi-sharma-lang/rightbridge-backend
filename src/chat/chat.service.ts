@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, Document } from 'mongoose';
 import { Conversation } from './schemas/conversation.schema';
 import { Application } from '../applications/schemas/application.schema'; // correct path
-
+import { Admin } from '../admin/schemas/admin.schema'; 
 type ConversationDocument = Conversation & Document;
 
 @Injectable()
@@ -14,6 +14,10 @@ export class ChatService {
 
   @InjectModel(Application.name)
   private applicationModel: Model<Application>,
+
+
+  @InjectModel(Admin.name)
+  private adminModel: Model<Admin>,  
 ) {}
 
 
@@ -74,41 +78,54 @@ export class ChatService {
   // =====================================================
   async sendMessageByUser(data: any) {
 
-    const { userId, message, applicationId } = data;
+  const { userId, message, applicationId } = data;
 
-    if (!userId) throw new BadRequestException('userId required');
-    if (!applicationId) throw new BadRequestException('applicationId required');
-    if (!message) throw new BadRequestException('message required');
+  if (!userId) throw new BadRequestException('userId required');
+  if (!applicationId) throw new BadRequestException('applicationId required');
+  if (!message) throw new BadRequestException('message required');
 
-    const conversation = await this.getOrCreateConversation(userId, applicationId);
+  const conversation = await this.getOrCreateConversation(userId, applicationId);
 
-    conversation.messages.push({
-      senderId: new Types.ObjectId(userId),
-      senderType: 'user',
-      message: message,
-      messageType: 'text',
-      time: new Date(),
-      isRead: false,
-    });
+  // ⭐ FIRST TIME ONLY → ASSIGN SUPER ADMIN
+  if (!conversation.assignedAdmin) {
 
-    conversation.lastMessage = message;
-    conversation.lastMessageAt = new Date();
-    conversation.unreadAdmin += 1;
+    const superAdmin = await this.adminModel.findOne({ role: 'super_admin' });
 
-    await conversation.save();
+    if (!superAdmin) {
+      throw new BadRequestException('Super admin not found');
+    }
 
-    const lastMsg = conversation.messages[conversation.messages.length - 1];
-
-    return {
-      success: true,
-      senderType: 'user',
-      message: lastMsg,
-      conversationId: conversation._id,
-      unreadAdmin: conversation.unreadAdmin,
-      applicationId,
-      userId
-    };
+    conversation.assignedAdmin = superAdmin._id;
   }
+
+  conversation.messages.push({
+    senderId: new Types.ObjectId(userId),
+    senderType: 'user',
+    message: message,
+    messageType: 'text',
+    time: new Date(),
+    isRead: false,
+  });
+
+  conversation.lastMessage = message;
+  conversation.lastMessageAt = new Date();
+  conversation.unreadAdmin += 1;
+
+  await conversation.save();
+
+  const lastMsg = conversation.messages[conversation.messages.length - 1];
+
+  return {
+    success: true,
+    senderType: 'user',
+    message: lastMsg,
+    conversationId: conversation._id,
+    unreadAdmin: conversation.unreadAdmin,
+    applicationId,
+    userId
+  };
+}
+
 
   // =====================================================
   // ADMIN SEND MESSAGE
