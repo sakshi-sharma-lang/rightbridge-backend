@@ -28,42 +28,52 @@ export class Conversation {
   @Prop()
   lastMessageAt: Date;
 
-@Prop({
-  type: [
-    {
-      senderId: { type: Types.ObjectId, required: true },
+  // ⭐ MESSAGES ARRAY
+  @Prop({
+    type: [
+      {
+        senderId: { type: Types.ObjectId, required: true },
 
-      senderType: {
-        type: String,
-        enum: ['user', 'admin'],
-        required: true,
+        senderType: {
+          type: String,
+          enum: ['user', 'admin'],
+          required: true,
+        },
+
+        senderName: {
+          type: String,
+          required: true,
+        },
+
+        senderRole: {
+          type: String,
+          required: true,
+        },
+
+        message: {
+          type: String,
+          default: '',
+        },
+
+        messageType: {
+          type: String,
+          default: 'text',
+        },
+
+        time: {
+          type: Date,
+          default: Date.now,
+        },
+
+        isRead: {
+          type: Boolean,
+          default: false,
+        },
       },
-
-      message: {
-        type: String,
-        default: '',
-      },
-
-      messageType: {
-        type: String,
-        default: 'text', // only text
-      },
-
-      time: {
-        type: Date,
-        default: Date.now,
-      },
-
-      isRead: {
-        type: Boolean,
-        default: false,
-      },
-    },
-  ],
-  default: [],
-})
-messages: any[];
-
+    ],
+    default: [],
+  })
+  messages: any[];
 }
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);

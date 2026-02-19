@@ -48,10 +48,14 @@ export class ChatController {
   // =====================================================
   // USER SIDEBAR
   // =====================================================
-  @Get('user/chat/sidebar/:userId')
-  async getUserConversations(@Param('userId') id: string) {
-    return this.chatService.getUserConversations(id);
-  }
+ // =====================================================
+@Get('user/chat/sidebar/:applicationId')
+async getUserConversations(
+  @Param('applicationId') id: string,
+) {
+  return this.chatService.getUserConversations(id);
+}
+
 
   // =====================================================
   // USER OPEN CHAT (OLD - keep)
@@ -65,7 +69,7 @@ export class ChatController {
   }
 
   // =====================================================
-  // ⭐ USER OPEN CHAT BY APPLICATION ID (NEW)
+  //  USER OPEN CHAT BY APPLICATION ID (NEW)
   // =====================================================
   @Get('user/chat/application/:applicationId')
   async getUserChatByApplication(

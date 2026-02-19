@@ -287,7 +287,7 @@ async saveOrUpdateKyc(@Body() body: any) {
   }
 
 @Get('sumsub-data')
-@UseGuards(AdminJwtGuard)
+@UseGuards(UseGuards)
 async getSumsubData(@Query('applicantId') applicantId: string) {
   try {
     // ===== VALIDATION =====

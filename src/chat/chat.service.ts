@@ -4,6 +4,10 @@ import { Model, Types, Document } from 'mongoose';
 import { Conversation } from './schemas/conversation.schema';
 import { Application } from '../applications/schemas/application.schema'; // correct path
 import { Admin } from '../admin/schemas/admin.schema'; 
+import { User } from '../users/schemas/user.schema';
+
+
+
 type ConversationDocument = Conversation & Document;
 
 @Injectable()
@@ -17,7 +21,10 @@ export class ChatService {
 
 
   @InjectModel(Admin.name)
-  private adminModel: Model<Admin>,  
+  private adminModel: Model<Admin>, 
+
+    @InjectModel(User.name)
+  private userModel: Model<User>, 
 ) {}
 
 
@@ -76,7 +83,7 @@ export class ChatService {
   // =====================================================
   // USER SEND MESSAGE
   // =====================================================
-  async sendMessageByUser(data: any) {
+async sendMessageByUser(data: any) {
 
   const { userId, message, applicationId } = data;
 
@@ -84,23 +91,24 @@ export class ChatService {
   if (!applicationId) throw new BadRequestException('applicationId required');
   if (!message) throw new BadRequestException('message required');
 
+  //  GET USER FROM DB
+  const user = await this.userModel.findById(userId).lean();
+  if (!user) throw new BadRequestException('User not found');
+
   const conversation = await this.getOrCreateConversation(userId, applicationId);
 
-  // ⭐ FIRST TIME ONLY → ASSIGN SUPER ADMIN
+  //  assign super admin first time
   if (!conversation.assignedAdmin) {
-
     const superAdmin = await this.adminModel.findOne({ role: 'super_admin' });
-
-    if (!superAdmin) {
-      throw new BadRequestException('Super admin not found');
-    }
-
+    if (!superAdmin) throw new BadRequestException('Super admin not found');
     conversation.assignedAdmin = superAdmin._id;
   }
 
   conversation.messages.push({
     senderId: new Types.ObjectId(userId),
-    senderType: 'user',
+    senderType: 'user', // auto
+    senderName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+    senderRole: 'user', // auto
     message: message,
     messageType: 'text',
     time: new Date(),
@@ -117,58 +125,72 @@ export class ChatService {
 
   return {
     success: true,
-    senderType: 'user',
     message: lastMsg,
     conversationId: conversation._id,
     unreadAdmin: conversation.unreadAdmin,
-    applicationId,
-    userId
   };
 }
+
 
 
   // =====================================================
   // ADMIN SEND MESSAGE
   // =====================================================
-  async sendMessageByAdmin(data: any) {
+async sendMessageByAdmin(data: any) {
 
-    const { userId, adminId, message, applicationId } = data;
+  const { userId, adminId, message, applicationId } = data;
 
-    if (!adminId) throw new BadRequestException('adminId required');
-    if (!userId) throw new BadRequestException('userId required');
-    if (!applicationId) throw new BadRequestException('applicationId required');
-    if (!message) throw new BadRequestException('message required');
+  if (!adminId) throw new BadRequestException('adminId required');
+  if (!userId) throw new BadRequestException('userId required');
+  if (!applicationId) throw new BadRequestException('applicationId required');
+  if (!message) throw new BadRequestException('message required');
 
-    const conversation = await this.getOrCreateConversation(userId, applicationId);
+  // 🔥 GET ADMIN FROM DB (IMPORTANT)
+  const admin: any = await this.adminModel.findById(adminId).lean();
+  if (!admin) throw new BadRequestException('Admin not found');
 
-    conversation.messages.push({
-      senderId: new Types.ObjectId(adminId),
-      senderType: 'admin',
-      message: message,
-      messageType: 'text',
-      time: new Date(),
-      isRead: false,
-    });
+  // 🔥 ADMIN FULL NAME
+  const adminName =
+    `${admin.firstName || ''} ${admin.lastName || ''}`.trim() || 'Admin';
 
-    conversation.lastMessage = message;
-    conversation.lastMessageAt = new Date();
-    conversation.unreadUser += 1;
-    conversation.assignedAdmin = new Types.ObjectId(adminId);
+  const adminRole = admin.role || 'admin';
 
-    await conversation.save();
+  const conversation = await this.getOrCreateConversation(userId, applicationId);
 
-    const lastMsg = conversation.messages[conversation.messages.length - 1];
+  conversation.messages.push({
+    senderId: new Types.ObjectId(adminId),
+    senderType: 'admin',
 
-    return {
-      success: true,
-      senderType: 'admin',
-      message: lastMsg,
-      conversationId: conversation._id,
-      unreadUser: conversation.unreadUser,
-      applicationId,
-      userId
-    };
-  }
+    // ⭐ REAL NAME SAVE
+    senderName: adminName,
+
+    // ⭐ ROLE SAVE
+    senderRole: adminRole,
+
+    message: message,
+    messageType: 'text',
+    time: new Date(),
+    isRead: false,
+  });
+
+  conversation.lastMessage = message;
+  conversation.lastMessageAt = new Date();
+  conversation.unreadUser += 1;
+  conversation.assignedAdmin = new Types.ObjectId(adminId);
+
+  await conversation.save();
+
+  const lastMsg = conversation.messages[conversation.messages.length - 1];
+
+  return {
+    success: true,
+    message: lastMsg,
+    conversationId: conversation._id,
+    unreadUser: conversation.unreadUser,
+  };
+}
+
+
 
   // =====================================================
   // USER OPEN CHAT
@@ -296,16 +318,17 @@ export class ChatService {
   // =====================================================
   // USER SIDEBAR
   // =====================================================
-  async getUserConversations(userId: string) {
+  async getUserConversations(applicationId: string) {
 
-    if (!Types.ObjectId.isValid(userId))
-      throw new BadRequestException('Invalid userId');
+  if (!Types.ObjectId.isValid(applicationId))
+    throw new BadRequestException('Invalid applicationId');
 
-    return this.convoModel
-      .find({ userId: new Types.ObjectId(userId) })
-      .populate('assignedAdmin', 'firstName lastName email')
-      .sort({ updatedAt: -1 });
-  }
+  return this.convoModel
+    .find({ applicationId: new Types.ObjectId(applicationId) })
+    .populate('assignedAdmin', 'firstName lastName email')
+    .sort({ updatedAt: -1 });
+}
+
 
   // =====================================================
   // ADMIN TOTAL UNREAD
