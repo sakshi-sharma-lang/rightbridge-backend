@@ -2,15 +2,20 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, Document } from 'mongoose';
 import { Conversation } from './schemas/conversation.schema';
+import { Application } from '../applications/schemas/application.schema'; // correct path
 
 type ConversationDocument = Conversation & Document;
 
 @Injectable()
 export class ChatService {
-  constructor(
-    @InjectModel(Conversation.name)
-    private convoModel: Model<ConversationDocument>,
-  ) {}
+ constructor(
+  @InjectModel(Conversation.name)
+  private convoModel: Model<ConversationDocument>,
+
+  @InjectModel(Application.name)
+  private applicationModel: Model<Application>,
+) {}
+
 
   // =====================================================
   // CREATE OR GET CONVERSATION (ONLY ONE ROW)
@@ -289,27 +294,173 @@ export class ChatService {
   // ADMIN TOTAL UNREAD
   // =====================================================
   async getAdminTotalUnread() {
-
-    const result = await this.convoModel.aggregate([
-      { $group: { _id: null, total: { $sum: '$unreadAdmin' } } },
+  try {
+    // total unread count
+    const unreadAgg = await this.convoModel.aggregate([
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$unreadAdmin' },
+        },
+      },
     ]);
 
-    return result[0]?.total || 0;
+    const totalUnread = unreadAgg[0]?.total || 0;
+
+    // get unread messages
+    const unreadMessages = await this.convoModel
+      .find({ unreadAdmin: { $gt: 0 } })
+      .select('messages') // only messages array
+      .lean();
+
+    // flatten messages array (optional)
+    let messages: any[] = [];
+    unreadMessages.forEach((c) => {
+      if (c.messages?.length) {
+        messages.push(...c.messages.filter((m) => !m.isRead));
+      }
+    });
+
+    return {
+      success: true,
+      message: 'Admin unread fetched successfully',
+      totalUnread,
+      messages,
+    };
+  } catch (error) {
+    console.error('ADMIN UNREAD ERROR:', error);
+
+    return {
+      success: false,
+      message: 'Failed to fetch unread messages',
+      totalUnread: 0,
+      messages: [],
+    };
   }
+}
+
 
   // =====================================================
   // USER TOTAL UNREAD
   // =====================================================
-  async getUserTotalUnread(userId: string) {
-
-    if (!Types.ObjectId.isValid(userId))
+async getUserTotalUnread(userId: string) {
+  try {
+    if (!Types.ObjectId.isValid(userId)) {
       throw new BadRequestException('Invalid userId');
+    }
 
+    const objectUserId = new Types.ObjectId(userId);
+
+    // =============================
+    // TOTAL UNREAD COUNT
+    // =============================
     const result = await this.convoModel.aggregate([
-      { $match: { userId: new Types.ObjectId(userId) } },
+      { $match: { userId: objectUserId } },
       { $group: { _id: null, total: { $sum: '$unreadUser' } } },
     ]);
 
-    return result[0]?.total || 0;
+    const totalUnread = result[0]?.total || 0;
+
+    // =============================
+    // GET UNREAD MESSAGES
+    // =============================
+    const conversations = await this.convoModel
+      .find({ userId: objectUserId, unreadUser: { $gt: 0 } })
+      .select('messages applicationId')
+      .lean();
+
+    let unreadMessages: any[] = [];
+
+    conversations.forEach((conv) => {
+      if (conv.messages?.length) {
+        const msgs = conv.messages
+          .filter((m) => m.senderType === 'admin' && !m.isRead)
+          .map((m) => ({
+            ...m,
+            applicationId: conv.applicationId || null,
+          }));
+
+        unreadMessages.push(...msgs);
+      }
+    });
+
+    return {
+      success: true,
+      message: 'User unread fetched successfully',
+      totalUnread,
+      messages: unreadMessages,
+    };
+  } catch (error) {
+    console.error('USER UNREAD ERROR:', error);
+
+    return {
+      success: false,
+      message: 'Failed to fetch unread messages',
+      totalUnread: 0,
+      messages: [],
+    };
   }
+}
+
+// =====================================================
+// GET ALL APPLICATIONS OF USER
+// =====================================================
+// =====================================================
+// GET ALL APPLICATIONS OF USER
+// =====================================================
+// =====================================================
+// GET ALL APPLICATIONS OF USER
+// =====================================================
+async getApplicationsByUserId(userId: string) {
+  try {
+    if (!userId || !Types.ObjectId.isValid(userId)) {
+      return {
+        statusCode: 400,
+        message: 'Valid userId is required',
+        data: [],
+      };
+    }
+
+    const applications = await this.applicationModel
+      .find({ userId: new Types.ObjectId(userId) })
+      .select('_id appId status applicationStatus createdAt')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!applications.length) {
+      return {
+        statusCode: 404,
+        message: 'No applications found for this user',
+        data: [],
+      };
+    }
+
+    const formatted = applications.map((app: any) => ({
+      applicationId: app._id,
+      appId: app.appId || '',        // ⭐ ADDED
+      status: app.status || '',
+      stage: app.applicationStatus || '',
+      createdAt: app.createdAt,
+    }));
+
+    return {
+      statusCode: 200,
+      message: 'User applications fetched successfully',
+      total: formatted.length,
+      data: formatted,
+    };
+  } catch (error) {
+    console.error('GET USER APPLICATION ERROR:', error);
+
+    return {
+      statusCode: 500,
+      message: 'Internal server error',
+      data: [],
+    };
+  }
+}
+
+
+
+
 }

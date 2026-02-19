@@ -83,4 +83,12 @@ export class ChatController {
   ) {
     return this.chatService.getAdminChat(applicationId);
   }
+
+
+
+@Get('user/applications/:userId')
+async getUserApplications(@Param('userId') userId: string) {
+  return this.chatService.getApplicationsByUserId(userId);
+}
+
 }
