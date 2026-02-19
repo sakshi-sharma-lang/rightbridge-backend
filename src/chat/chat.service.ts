@@ -160,9 +160,9 @@ export class ChatService {
     if (!admin) throw new BadRequestException('Admin not found');
 
     // 🔥 ROLE CHECK
-    if (!['admin', 'super_admin'].includes(admin.role)) {
-      throw new BadRequestException('You are not allowed to send messages');
-    }
+    // if (!['admin', 'super_admin'].includes(admin.role)) {
+    //   throw new BadRequestException('You are not allowed to send messages');
+    // }
 
     // 🔥 CHECK APPLICATION EXISTS
     const application = await this.applicationModel.findById(applicationId).lean();

@@ -37,7 +37,6 @@ export class ChatController {
     return this.chatService.getUserTotalUnread(userId);
   }
 
-  // =====================================================
   // ADMIN SIDEBAR
   // =====================================================
   @Get('admin/chat')
@@ -55,7 +54,6 @@ async getUserConversations(
 ) {
   return this.chatService.getUserConversations(id);
 }
-
 
   // =====================================================
   // USER OPEN CHAT (OLD - keep)
@@ -78,7 +76,6 @@ async getUserConversations(
     return this.chatService.getUserChatByApplication(applicationId);
   }
 
-  // =====================================================
   // ADMIN OPEN CHAT BY APPLICATION ID
   // =====================================================
   @Get('admin/chat/application/:applicationId')
@@ -87,8 +84,6 @@ async getUserConversations(
   ) {
     return this.chatService.getAdminChat(applicationId);
   }
-
-
 
 @Get('user/applications/:userId')
 async getUserApplications(@Param('userId') userId: string) {
