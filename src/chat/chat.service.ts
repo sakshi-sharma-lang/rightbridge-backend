@@ -148,66 +148,69 @@ export class ChatService {
   // =====================================================
   // ADMIN SEND MESSAGE
   // =====================================================
-  async sendMessageByAdmin(data: any) {
-    const { userId, adminId, message, applicationId } = data;
+async sendMessageByAdmin(data: any) {
+  const { userId, adminId, message, applicationId } = data;
 
-    if (!adminId) throw new BadRequestException('adminId required');
-    if (!userId) throw new BadRequestException('userId required');
-    if (!applicationId) throw new BadRequestException('applicationId required');
-    if (!message) throw new BadRequestException('message required');
+  if (!adminId) throw new BadRequestException('adminId required');
+  if (!userId) throw new BadRequestException('userId required');
+  if (!applicationId) throw new BadRequestException('applicationId required');
+  if (!message) throw new BadRequestException('message required');
 
-    const admin: any = await this.adminModel.findById(adminId).lean();
-    if (!admin) throw new BadRequestException('Admin not found');
+  const admin: any = await this.adminModel.findById(adminId).lean();
+  if (!admin) throw new BadRequestException('Admin not found');
 
-   
-    // if (!['admin', 'super_admin'].includes(admin.role)) {
-    //   throw new BadRequestException('You are not allowed to send messages');
-    // }
+  // if (!['admin', 'super_admin'].includes(admin.role)) {
+  //   throw new BadRequestException('You are not allowed to send messages');
+  // }
 
-    const application = await this.applicationModel.findById(applicationId).lean();
-    if (!application) throw new BadRequestException('Application not found');
+  const application = await this.applicationModel.findById(applicationId).lean();
+  if (!application) throw new BadRequestException('Application not found');
 
-    
-    if (application.userId.toString() !== userId.toString()) {
-      throw new BadRequestException(
-        'This user does not belong to this application',
-      );
-    }
-
-    const adminName =
-      `${admin.firstName || ''} ${admin.lastName || ''}`.trim() || 'Admin';
-
-    const adminRole = admin.role || 'admin';
-
-    const conversation = await this.getOrCreateConversation(userId, applicationId);
-
-    conversation.messages.push({
-      senderId: new Types.ObjectId(adminId),
-      senderType: 'admin',
-      senderName: adminName,
-      senderRole: adminRole,
-      message: message,
-      messageType: 'text',
-      time: new Date(),
-      isRead: false,
-    });
-
-    conversation.lastMessage = message;
-    conversation.lastMessageAt = new Date();
-    conversation.unreadUser += 1;
-    conversation.assignedAdmin = new Types.ObjectId(adminId);
-
-    await conversation.save();
-
-    const lastMsg = conversation.messages[conversation.messages.length - 1];
-
-    return {
-      success: true,
-      message: lastMsg,
-      conversationId: conversation._id,
-      unreadUser: conversation.unreadUser,
-    };
+  if (application.userId.toString() !== userId.toString()) {
+    throw new BadRequestException(
+      'This user does not belong to this application',
+    );
   }
+
+  // 🔥 FIX HERE — use fullName from admin schema
+  const adminName =
+    admin.fullName?.trim() ||
+    admin.email ||
+    'Admin';
+
+  const adminRole = admin.role || 'admin';
+
+  const conversation = await this.getOrCreateConversation(userId, applicationId);
+
+  conversation.messages.push({
+    senderId: new Types.ObjectId(adminId),
+    senderType: 'admin',
+    senderName: adminName,
+    senderRole: adminRole,
+    message: message,
+    messageType: 'text',
+    time: new Date(),
+    isRead: false,
+  });
+
+  conversation.lastMessage = message;
+  conversation.lastMessageAt = new Date();
+  conversation.unreadUser += 1;
+  conversation.assignedAdmin = new Types.ObjectId(adminId);
+
+  await conversation.save();
+
+  const lastMsg = conversation.messages[conversation.messages.length - 1];
+
+  return {
+    success: true,
+    message: lastMsg,
+    conversationId: conversation._id,
+    unreadUser: conversation.unreadUser,
+  };
+}
+
+
 
   // =====================================================
   // USER OPEN CHAT
