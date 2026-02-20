@@ -50,6 +50,10 @@ export class Conversation {
   @Prop({ default: 'open' })
   status: string;
 
+ @Prop()
+  userName: string;
+
+
   // ================= MESSAGES =================
   @Prop({
     type: [
