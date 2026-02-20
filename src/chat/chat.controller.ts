@@ -6,7 +6,8 @@ export class ChatController {
   constructor(private chatService: ChatService) {}
 
   // =====================================================
-  // USER SEND
+  // USER SEND MESSAGE
+  // body: userId, applicationId, role, adminId, message
   // =====================================================
   @Post('user/chat/send')
   async sendUserMessage(@Body() body: any) {
@@ -14,19 +15,12 @@ export class ChatController {
   }
 
   // =====================================================
-  // ADMIN SEND
+  // ADMIN SEND MESSAGE
+  // body: adminId, applicationId, role, userId, message
   // =====================================================
   @Post('admin/chat/send')
   async sendAdminMessage(@Body() body: any) {
     return this.chatService.sendMessageByAdmin(body);
-  }
-
-  // =====================================================
-  // ADMIN TOTAL UNREAD
-  // =====================================================
-  @Get('admin/chat-total-unread')
-  async adminTotalUnread() {
-    return this.chatService.getAdminTotalUnread();
   }
 
   // =====================================================
@@ -37,57 +31,63 @@ export class ChatController {
     return this.chatService.getUserTotalUnread(userId);
   }
 
-  // ADMIN SIDEBAR
   // =====================================================
-  @Get('admin/chat')
-  async getAdminConversations() {
-    return this.chatService.getAdminConversations();
+  // ADMIN TOTAL UNREAD
+  // =====================================================
+  @Get('admin/chat-total-unread/:adminId')
+  async adminTotalUnread(@Param('adminId') adminId: string) {
+    return this.chatService.getAdminTotalUnread(adminId);
   }
 
   // =====================================================
-  // USER SIDEBAR
+  // ADMIN SIDEBAR (ALL CHATS OF THIS ADMIN)
   // =====================================================
- // =====================================================
-@Get('user/chat/sidebar/:applicationId')
-async getUserConversations(
-  @Param('applicationId') id: string,
-) {
-  return this.chatService.getUserConversations(id);
-}
+  @Get('admin/chat/:adminId')
+  async getAdminConversations(@Param('adminId') adminId: string) {
+    return this.chatService.getAdminConversations(adminId);
+  }
 
   // =====================================================
-  // USER OPEN CHAT (OLD - keep)
+  // USER SIDEBAR (ALL ROLES OF APPLICATION)
   // =====================================================
-  @Get('user/chat/:userId/:applicationId')
-  async getUserChat(
+  @Get('user/chat/sidebar/:userId/:applicationId')
+  async getUserConversations(
     @Param('userId') userId: string,
     @Param('applicationId') applicationId: string,
   ) {
-    return this.chatService.getUserChat(userId, applicationId);
+    return this.chatService.getUserConversations(userId, applicationId);
   }
 
   // =====================================================
-  //  USER OPEN CHAT BY APPLICATION ID (NEW)
+  // USER OPEN CHAT (VERY IMPORTANT)
   // =====================================================
-  @Get('user/chat/application/:applicationId')
-  async getUserChatByApplication(
+  @Get('user/chat/open/:userId/:applicationId/:role/:adminId')
+  async getUserChat(
+    @Param('userId') userId: string,
     @Param('applicationId') applicationId: string,
+    @Param('role') role: string,
+    @Param('adminId') adminId: string,
   ) {
-    return this.chatService.getUserChatByApplication(applicationId);
+    return this.chatService.getUserChat(userId, applicationId, role, adminId);
   }
 
-  // ADMIN OPEN CHAT BY APPLICATION ID
   // =====================================================
-  @Get('admin/chat/application/:applicationId')
+  // ADMIN OPEN CHAT
+  // =====================================================
+  @Get('admin/chat/open/:applicationId/:role/:adminId')
   async getAdminChat(
     @Param('applicationId') applicationId: string,
+    @Param('role') role: string,
+    @Param('adminId') adminId: string,
   ) {
-    return this.chatService.getAdminChat(applicationId);
+    return this.chatService.getAdminChat(applicationId, role, adminId);
   }
 
-@Get('user/applications/:userId')
-async getUserApplications(@Param('userId') userId: string) {
-  return this.chatService.getApplicationsByUserId(userId);
-}
-
+  // =====================================================
+  // USER APPLICATION LIST
+  // =====================================================
+  @Get('user/applications/:userId')
+  async getUserApplications(@Param('userId') userId: string) {
+    return this.chatService.getApplicationsByUserId(userId);
+  }
 }

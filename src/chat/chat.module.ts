@@ -6,7 +6,7 @@ import { ChatGateway } from './chat.gateway';
 import { ChatController } from './chat.controller';
 
 import { Conversation, ConversationSchema } from './schemas/conversation.schema';
-import { Message, MessageSchema } from './schemas/message.schema';
+
 
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { Admin, AdminSchema } from '../admin/schemas/admin.schema';
@@ -17,7 +17,6 @@ import { Application, ApplicationSchema } from '../applications/schemas/applicat
   imports: [
     MongooseModule.forFeature([
       { name: Conversation.name, schema: ConversationSchema },
-      { name: Message.name, schema: MessageSchema },
       { name: User.name, schema: UserSchema },
       { name: Admin.name, schema: AdminSchema },
       { name: Application.name, schema: ApplicationSchema }, // ⭐ REQUIRED

@@ -12,7 +12,7 @@ export class ChatGateway implements OnModuleInit {
   private userSockets = new Map<string, WebSocket>();
   private adminSockets = new Map<string, Set<WebSocket>>();
 
-  // ⭐ NEW: application based rooms
+  //  NEW: application based rooms
   private appRooms = new Map<string, Set<WebSocket>>();
 
   onModuleInit() {
@@ -30,7 +30,7 @@ export class ChatGateway implements OnModuleInit {
         path: "/ws"
       });
 
-      console.log("🚀 WEBSOCKET STARTED SUCCESSFULLY");
+      console.log("WEBSOCKET STARTED SUCCESSFULLY");
 
       this.wss.on('connection', (socket: WebSocket) => {
         console.log(' CLIENT CONNECTED');
@@ -62,7 +62,7 @@ export class ChatGateway implements OnModuleInit {
       this.userSockets.set(data.userId, socket);
       console.log('User online:', data.userId);
 
-      // ⭐ join application room
+      //  join application room
       if (data.applicationId) {
         const room = this.appRooms.get(data.applicationId) ?? new Set<WebSocket>();
         room.add(socket);
@@ -78,7 +78,7 @@ export class ChatGateway implements OnModuleInit {
 
       console.log('Admin online:', data.adminId);
 
-      // ⭐ join application room
+      //  join application room
       if (data.applicationId) {
         const room = this.appRooms.get(data.applicationId) ?? new Set<WebSocket>();
         room.add(socket);
@@ -108,7 +108,7 @@ export class ChatGateway implements OnModuleInit {
     else
       saved = await this.chatService.sendMessageByUser(data);
 
-    // ⭐ send only to same application room
+    //  send only to same application room
     const roomSockets = this.appRooms.get(data.applicationId);
 
     if (roomSockets) {
