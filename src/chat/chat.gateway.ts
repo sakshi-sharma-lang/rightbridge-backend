@@ -63,10 +63,9 @@ export class ChatGateway implements OnModuleInit {
       console.log('User online:', data.userId);
 
       if (data.applicationId) {
-        const appId = String(data.applicationId); // FIX
-        const room = this.appRooms.get(appId) ?? new Set<WebSocket>();
+        const room = this.appRooms.get(data.applicationId) ?? new Set<WebSocket>();
         room.add(socket);
-        this.appRooms.set(appId, room);
+        this.appRooms.set(data.applicationId, room);
       }
     }
 
@@ -78,10 +77,9 @@ export class ChatGateway implements OnModuleInit {
       console.log('Admin online:', data.adminId);
 
       if (data.applicationId) {
-        const appId = String(data.applicationId); // FIX
-        const room = this.appRooms.get(appId) ?? new Set<WebSocket>();
+        const room = this.appRooms.get(data.applicationId) ?? new Set<WebSocket>();
         room.add(socket);
-        this.appRooms.set(appId, room);
+        this.appRooms.set(data.applicationId, room);
       }
     }
   }
@@ -90,8 +88,7 @@ export class ChatGateway implements OnModuleInit {
   // TYPING EVENT
   // =====================================================
   handleTyping(data: any) {
-    const appId = String(data.applicationId); // FIX
-    const roomSockets = this.appRooms.get(appId);
+    const roomSockets = this.appRooms.get(data.applicationId);
     if (!roomSockets) return;
 
     roomSockets.forEach(sock => {
@@ -107,54 +104,36 @@ export class ChatGateway implements OnModuleInit {
   // =====================================================
   // SEND MESSAGE REALTIME
   // =====================================================
- async handleSendMessage(data: any) {
-  let saved;
+  async handleSendMessage(data: any) {
+    let saved;
 
-  if (data.senderRole === 'admin')
-    saved = await this.chatService.sendMessageByAdmin(data);
-  else
-    saved = await this.chatService.sendMessageByUser(data);
+    if (data.senderRole === 'admin')
+      saved = await this.chatService.sendMessageByAdmin(data);
+    else
+      saved = await this.chatService.sendMessageByUser(data);
 
-  console.log("📤 MESSAGE SAVED:", saved);
-  console.log("📡 APPLICATION:", data.applicationId);
+    const roomSockets = this.appRooms.get(data.applicationId);
+    if (!roomSockets) return;
 
-  const appId = String(data.applicationId); // FIX
-  const roomSockets = this.appRooms.get(appId);
-
-  console.log("👥 ROOM SOCKETS:", roomSockets ? roomSockets.size : 0);
-
-  if (!roomSockets || roomSockets.size === 0) {
-    console.log("⚠️ ROOM EMPTY → sending to ALL sockets");
-
-    this.wss.clients.forEach((sock:any) => {
+    roomSockets.forEach(sock => {
       if (sock.readyState === WebSocket.OPEN) {
         sock.send(JSON.stringify({
           type: "receiveMessage",
-          data: saved
+          data: saved.messageData || saved,   // 🔥 FIX HERE
+          meta: saved                         // keep full response also
         }));
       }
     });
 
-    return;
-  }
-
-  roomSockets.forEach(sock => {
-    if (sock.readyState === WebSocket.OPEN) {
-      sock.send(JSON.stringify({
-        type: "receiveMessage",
-        data: saved
-      }));
+    // 🔔 SEND NOTIFICATION ALSO
+    if (data.receiverUserId) {
+      this.sendNotificationToUser(data.receiverUserId, {
+        title: "New Message",
+        message: saved?.messageData?.message || saved?.message,
+        applicationId: data.applicationId
+      });
     }
-  });
-
-  if (data.receiverUserId) {
-    this.sendNotificationToUser(data.receiverUserId, {
-      title: "New Message",
-      message: saved.message,
-      applicationId: data.applicationId
-    });
   }
-}
 
   // =====================================================
   // DISCONNECT CLEANUP
@@ -187,31 +166,31 @@ export class ChatGateway implements OnModuleInit {
   // =====================================================
   sendNotificationToUser(userId: string, payload: any) {
 
-  console.log("\n🔔 REALTIME NOTIFICATION TRY");
-  console.log("UserId:", userId);
-  console.log("Total online users:", this.userSockets.size);
-  console.log("Online user list:", [...this.userSockets.keys()]);
+    console.log("\n🔔 REALTIME NOTIFICATION TRY");
+    console.log("UserId:", userId);
+    console.log("Total online users:", this.userSockets.size);
+    console.log("Online user list:", [...this.userSockets.keys()]);
 
-  const socket = this.userSockets.get(userId);
+    const socket = this.userSockets.get(userId);
 
-  if (!socket) {
-    console.log("❌ User NOT connected via websocket:", userId);
-    return;
+    if (!socket) {
+      console.log("❌ User NOT connected via websocket:", userId);
+      return;
+    }
+
+    console.log("✅ User socket found");
+
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: "notification",
+        data: payload
+      }));
+
+      console.log("🚀 Notification delivered realtime to:", userId);
+    } else {
+      console.log("❌ Socket exists but not open. State:", socket.readyState);
+    }
+
+    console.log("🔔 END NOTIFICATION\n");
   }
-
-  console.log("✅ User socket found");
-
-  if (socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({
-      type: "notification",
-      data: payload
-    }));
-
-    console.log("🚀 Notification delivered realtime to:", userId);
-  } else {
-    console.log("❌ Socket exists but not open. State:", socket.readyState);
-  }
-
-  console.log("🔔 END NOTIFICATION\n");
-}
 }
