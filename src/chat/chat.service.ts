@@ -136,7 +136,7 @@ async sendMessageByUser(data: any) {
     // =====================================================
     // 1. BASIC VALIDATION
     // =====================================================
-    if (!userId || !applicationId || !adminId || !message)
+    if (!userId || !applicationId || !message)
       throw new BadRequestException('Missing required fields');
 
     if (!Types.ObjectId.isValid(userId))
@@ -145,7 +145,7 @@ async sendMessageByUser(data: any) {
     if (!Types.ObjectId.isValid(applicationId))
       throw new BadRequestException('Invalid applicationId');
 
-    if (!Types.ObjectId.isValid(adminId))
+    if (adminId && !Types.ObjectId.isValid(adminId))
       throw new BadRequestException('Invalid adminId');
 
     // =====================================================
@@ -159,29 +159,14 @@ async sendMessageByUser(data: any) {
     if (!user) throw new BadRequestException('User not found');
 
     // =====================================================
-    // 3. CHECK ADMIN
-    // =====================================================
-    const admin: any = await this.adminModel
-      .findById(adminId)
-      .select('_id role fullName email')
-      .lean();
-
-    if (!admin) throw new BadRequestException('Admin not found');
-
-    if (admin.role === 'viewer')
-      throw new BadRequestException('Viewer cannot chat');
-
-    const role = admin.role;
-
-    // =====================================================
-    // 4. CHECK APPLICATION BELONGS TO USER 🔥 IMPORTANT
+    // 3. CHECK APPLICATION BELONGS TO USER
     // =====================================================
     const application = await this.applicationModel
       .findOne({
         _id: new Types.ObjectId(applicationId),
         userId: new Types.ObjectId(userId),
       })
-      .select('_id appId status')
+      .select('_id')
       .lean();
 
     if (!application)
@@ -190,24 +175,47 @@ async sendMessageByUser(data: any) {
       );
 
     // =====================================================
-    // 5. FIND CONVERSATION
+    // 4. CHECK EXISTING CONVERSATION (ANY ADMIN)
     // =====================================================
     let conversation = await this.convoModel.findOne({
       userId: new Types.ObjectId(userId),
       applicationId: new Types.ObjectId(applicationId),
-      role,
-      adminId: new Types.ObjectId(adminId),
     });
 
+    let admin: any;
+
     // =====================================================
-    // 6. CREATE IF NOT EXIST
+    // 5. FIRST TIME CHAT → ASSIGN SUPER ADMIN
     // =====================================================
     if (!conversation) {
+      if (adminId) {
+        // if adminId provided explicitly
+        admin = await this.adminModel
+          .findById(adminId)
+          .select('_id role fullName email')
+          .lean();
+
+        if (!admin) throw new BadRequestException('Admin not found');
+      } else {
+        // 🔥 AUTO ASSIGN SUPER ADMIN
+        admin = await this.adminModel
+          .findOne({ role: 'SUPER_ADMIN', status: 'active' })
+          .select('_id role fullName email')
+          .lean();
+
+        if (!admin)
+          throw new BadRequestException('Super admin not found');
+      }
+
+      if (admin.role === 'viewer')
+        throw new BadRequestException('Viewer cannot chat');
+
+      // create conversation
       conversation = await this.convoModel.create({
         userId: new Types.ObjectId(userId),
         applicationId: new Types.ObjectId(applicationId),
-        role,
-        adminId: new Types.ObjectId(adminId),
+        adminId: admin._id,
+        role: admin.role,
 
         userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
         adminName: admin.fullName || admin.email,
@@ -217,10 +225,20 @@ async sendMessageByUser(data: any) {
         status: 'open',
         messages: [],
       });
+    } else {
+      // =====================================================
+      // 6. CONVERSATION EXISTS → USE SAME ADMIN
+      // =====================================================
+      admin = await this.adminModel
+        .findById(conversation.adminId)
+        .select('_id role fullName email')
+        .lean();
+
+      if (!admin) throw new BadRequestException('Assigned admin not found');
     }
 
     // =====================================================
-    // 7. PUSH MESSAGE
+    // 7. PUSH USER MESSAGE
     // =====================================================
     conversation.messages.push({
       senderId: new Types.ObjectId(userId),
@@ -245,6 +263,7 @@ async sendMessageByUser(data: any) {
     return {
       success: true,
       conversationId: conversation._id,
+      adminId: conversation.adminId,
       message: 'Message sent successfully',
     };
 
