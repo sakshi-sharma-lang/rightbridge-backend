@@ -16,7 +16,7 @@ export class Conversation {
   // super_admin / underwriter / operations
   @Prop({
     type: String,
-    enum: ['super_admin', 'underwriter', 'operations'],
+    enum: ['super_admin','SUPER_ADMIN', 'underwriter', 'operations'],
     required: false,
   })
   role: string;

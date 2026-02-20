@@ -61,15 +61,16 @@ export class ChatController {
   // =====================================================
   // USER OPEN CHAT (VERY IMPORTANT)
   // =====================================================
-  @Get('user/chat/open/:userId/:applicationId/:role/:adminId')
-  async getUserChat(
-    @Param('userId') userId: string,
-    @Param('applicationId') applicationId: string,
-    @Param('role') role: string,
-    @Param('adminId') adminId: string,
-  ) {
-    return this.chatService.getUserChat(userId, applicationId, role, adminId);
-  }
+ // =====================================================
+// USER OPEN CHAT (FIXED)
+// =====================================================
+@Get('user/chat/open/:userId/:applicationId')
+async getUserChat(
+  @Param('userId') userId: string,
+  @Param('applicationId') applicationId: string,
+) {
+  return this.chatService.getUserChat(userId, applicationId);
+}
 
   // =====================================================
   // ADMIN OPEN CHAT

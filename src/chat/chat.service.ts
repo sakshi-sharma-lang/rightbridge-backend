@@ -131,7 +131,7 @@ export class ChatService {
   // =====================================================
 async sendMessageByUser(data: any) {
   try {
-    const { userId, message, applicationId, adminId } = data;
+    const { userId, message, applicationId } = data;
 
     // =====================================================
     // 1. BASIC VALIDATION
@@ -144,9 +144,6 @@ async sendMessageByUser(data: any) {
 
     if (!Types.ObjectId.isValid(applicationId))
       throw new BadRequestException('Invalid applicationId');
-
-    if (adminId && !Types.ObjectId.isValid(adminId))
-      throw new BadRequestException('Invalid adminId');
 
     // =====================================================
     // 2. CHECK USER
@@ -175,7 +172,7 @@ async sendMessageByUser(data: any) {
       );
 
     // =====================================================
-    // 4. CHECK EXISTING CONVERSATION (ANY ADMIN)
+    // 4. CHECK EXISTING CONVERSATION
     // =====================================================
     let conversation = await this.convoModel.findOne({
       userId: new Types.ObjectId(userId),
@@ -188,29 +185,19 @@ async sendMessageByUser(data: any) {
     // 5. FIRST TIME CHAT → ASSIGN SUPER ADMIN
     // =====================================================
     if (!conversation) {
-      if (adminId) {
-        // if adminId provided explicitly
-        admin = await this.adminModel
-          .findById(adminId)
-          .select('_id role fullName email')
-          .lean();
 
-        if (!admin) throw new BadRequestException('Admin not found');
-      } else {
-        // 🔥 AUTO ASSIGN SUPER ADMIN
-        admin = await this.adminModel
-          .findOne({ role: 'SUPER_ADMIN', status: 'active' })
-          .select('_id role fullName email')
-          .lean();
+      admin = await this.adminModel
+        .findOne({ role: 'SUPER_ADMIN', status: 'active' })
+        .select('_id role fullName email')
+        .lean();
 
-        if (!admin)
-          throw new BadRequestException('Super admin not found');
-      }
+      if (!admin)
+        throw new BadRequestException('Super admin not found');
 
       if (admin.role === 'viewer')
         throw new BadRequestException('Viewer cannot chat');
 
-      // create conversation
+      // 🔥 CREATE CONVERSATION WITH SUPER ADMIN
       conversation = await this.convoModel.create({
         userId: new Types.ObjectId(userId),
         applicationId: new Types.ObjectId(applicationId),
@@ -225,16 +212,20 @@ async sendMessageByUser(data: any) {
         status: 'open',
         messages: [],
       });
+
+      console.log("🔥 FIRST CHAT → SUPER ADMIN ASSIGNED:", admin._id);
+
     } else {
       // =====================================================
-      // 6. CONVERSATION EXISTS → USE SAME ADMIN
+      // 6. EXISTING CHAT → USE SAME ADMIN
       // =====================================================
       admin = await this.adminModel
         .findById(conversation.adminId)
         .select('_id role fullName email')
         .lean();
 
-      if (!admin) throw new BadRequestException('Assigned admin not found');
+      if (!admin)
+        throw new BadRequestException('Assigned admin not found');
     }
 
     // =====================================================
@@ -405,16 +396,11 @@ async sendMessageByAdmin(data: any) {
   // =====================================================
   // USER OPEN CHAT
   // =====================================================
-async getUserChat(
-  userId: string,
-  applicationId: string,
-  role: string,
-  adminId: string,
-) {
+async getUserChat(userId: string, applicationId: string) {
   try {
 
     // =====================================================
-    // 1. VALIDATE IDS
+    // 1. VALIDATION
     // =====================================================
     if (!Types.ObjectId.isValid(userId))
       throw new BadRequestException('Invalid userId');
@@ -422,56 +408,25 @@ async getUserChat(
     if (!Types.ObjectId.isValid(applicationId))
       throw new BadRequestException('Invalid applicationId');
 
-    if (!Types.ObjectId.isValid(adminId))
-      throw new BadRequestException('Invalid adminId');
-
-    if (!role)
-      throw new BadRequestException('role required');
-
     // =====================================================
-    // 2. VERIFY USER EXISTS
-    // =====================================================
-    const user = await this.userModel
-      .findById(userId)
-      .select('_id')
-      .lean();
-
-    if (!user)
-      throw new BadRequestException('User not found');
-
-    // =====================================================
-    // 3. VERIFY APPLICATION BELONGS TO USER
-    // =====================================================
-    const application = await this.applicationModel
-      .findOne({
-        _id: new Types.ObjectId(applicationId),
-        userId: new Types.ObjectId(userId),
-      })
-      .select('_id')
-      .lean();
-
-    if (!application)
-      throw new BadRequestException(
-        'Application not found or does not belong to user',
-      );
-
-    // =====================================================
-    // 4. FIND CONVERSATION
+    // 2. FIND CONVERSATION (AUTO ADMIN + ROLE)
     // =====================================================
     const conversation = await this.convoModel.findOne({
       userId: new Types.ObjectId(userId),
       applicationId: new Types.ObjectId(applicationId),
-      role,
-      adminId: new Types.ObjectId(adminId),
     });
 
-    if (!conversation)
-      return { success: true, data: [] };
+    if (!conversation) {
+      return {
+        success: true,
+        data: [],
+        message: 'No chat found yet'
+      };
+    }
 
     // =====================================================
-    // 5. MARK ADMIN MESSAGES AS READ (OPTIMIZED)
+    // 3. MARK ADMIN MSG READ
     // =====================================================
-
     let updated = false;
 
     conversation.messages.forEach((msg: any) => {
@@ -486,8 +441,13 @@ async getUserChat(
       await conversation.save();
     }
 
+    // =====================================================
+    // 4. RETURN CHAT WITH ADMIN + ROLE
+    // =====================================================
     return {
       success: true,
+      adminId: conversation.adminId,   // frontend now knows admin
+      role: conversation.role,         // role-based safe
       data: conversation,
     };
 
