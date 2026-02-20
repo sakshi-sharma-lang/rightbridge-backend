@@ -129,13 +129,12 @@ export class ChatService {
   // =====================================================
   // USER SEND MESSAGE (ROLE + ADMIN BASED)
   // =====================================================
+
+
 async sendMessageByUser(data: any) {
   try {
     const { userId, message, applicationId } = data;
 
-    // =====================================================
-    // 1. BASIC VALIDATION
-    // =====================================================
     if (!userId || !applicationId || !message)
       throw new BadRequestException('Missing required fields');
 
@@ -145,9 +144,6 @@ async sendMessageByUser(data: any) {
     if (!Types.ObjectId.isValid(applicationId))
       throw new BadRequestException('Invalid applicationId');
 
-    // =====================================================
-    // 2. CHECK USER
-    // =====================================================
     const user: any = await this.userModel
       .findById(userId)
       .select('_id firstName lastName email')
@@ -155,9 +151,6 @@ async sendMessageByUser(data: any) {
 
     if (!user) throw new BadRequestException('User not found');
 
-    // =====================================================
-    // 3. CHECK APPLICATION BELONGS TO USER
-    // =====================================================
     const application = await this.applicationModel
       .findOne({
         _id: new Types.ObjectId(applicationId),
@@ -171,9 +164,6 @@ async sendMessageByUser(data: any) {
         'Application not found or not belongs to user',
       );
 
-    // =====================================================
-    // 4. CHECK EXISTING CONVERSATION
-    // =====================================================
     let conversation = await this.convoModel.findOne({
       userId: new Types.ObjectId(userId),
       applicationId: new Types.ObjectId(applicationId),
@@ -181,9 +171,6 @@ async sendMessageByUser(data: any) {
 
     let admin: any;
 
-    // =====================================================
-    // 5. FIRST TIME CHAT → ASSIGN SUPER ADMIN
-    // =====================================================
     if (!conversation) {
 
       admin = await this.adminModel
@@ -194,44 +181,28 @@ async sendMessageByUser(data: any) {
       if (!admin)
         throw new BadRequestException('Super admin not found');
 
-      if (admin.role === 'viewer')
-        throw new BadRequestException('Viewer cannot chat');
-
-      //  CREATE CONVERSATION WITH SUPER ADMIN
       conversation = await this.convoModel.create({
         userId: new Types.ObjectId(userId),
         applicationId: new Types.ObjectId(applicationId),
         adminId: admin._id,
         role: admin.role,
-
         userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
         adminName: admin.fullName || admin.email,
-
         unreadUser: 0,
         unreadAdmin: 0,
         status: 'open',
         messages: [],
       });
 
-      console.log(" FIRST CHAT → SUPER ADMIN ASSIGNED:", admin._id);
-
     } else {
-      // =====================================================
-      // 6. EXISTING CHAT → USE SAME ADMIN
-      // =====================================================
       admin = await this.adminModel
         .findById(conversation.adminId)
         .select('_id role fullName email')
         .lean();
-
-      if (!admin)
-        throw new BadRequestException('Assigned admin not found');
     }
 
-    // =====================================================
-    // 7. PUSH USER MESSAGE
-    // =====================================================
-    conversation.messages.push({
+    // 🔥 CREATE MESSAGE OBJECT
+    const newMessage = {
       senderId: new Types.ObjectId(userId),
       senderType: 'user',
       senderName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
@@ -240,13 +211,13 @@ async sendMessageByUser(data: any) {
       messageType: 'text',
       time: new Date(),
       isRead: false,
-    });
+    };
+
+    conversation.messages.push(newMessage);
 
     conversation.lastMessage = message;
     conversation.lastMessageAt = new Date();
     conversation.lastMessageBy = 'user';
-
-    // unread for admin
     conversation.unreadAdmin = (conversation.unreadAdmin || 0) + 1;
 
     await conversation.save();
@@ -255,7 +226,7 @@ async sendMessageByUser(data: any) {
       success: true,
       conversationId: conversation._id,
       adminId: conversation.adminId,
-      message: 'Message sent successfully',
+      messageData: newMessage, // ✅ REAL MESSAGE
     };
 
   } catch (error) {
@@ -270,9 +241,6 @@ async sendMessageByAdmin(data: any) {
   try {
     const { userId, adminId, message, applicationId } = data;
 
-    // =====================================================
-    // 1. BASIC VALIDATION
-    // =====================================================
     if (!userId || !adminId || !applicationId || !message)
       throw new BadRequestException('Missing required fields');
 
@@ -285,9 +253,6 @@ async sendMessageByAdmin(data: any) {
     if (!Types.ObjectId.isValid(applicationId))
       throw new BadRequestException('Invalid applicationId');
 
-    // =====================================================
-    // 2. CHECK ADMIN
-    // =====================================================
     const admin: any = await this.adminModel
       .findById(adminId)
       .select('_id role fullName email')
@@ -295,14 +260,8 @@ async sendMessageByAdmin(data: any) {
 
     if (!admin) throw new BadRequestException('Admin not found');
 
-    if (admin.role === 'viewer')
-      throw new BadRequestException('Viewer cannot send');
-
     const role = admin.role;
 
-    // =====================================================
-    // 3. CHECK USER EXIST
-    // =====================================================
     const user: any = await this.userModel
       .findById(userId)
       .select('_id firstName lastName')
@@ -310,9 +269,6 @@ async sendMessageByAdmin(data: any) {
 
     if (!user) throw new BadRequestException('User not found');
 
-    // =====================================================
-    // 4. CHECK APPLICATION BELONGS TO USER  IMPORTANT
-    // =====================================================
     const application = await this.applicationModel
       .findOne({
         _id: new Types.ObjectId(applicationId),
@@ -326,9 +282,6 @@ async sendMessageByAdmin(data: any) {
         'Application not found or not belongs to user',
       );
 
-    // =====================================================
-    // 5. FIND CONVERSATION
-    // =====================================================
     let conversation = await this.convoModel.findOne({
       userId: new Types.ObjectId(userId),
       applicationId: new Types.ObjectId(applicationId),
@@ -336,19 +289,14 @@ async sendMessageByAdmin(data: any) {
       adminId: new Types.ObjectId(adminId),
     });
 
-    // =====================================================
-    // 6. CREATE IF NOT EXIST
-    // =====================================================
     if (!conversation) {
       conversation = await this.convoModel.create({
         userId: new Types.ObjectId(userId),
         applicationId: new Types.ObjectId(applicationId),
         role,
         adminId: new Types.ObjectId(adminId),
-
         userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
         adminName: admin.fullName || admin.email,
-
         unreadUser: 0,
         unreadAdmin: 0,
         status: 'open',
@@ -356,10 +304,8 @@ async sendMessageByAdmin(data: any) {
       });
     }
 
-    // =====================================================
-    // 7. PUSH MESSAGE
-    // =====================================================
-    conversation.messages.push({
+    // 🔥 CREATE MESSAGE OBJECT
+    const newMessage = {
       senderId: new Types.ObjectId(adminId),
       senderType: 'admin',
       senderName: admin.fullName || admin.email,
@@ -368,24 +314,22 @@ async sendMessageByAdmin(data: any) {
       messageType: 'text',
       time: new Date(),
       isRead: false,
-    });
+    };
+
+    conversation.messages.push(newMessage);
 
     conversation.lastMessage = message;
     conversation.lastMessageAt = new Date();
     conversation.lastMessageBy = 'admin';
-
-    // unread for user
     conversation.unreadUser = (conversation.unreadUser || 0) + 1;
-
-    // reset admin unread
     conversation.unreadAdmin = 0;
 
     await conversation.save();
 
     return {
       success: true,
-      message: 'Admin message sent',
       conversationId: conversation._id,
+      messageData: newMessage, // ✅ REAL MESSAGE
     };
 
   } catch (error) {
