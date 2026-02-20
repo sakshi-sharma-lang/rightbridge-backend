@@ -10,8 +10,6 @@ export class ChatGateway implements OnModuleInit {
 
   private userSockets = new Map<string, WebSocket>();
   private adminSockets = new Map<string, Set<WebSocket>>();
-
-  // application based rooms
   private appRooms = new Map<string, Set<WebSocket>>();
 
   onModuleInit() {
@@ -91,7 +89,6 @@ export class ChatGateway implements OnModuleInit {
   // =====================================================
   handleTyping(data: any) {
     const roomSockets = this.appRooms.get(data.applicationId);
-
     if (!roomSockets) return;
 
     roomSockets.forEach(sock => {
@@ -107,18 +104,26 @@ export class ChatGateway implements OnModuleInit {
   // =====================================================
   // SEND MESSAGE REALTIME
   // =====================================================
-  async handleSendMessage(data: any) {
-    let saved;
+ async handleSendMessage(data: any) {
+  let saved;
 
-    if (data.senderRole === 'admin')
-      saved = await this.chatService.sendMessageByAdmin(data);
-    else
-      saved = await this.chatService.sendMessageByUser(data);
+  if (data.senderRole === 'admin')
+    saved = await this.chatService.sendMessageByAdmin(data);
+  else
+    saved = await this.chatService.sendMessageByUser(data);
 
-    const roomSockets = this.appRooms.get(data.applicationId);
-    if (!roomSockets) return;
+  console.log("📤 MESSAGE SAVED:", saved);
+  console.log("📡 APPLICATION:", data.applicationId);
 
-    roomSockets.forEach(sock => {
+  const roomSockets = this.appRooms.get(data.applicationId);
+
+  console.log("👥 ROOM SOCKETS:", roomSockets ? roomSockets.size : 0);
+
+  // ❌ if room empty → send to all sockets (fallback)
+  if (!roomSockets || roomSockets.size === 0) {
+    console.log("⚠️ ROOM EMPTY → sending to ALL sockets");
+
+    this.wss.clients.forEach((sock:any) => {
       if (sock.readyState === WebSocket.OPEN) {
         sock.send(JSON.stringify({
           type: "receiveMessage",
@@ -126,19 +131,39 @@ export class ChatGateway implements OnModuleInit {
         }));
       }
     });
+
+    return;
   }
 
+  // ✅ send to room users
+  roomSockets.forEach(sock => {
+    if (sock.readyState === WebSocket.OPEN) {
+      sock.send(JSON.stringify({
+        type: "receiveMessage",
+        data: saved
+      }));
+    }
+  });
+
+  // 🔔 notification
+  if (data.receiverUserId) {
+    this.sendNotificationToUser(data.receiverUserId, {
+      title: "New Message",
+      message: saved.message,
+      applicationId: data.applicationId
+    });
+  }
+}
+
   // =====================================================
-  // DISCONNECT CLEANUP (IMPORTANT)
+  // DISCONNECT CLEANUP
   // =====================================================
   handleDisconnect(socket: WebSocket) {
 
-    // remove user socket
     for (const [userId, s] of this.userSockets) {
       if (s === socket) this.userSockets.delete(userId);
     }
 
-    // remove admin socket
     for (const [adminId, set] of this.adminSockets) {
       if (set.has(socket)) {
         set.delete(socket);
@@ -146,18 +171,46 @@ export class ChatGateway implements OnModuleInit {
       }
     }
 
-    // remove from app rooms
     for (const [appId, set] of this.appRooms) {
       if (set.has(socket)) {
         set.delete(socket);
-
-        // 🔥 remove empty room (memory safe)
-        if (set.size === 0) {
-          this.appRooms.delete(appId);
-        }
+        if (set.size === 0) this.appRooms.delete(appId);
       }
     }
 
     console.log("Client disconnected");
   }
+
+  // =====================================================
+  // 🔔 NOTIFICATION FUNCTION
+  // =====================================================
+  sendNotificationToUser(userId: string, payload: any) {
+
+  console.log("\n🔔 REALTIME NOTIFICATION TRY");
+  console.log("UserId:", userId);
+  console.log("Total online users:", this.userSockets.size);
+  console.log("Online user list:", [...this.userSockets.keys()]);
+
+  const socket = this.userSockets.get(userId);
+
+  if (!socket) {
+    console.log("❌ User NOT connected via websocket:", userId);
+    return;
+  }
+
+  console.log("✅ User socket found");
+
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({
+      type: "notification",
+      data: payload
+    }));
+
+    console.log("🚀 Notification delivered realtime to:", userId);
+  } else {
+    console.log("❌ Socket exists but not open. State:", socket.readyState);
+  }
+
+  console.log("🔔 END NOTIFICATION\n");
+}
 }

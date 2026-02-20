@@ -8,23 +8,20 @@ import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { AdminJwtStrategy } from './admin-jwt.strategy';
 import { AdminApplicationsController } from './admin-applications.controller';
+import { AdminApplicationsService } from './admin-applications.service';
 
 import { Admin, AdminSchema } from './schemas/admin.schema';
 import { Counter, CounterSchema } from '../applications/schemas/counter.schema';
+import { Application, ApplicationSchema } from '../applications/schemas/application.schema';
+import { User, UserSchema } from '../users/schemas/user.schema';
+
 import { MailModule } from '../mail/mail.module';
 import { ApplicationsModule } from '../applications/applications.module';
 import { InternalNotesModule } from './internal-notes/internal-notes.module';
-import { User, UserSchema } from '../users/schemas/user.schema'; 
-import { Notification, NotificationSchema } from '../notification/schemas/notification.schema';
 import { NotificationModule } from '../notification/notification.module';
 
-
-import {
-  Application,
-  ApplicationSchema,
-} from '../applications/schemas/application.schema';
-
-import { AdminApplicationsService } from './admin-applications.service';
+// ✅ IMPORT CHAT MODULE (NOT ChatGateway)
+import { ChatModule } from '../chat/chat.module';
 
 @Module({
   imports: [
@@ -46,16 +43,25 @@ import { AdminApplicationsService } from './admin-applications.service';
       { name: Admin.name, schema: AdminSchema },
       { name: Counter.name, schema: CounterSchema },
       { name: Application.name, schema: ApplicationSchema },
-     { name: User.name, schema: UserSchema },
+      { name: User.name, schema: UserSchema },
     ]),
 
     MailModule,
     ApplicationsModule,
-    InternalNotesModule,   
+    InternalNotesModule,
     NotificationModule,
-
+    ChatModule, // ✅ IMPORTANT
   ],
-  controllers: [AdminController, AdminApplicationsController],
-  providers: [AdminService, AdminApplicationsService, AdminJwtStrategy],
+
+  controllers: [
+    AdminController,
+    AdminApplicationsController,
+  ],
+
+  providers: [
+    AdminService,
+    AdminApplicationsService,
+    AdminJwtStrategy,
+  ],
 })
 export class AdminModule {}

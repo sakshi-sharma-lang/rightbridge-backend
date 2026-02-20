@@ -6,7 +6,7 @@ import { MailService } from '../mail/mail.service';
 import { User } from '../users/schemas/user.schema'; 
 
 import { Notification } from '../notification/schemas/notification.schema';
-import { NotificationGateway } from '../notification/notification.gateway';
+import { ChatGateway } from '../chat/chat.gateway';
 
 
 
@@ -23,30 +23,37 @@ export class AdminApplicationsService {
   private readonly notificationModel: Model<Notification>,
 
   private readonly mailService: MailService,
-  private readonly notificationGateway: NotificationGateway,
+  private readonly chatGateway: ChatGateway,
 ) {}
 
 
 async updateStageManagment(appId: string, stage: string, email: string) {
+  console.log("\n==============================");
+  console.log("🚀 STAGE UPDATE START");
+  console.log("AppId:", appId);
+  console.log("Stage:", stage);
+  console.log("Email:", email);
+
   try {
     const app = await this.applicationModel.findById(appId);
 
     if (!app) {
-      return {
-        statusCode: 404,
-        message: 'Application not found',
-      };
+      console.log("❌ Application not found");
+      return { statusCode: 404, message: 'Application not found' };
     }
 
+    console.log("✅ Application found:", app._id);
+
     if (!email || !email.trim()) {
+      console.log("❌ Email missing");
       return {
         statusCode: 400,
         message: 'Customer email is required to send notification',
       };
     }
 
-    //  Lock if DIP declined
     if (app.application_stage_management?.includes('dip_declined')) {
+      console.log("⛔ DIP already declined. Blocking update");
       return {
         statusCode: 403,
         message: 'This application was declined in DIP stage and cannot be modified.',
@@ -63,6 +70,7 @@ async updateStageManagment(appId: string, stage: string, email: string) {
     ];
 
     if (!ALLOWED_STAGES.includes(stage)) {
+      console.log("❌ Invalid stage:", stage);
       return {
         statusCode: 400,
         message: 'Invalid application stage status',
@@ -70,15 +78,14 @@ async updateStageManagment(appId: string, stage: string, email: string) {
       };
     }
 
-    //  Prevent duplicate stage
     if (app.application_stage_management?.includes(stage)) {
+      console.log("⚠️ Stage already exists:", stage);
       return {
         statusCode: 400,
         message: 'This stage is already applied',
       };
     }
 
-    // Save stage
     if (!Array.isArray(app.application_stage_management)) {
       app.application_stage_management = [];
     }
@@ -86,12 +93,16 @@ async updateStageManagment(appId: string, stage: string, email: string) {
     app.application_stage_management.push(stage);
     await app.save();
 
+    console.log("✅ Stage saved in DB:", stage);
+
     // =====================================================
-    // 🔔 SAVE NOTIFICATION + REALTIME EMIT (ADDED)
+    // 🔔 SAVE NOTIFICATION + REALTIME
     // =====================================================
     if (app.userId) {
       try {
         const notificationMessage = `Your application stage updated to ${stage}`;
+
+        console.log("🔔 Creating DB notification for user:", app.userId);
 
         const notification = await this.notificationModel.create({
           userId: app.userId,
@@ -102,7 +113,11 @@ async updateStageManagment(appId: string, stage: string, email: string) {
           isRead: false,
         });
 
-        this.notificationGateway.emitStageNotification(
+        console.log("✅ Notification saved:", notification._id);
+
+        console.log("📡 Sending realtime notification via WS...");
+
+        this.chatGateway.sendNotificationToUser(
           app.userId.toString(),
           {
             notificationId: notification._id,
@@ -114,13 +129,17 @@ async updateStageManagment(appId: string, stage: string, email: string) {
           }
         );
 
+        console.log("✅ Realtime notification sent");
+
       } catch (notificationError) {
-        console.error('Notification error:', notificationError.message);
+        console.log("❌ Notification error:", notificationError.message);
       }
+    } else {
+      console.log("⚠️ No userId found, skipping realtime notification");
     }
 
     // =====================================================
-    //  CHECK USER EMAIL NOTIFICATION SETTING
+    // EMAIL CHECK
     // =====================================================
     let allowEmail = false;
 
@@ -128,33 +147,27 @@ async updateStageManagment(appId: string, stage: string, email: string) {
       const user = await this.userModel.findById(app.userId).lean();
       if (user && user.emailNotifications === true) {
         allowEmail = true;
+        console.log("📧 Email notification ENABLED");
+      } else {
+        console.log("📧 Email notification DISABLED");
       }
     }
 
-    // =====================================================
-    //  SEND EMAILS IF ENABLED
-    // =====================================================
     if (allowEmail) {
-
-      // ==============================
-      // 1️⃣ SEND TO USER TABLE EMAIL
-      // ==============================
-      // const mainUser = await this.userModel.findById(app.userId).lean();
-      // if (mainUser?.email) {
-      //   await this.mailService.sendStageEmail(mainUser.email, stage, appId);
-      // }
-
-      // ==============================
-      // 2️⃣ SEND TO ALL APPLICANTS EMAIL
-      // ==============================
       if (Array.isArray(app.applicants)) {
+        console.log("📧 Sending email to applicants...");
         for (const applicant of app.applicants) {
           if (applicant?.email) {
+            console.log("📧 Sending to:", applicant.email);
             await this.mailService.sendStageEmail(applicant.email, stage, appId);
           }
         }
       }
+      console.log("✅ Emails sent");
     }
+
+    console.log("🎉 STAGE UPDATE SUCCESS");
+    console.log("==============================\n");
 
     return {
       statusCode: 200,
@@ -165,6 +178,9 @@ async updateStageManagment(appId: string, stage: string, email: string) {
     };
 
   } catch (error) {
+    console.log("💥 STAGE UPDATE FAILED:", error.message);
+    console.log("==============================\n");
+
     return {
       statusCode: 500,
       message: 'Stage update failed',
