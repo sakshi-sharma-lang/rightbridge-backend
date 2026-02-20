@@ -63,9 +63,10 @@ export class ChatGateway implements OnModuleInit {
       console.log('User online:', data.userId);
 
       if (data.applicationId) {
-        const room = this.appRooms.get(data.applicationId) ?? new Set<WebSocket>();
+        const appId = String(data.applicationId); // FIX
+        const room = this.appRooms.get(appId) ?? new Set<WebSocket>();
         room.add(socket);
-        this.appRooms.set(data.applicationId, room);
+        this.appRooms.set(appId, room);
       }
     }
 
@@ -77,9 +78,10 @@ export class ChatGateway implements OnModuleInit {
       console.log('Admin online:', data.adminId);
 
       if (data.applicationId) {
-        const room = this.appRooms.get(data.applicationId) ?? new Set<WebSocket>();
+        const appId = String(data.applicationId); // FIX
+        const room = this.appRooms.get(appId) ?? new Set<WebSocket>();
         room.add(socket);
-        this.appRooms.set(data.applicationId, room);
+        this.appRooms.set(appId, room);
       }
     }
   }
@@ -88,7 +90,8 @@ export class ChatGateway implements OnModuleInit {
   // TYPING EVENT
   // =====================================================
   handleTyping(data: any) {
-    const roomSockets = this.appRooms.get(data.applicationId);
+    const appId = String(data.applicationId); // FIX
+    const roomSockets = this.appRooms.get(appId);
     if (!roomSockets) return;
 
     roomSockets.forEach(sock => {
@@ -115,11 +118,11 @@ export class ChatGateway implements OnModuleInit {
   console.log("📤 MESSAGE SAVED:", saved);
   console.log("📡 APPLICATION:", data.applicationId);
 
-  const roomSockets = this.appRooms.get(data.applicationId);
+  const appId = String(data.applicationId); // FIX
+  const roomSockets = this.appRooms.get(appId);
 
   console.log("👥 ROOM SOCKETS:", roomSockets ? roomSockets.size : 0);
 
-  // ❌ if room empty → send to all sockets (fallback)
   if (!roomSockets || roomSockets.size === 0) {
     console.log("⚠️ ROOM EMPTY → sending to ALL sockets");
 
@@ -135,7 +138,6 @@ export class ChatGateway implements OnModuleInit {
     return;
   }
 
-  // ✅ send to room users
   roomSockets.forEach(sock => {
     if (sock.readyState === WebSocket.OPEN) {
       sock.send(JSON.stringify({
@@ -145,7 +147,6 @@ export class ChatGateway implements OnModuleInit {
     }
   });
 
-  // 🔔 notification
   if (data.receiverUserId) {
     this.sendNotificationToUser(data.receiverUserId, {
       title: "New Message",
