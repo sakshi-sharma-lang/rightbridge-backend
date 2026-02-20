@@ -58,23 +58,14 @@ export class ChatController {
     return this.chatService.getUserConversations(userId, applicationId);
   }
 
-  // =====================================================
-  // USER OPEN CHAT (VERY IMPORTANT)
-  // =====================================================
- // =====================================================
-// USER OPEN CHAT (FIXED)
-// =====================================================
-@Get('user/chat/open/:userId/:applicationId')
-async getUserChat(
-  @Param('userId') userId: string,
-  @Param('applicationId') applicationId: string,
-) {
-  return this.chatService.getUserChat(userId, applicationId);
-}
+    @Get('user/chat/open/:userId/:applicationId')
+    async getUserChat(
+      @Param('userId') userId: string,
+      @Param('applicationId') applicationId: string,
+    ) {
+      return this.chatService.getUserChat(userId, applicationId);
+    }
 
-  // =====================================================
-  // ADMIN OPEN CHAT
-  // =====================================================
   @Get('admin/chat/open/:applicationId/:role/:adminId')
   async getAdminChat(
     @Param('applicationId') applicationId: string,
@@ -84,9 +75,6 @@ async getUserChat(
     return this.chatService.getAdminChat(applicationId, role, adminId);
   }
 
-  // =====================================================
-  // USER APPLICATION LIST
-  // =====================================================
   @Get('user/applications/:userId')
   async getUserApplications(@Param('userId') userId: string) {
     return this.chatService.getApplicationsByUserId(userId);

@@ -77,7 +77,7 @@ export class ChatService {
     const application = await this.applicationModel
       .findOne({
         _id: new Types.ObjectId(applicationId),
-        userId: new Types.ObjectId(userId), // 🔥 important check
+        userId: new Types.ObjectId(userId), //  important check
       })
       .select('_id appId status')
       .lean();
@@ -197,7 +197,7 @@ async sendMessageByUser(data: any) {
       if (admin.role === 'viewer')
         throw new BadRequestException('Viewer cannot chat');
 
-      // 🔥 CREATE CONVERSATION WITH SUPER ADMIN
+      //  CREATE CONVERSATION WITH SUPER ADMIN
       conversation = await this.convoModel.create({
         userId: new Types.ObjectId(userId),
         applicationId: new Types.ObjectId(applicationId),
@@ -213,7 +213,7 @@ async sendMessageByUser(data: any) {
         messages: [],
       });
 
-      console.log("🔥 FIRST CHAT → SUPER ADMIN ASSIGNED:", admin._id);
+      console.log(" FIRST CHAT → SUPER ADMIN ASSIGNED:", admin._id);
 
     } else {
       // =====================================================
@@ -311,7 +311,7 @@ async sendMessageByAdmin(data: any) {
     if (!user) throw new BadRequestException('User not found');
 
     // =====================================================
-    // 4. CHECK APPLICATION BELONGS TO USER 🔥 IMPORTANT
+    // 4. CHECK APPLICATION BELONGS TO USER  IMPORTANT
     // =====================================================
     const application = await this.applicationModel
       .findOne({
@@ -486,7 +486,7 @@ async getAdminChat(applicationId: string, role: string, adminId: string) {
     if (!admin)
       throw new BadRequestException('Admin not found');
 
-    // 🔥 SECURITY: ignore frontend role, use DB role
+    //  SECURITY: ignore frontend role, use DB role
     const adminRole = admin.role;
 
     if (adminRole === 'viewer')
