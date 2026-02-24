@@ -145,35 +145,69 @@ export class ApplicationsService {
       delete safeBody.rejectReason;
       delete safeBody.applicationStatus;
 
-      const applicants = Array.isArray(body.applicants)
-        ? body.applicants.map((a, index) => ({
-            applyingAs: a.applyingAs ?? '',
-            firstName: a.firstName ?? '',
-            lastName: a.lastName ?? '',
-            email: a.email ?? '',
-            mobile: a.mobile ?? '',
-            phoneNumber: a.phoneNumber ?? '',
-            dateOfBirth: a.dateOfBirth ?? '',
-            nationality: a.nationality ?? '',
-            address: a.address ?? '',
-            postcode: a.postcode ?? '',
-            ownershipShare: a.ownershipShare ?? '',
-            ownershipRole: a.ownershipRole ?? '',
-            timeAtAddress: a.timeAtAddress ?? '',
-            numberOfApplicants: a.numberOfApplicants ?? '1',
-            previousAddress: {
-              previousResidentialAddress:
-                a.previousAddress?.previousResidentialAddress ?? '',
-              previousPostcode: a.previousAddress?.previousPostcode ?? '',
-            },
-            companyAddress: a.companyAddress ?? '',
-            companyRegistrationNumber: a.companyRegistrationNumber ?? '',
-            userId: new Types.ObjectId(userId),
+     // ===============================
+// SAFE APPLICANTS PARSE
+// ===============================
+let parsedApplicants: any = bodyApplicants;
 
-            //  backend generated (not from frontend)
-            externalUserId: `${appId}_${userId}_${index + 1}`,
-          }))
-        : [];
+if (typeof parsedApplicants === 'string') {
+  try {
+    parsedApplicants = JSON.parse(parsedApplicants);
+  } catch {
+    throw new BadRequestException('Invalid applicants format');
+  }
+}
+
+if (!Array.isArray(parsedApplicants) || parsedApplicants.length === 0) {
+  throw new BadRequestException('At least one applicant required');
+}
+
+// ===============================
+// BACKEND GENERATE externalUserId
+// ===============================
+const applicants = parsedApplicants.map((a, index) => {
+  const externalUserId = `${appId}_${userId}_${index + 1}`;
+
+  return {
+    applyingAs: a.applyingAs ?? '',
+    firstName: a.firstName ?? '',
+    lastName: a.lastName ?? '',
+    email: a.email ?? '',
+    mobile: a.mobile ?? '',
+    phoneNumber: a.phoneNumber ?? '',
+    dateOfBirth: a.dateOfBirth ?? '',
+    nationality: a.nationality ?? '',
+    address: a.address ?? '',
+    postcode: a.postcode ?? '',
+    ownershipShare: a.ownershipShare ?? '',
+    ownershipRole: a.ownershipRole ?? '',
+    timeAtAddress: a.timeAtAddress ?? '',
+    numberOfApplicants: a.numberOfApplicants ?? '1',
+    previousAddress: {
+      previousResidentialAddress:
+        a.previousAddress?.previousResidentialAddress ?? '',
+      previousPostcode: a.previousAddress?.previousPostcode ?? '',
+    },
+    companyAddress: a.companyAddress ?? '',
+    companyRegistrationNumber: a.companyRegistrationNumber ?? '',
+    userId: new Types.ObjectId(userId),
+
+    // 🔥 BACKEND GENERATED ONLY
+    externalUserId,
+  };
+});
+
+// ===============================
+// 🔴 HARD BACKEND VALIDATION
+// Application will NOT create if missing
+// ===============================
+const missingExternal = applicants.some(a => !a.externalUserId);
+
+if (missingExternal) {
+  throw new BadRequestException(
+    'System error: externalUserId not generated. Application blocked.',
+  );
+}
 
       //  AUTO REJECT CALCULATION (FINAL WORKING VERSION)
       let autoRejectStatus: any = {};
