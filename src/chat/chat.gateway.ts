@@ -8,23 +8,24 @@ export class ChatGateway implements OnModuleInit {
 
   private wss: WebSocket.Server;
 
+  // single user → single socket
   private userSockets = new Map<string, WebSocket>();
 
-  // adminId -> sockets
+  // admin can open multiple tabs
   private adminSockets = new Map<string, Set<WebSocket>>();
 
-  // 🔥 ROLE -> sockets (MAIN FIX)
-  private roleSockets = new Map<string, Set<WebSocket>>();
-
-  // optional rooms (typing etc)
+  // application room → all users + admins
   private appRooms = new Map<string, Set<WebSocket>>();
 
+  // =====================================================
+  // START WS SERVER
+  // =====================================================
   onModuleInit() {
     setTimeout(() => {
       const server = (global as any).serverInstance;
 
       if (!server) {
-        console.log("WS FAILED: serverInstance not found");
+        console.log("❌ WS FAILED: serverInstance not found");
         return;
       }
 
@@ -33,74 +34,82 @@ export class ChatGateway implements OnModuleInit {
         path: "/ws",
       });
 
-      console.log("WEBSOCKET STARTED SUCCESSFULLY");
+      console.log("🚀 WEBSOCKET STARTED SUCCESSFULLY");
 
       this.wss.on('connection', (socket: WebSocket) => {
-        console.log('CLIENT CONNECTED');
-        console.log("Total WS clients:", this.wss.clients.size);
+        console.log('🟢 CLIENT CONNECTED');
+        console.log("Total clients:", this.wss.clients.size);
 
         socket.on('message', async (data: any) => {
           try {
             const msg = JSON.parse(data.toString());
             await this.routeMessage(socket, msg);
           } catch (err) {
-            console.log("WS ERROR:", err);
+            console.log("WS PARSE ERROR:", err);
           }
         });
 
         socket.on('close', () => this.handleDisconnect(socket));
       });
 
-    }, 2000);
-  }
-
-  async routeMessage(socket: WebSocket, data: any) {
-    if (data.type === 'identify') this.handleIdentify(socket, data);
-    if (data.type === 'typing') this.handleTyping(data);
-    if (data.type === 'sendMessage') await this.handleSendMessage(data);
+    }, 1500);
   }
 
   // =====================================================
-  // IDENTIFY
+  // ROUTER
+  // =====================================================
+  async routeMessage(socket: WebSocket, data: any) {
+
+    if (data.type === 'identify')
+      this.handleIdentify(socket, data);
+
+    if (data.type === 'typing')
+      this.handleTyping(data);
+
+    if (data.type === 'sendMessage')
+      await this.handleSendMessage(data);
+  }
+
+  // =====================================================
+  // IDENTIFY USER / ADMIN
   // =====================================================
   handleIdentify(socket: WebSocket, data: any) {
+    console.log("IDENTIFY:", data);
 
     // USER
     if (data.role === 'user') {
       this.userSockets.set(data.userId, socket);
-      console.log('User online:', data.userId);
+      console.log("👤 User online:", data.userId);
+
+      if (data.applicationId) {
+        const room = this.appRooms.get(data.applicationId) ?? new Set<WebSocket>();
+        room.add(socket);
+        this.appRooms.set(data.applicationId, room);
+      }
     }
 
     // ADMIN
     if (data.role === 'admin') {
-
-      // adminId mapping
       const adminSet = this.adminSockets.get(data.adminId) ?? new Set<WebSocket>();
       adminSet.add(socket);
       this.adminSockets.set(data.adminId, adminSet);
 
-      console.log('Admin online:', data.adminId);
+      console.log("🛡 Admin online:", data.adminId);
 
-      // 🔥 ROLE mapping (IMPORTANT)
-      if (data.adminRole) {
-        const roleSet = this.roleSockets.get(data.adminRole) ?? new Set<WebSocket>();
-        roleSet.add(socket);
-        this.roleSockets.set(data.adminRole, roleSet);
-
-        console.log('Admin role:', data.adminRole);
+      if (data.applicationId) {
+        const room = this.appRooms.get(data.applicationId) ?? new Set<WebSocket>();
+        room.add(socket);
+        this.appRooms.set(data.applicationId, room);
       }
     }
 
-    // optional room
-    if (data.applicationId) {
-      const room = this.appRooms.get(data.applicationId) ?? new Set<WebSocket>();
-      room.add(socket);
-      this.appRooms.set(data.applicationId, room);
-    }
+    console.log("ROOM SIZE:",
+      this.appRooms.get(data.applicationId)?.size || 0
+    );
   }
 
   // =====================================================
-  // TYPING
+  // TYPING EVENT
   // =====================================================
   handleTyping(data: any) {
     const roomSockets = this.appRooms.get(data.applicationId);
@@ -110,178 +119,89 @@ export class ChatGateway implements OnModuleInit {
       if (sock.readyState === WebSocket.OPEN) {
         sock.send(JSON.stringify({
           type: "typing",
-          userId: data.userId
+          userId: data.userId,
+          senderRole: data.senderRole
         }));
       }
     });
   }
 
   // =====================================================
-  // SEND MESSAGE ROLE BASED
+  // SEND MESSAGE REALTIME
   // =====================================================
-async handleSendMessage(data: any) {
-  console.log("\n==============================");
-  console.log("🚀 REALTIME MESSAGE START");
-  console.log("Incoming Data:", JSON.stringify(data, null, 2));
+  async handleSendMessage(data: any) {
+    console.log("\n==============================");
+    console.log("📨 NEW MESSAGE EVENT");
+    console.log("Payload:", data);
 
-  let saved;
+    let saved;
 
-  // =====================================
-  // SAVE MESSAGE DB
-  // =====================================
-  try {
+    // SAVE MESSAGE
     if (data.senderRole === 'admin') {
-
-  const adminPayload = {
-    adminId: data.adminId,
-    userId: data.receiverUserId || data.userId,  // important
-    applicationId: data.applicationId,
-    message: data.message
-  };
-
-  console.log("📤 ADMIN → DB payload:", adminPayload);
-
-  saved = await this.chatService.sendMessageByAdmin(adminPayload);
-} else {
-      console.log("👤 Sender is USER");
+      saved = await this.chatService.sendMessageByAdmin(data);
+    } else {
       saved = await this.chatService.sendMessageByUser(data);
     }
 
-    console.log("💾 Message saved in DB:", saved?._id || saved?.messageId || "OK");
-  } catch (err) {
-    console.log("❌ ERROR saving message DB:", err);
-  }
+    console.log("💾 DB SAVED");
 
-  const payload = {
-    type: "receiveMessage",
-    data: saved?.messageData || saved,
-    meta: saved
-  };
+    // SEND REALTIME IN ROOM
+    const roomSockets = this.appRooms.get(data.applicationId);
 
-  console.log("📦 Payload prepared:", JSON.stringify(payload, null, 2));
-
-  // =====================================================
-  // 🟢 USER → ADMIN
-  // =====================================================
-  if (data.senderRole === "user") {
-    console.log("\n👤 USER → ADMIN FLOW");
-
-    console.log("Target admin role:", data.receiverAdminRole);
-    console.log("All roleSockets keys:", [...this.roleSockets.keys()]);
-
-    if (!data.receiverAdminRole) {
-      console.log("❌ receiverAdminRole missing");
+    if (!roomSockets) {
+      console.log("❌ No room found for:", data.applicationId);
+      return;
     }
 
-    const roleSet = this.roleSockets.get(data.receiverAdminRole);
+    console.log("👥 Room users:", roomSockets.size);
 
-    if (!roleSet || roleSet.size === 0) {
-      console.log("❌ No admin online for role:", data.receiverAdminRole);
-    } else {
-      console.log("✅ Admin sockets found:", roleSet.size);
-
-      roleSet.forEach(sock => {
-        console.log("➡ Sending message to admin socket");
-        if (sock.readyState === WebSocket.OPEN) {
-          sock.send(JSON.stringify(payload));
-        } else {
-          console.log("❌ Admin socket not open:", sock.readyState);
-        }
-      });
-    }
-  }
-
-  // =====================================================
-  // 🟢 ADMIN → USER
-  // =====================================================
-  if (data.senderRole === "admin") {
-    console.log("\n🧑‍💼 ADMIN → USER FLOW");
-
-    console.log("receiverUserId:", data.receiverUserId);
-    console.log("All connected users:", [...this.userSockets.keys()]);
-
-    if (!data.receiverUserId) {
-      console.log("❌ receiverUserId missing from payload");
-    }
-
-    const userSocket = this.userSockets.get(data.receiverUserId);
-
-    if (!userSocket) {
-      console.log("❌ USER NOT CONNECTED VIA SOCKET:", data.receiverUserId);
-    } else {
-      console.log("✅ User socket found");
-
-      if (userSocket.readyState === WebSocket.OPEN) {
-        console.log("➡ Sending realtime message to USER");
-        userSocket.send(JSON.stringify(payload));
-        console.log("🎉 MESSAGE SENT TO USER REALTIME");
-      } else {
-        console.log("❌ User socket not open. State:", userSocket.readyState);
+    roomSockets.forEach(sock => {
+      if (sock.readyState === WebSocket.OPEN) {
+        sock.send(JSON.stringify({
+          type: "receiveMessage",
+          data: saved.messageData || saved,
+          meta: saved
+        }));
       }
-    }
-  }
+    });
 
-  // =====================================================
-  // 🟢 ECHO BACK TO SAME ADMIN PANEL
-  // =====================================================
-  if (data.senderRole === "admin" && data.adminId) {
-    console.log("\n🧑‍💼 Echo back to same admin panel:", data.adminId);
-
-    const adminSet = this.adminSockets.get(data.adminId);
-
-    if (!adminSet) {
-      console.log("❌ Admin socket not found for echo");
-    } else {
-      console.log("✅ Admin sockets for echo:", adminSet.size);
-
-      adminSet.forEach(sock => {
-        if (sock.readyState === WebSocket.OPEN) {
-          sock.send(JSON.stringify(payload));
-        }
+    // =====================================================
+    // 🔔 SEND DIRECT NOTIFICATION
+    // =====================================================
+    if (data.receiverUserId) {
+      this.sendNotificationToUser(data.receiverUserId, {
+        title: "New Message",
+        message: saved?.messageData?.message || saved?.message,
+        applicationId: data.applicationId
       });
     }
+
+    console.log("==============================\n");
   }
 
   // =====================================================
-  // 🔔 NOTIFICATION
-  // =====================================================
-  if (data.receiverUserId) {
-    console.log("\n🔔 Sending notification to user:", data.receiverUserId);
-
-    this.sendNotificationToUser(data.receiverUserId, {
-      title: "New Message",
-      message: saved?.messageData?.message || saved?.message,
-      applicationId: data.applicationId
-    });
-  }
-
-  console.log("🏁 REALTIME MESSAGE END");
-  console.log("==============================\n");
-}
-
-  // =====================================================
-  // DISCONNECT
+  // DISCONNECT CLEANUP
   // =====================================================
   handleDisconnect(socket: WebSocket) {
 
+    // user remove
     for (const [userId, s] of this.userSockets) {
-      if (s === socket) this.userSockets.delete(userId);
+      if (s === socket) {
+        this.userSockets.delete(userId);
+        console.log("❌ User offline:", userId);
+      }
     }
 
+    // admin remove
     for (const [adminId, set] of this.adminSockets) {
       if (set.has(socket)) {
         set.delete(socket);
         if (set.size === 0) this.adminSockets.delete(adminId);
+        console.log("❌ Admin offline:", adminId);
       }
     }
 
-    for (const [role, set] of this.roleSockets) {
-      if (set.has(socket)) {
-        set.delete(socket);
-        if (set.size === 0) this.roleSockets.delete(role);
-      }
-    }
-
+    // room remove
     for (const [appId, set] of this.appRooms) {
       if (set.has(socket)) {
         set.delete(socket);
@@ -293,18 +213,32 @@ async handleSendMessage(data: any) {
   }
 
   // =====================================================
-  // NOTIFICATION
+  // 🔔 NOTIFICATION
   // =====================================================
   sendNotificationToUser(userId: string, payload: any) {
 
+    console.log("\n🔔 REALTIME NOTIFICATION TRY");
+    console.log("User:", userId);
+    console.log("Online users:", [...this.userSockets.keys()]);
+
     const socket = this.userSockets.get(userId);
-    if (!socket) return;
+
+    if (!socket) {
+      console.log("❌ User not online");
+      return;
+    }
 
     if (socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({
         type: "notification",
         data: payload
       }));
+
+      console.log("🚀 Notification sent to:", userId);
+    } else {
+      console.log("❌ Socket not open");
     }
+
+    console.log("🔔 END\n");
   }
 }
