@@ -340,37 +340,33 @@ async sendMessageByAdmin(data: any) {
   // =====================================================
   // USER OPEN CHAT
   // =====================================================
-async getUserChat(userId: string, applicationId: string) {
+async getUserChat(userId: string, applicationId: string, role: string) {
   try {
-
-    // =====================================================
-    // 1. VALIDATION
-    // =====================================================
     if (!Types.ObjectId.isValid(userId))
       throw new BadRequestException('Invalid userId');
 
     if (!Types.ObjectId.isValid(applicationId))
       throw new BadRequestException('Invalid applicationId');
 
-    // =====================================================
-    // 2. FIND CONVERSATION (AUTO ADMIN + ROLE)
-    // =====================================================
+    if (!role)
+      throw new BadRequestException('Role required');
+
+    // 🔥 find role based chat
     const conversation = await this.convoModel.findOne({
       userId: new Types.ObjectId(userId),
       applicationId: new Types.ObjectId(applicationId),
+      role: role,
     });
 
     if (!conversation) {
       return {
         success: true,
         data: [],
-        message: 'No chat found yet'
+        message: 'No chat found for this role',
       };
     }
 
-    // =====================================================
-    // 3. MARK ADMIN MSG READ
-    // =====================================================
+    // 🔵 mark admin msg read for user
     let updated = false;
 
     conversation.messages.forEach((msg: any) => {
@@ -385,16 +381,12 @@ async getUserChat(userId: string, applicationId: string) {
       await conversation.save();
     }
 
-    // =====================================================
-    // 4. RETURN CHAT WITH ADMIN + ROLE
-    // =====================================================
     return {
       success: true,
-      adminId: conversation.adminId,   // frontend now knows admin
-      role: conversation.role,         // role-based safe
+      adminId: conversation.adminId,
+      role: conversation.role,
       data: conversation,
     };
-
   } catch (error) {
     console.error('getUserChat error =>', error);
     throw new BadRequestException(error.message || 'Chat fetch failed');

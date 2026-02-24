@@ -63,13 +63,14 @@ export class ChatController {
     return this.chatService.getUserConversations(userId, applicationId);
   }
 
-    @Get('user/chat/open/:userId/:applicationId')
-    async getUserChat(
-      @Param('userId') userId: string,
-      @Param('applicationId') applicationId: string,
-    ) {
-      return this.chatService.getUserChat(userId, applicationId);
-    }
+   @Get('user/chat/open/:userId/:applicationId/:role')
+async getUserChat(
+  @Param('userId') userId: string,
+  @Param('applicationId') applicationId: string,
+  @Param('role') role: string,
+) {
+  return this.chatService.getUserChat(userId, applicationId, role);
+}
 
   @Get('admin/chat/open/:applicationId/:role/:adminId')
   async getAdminChat(
