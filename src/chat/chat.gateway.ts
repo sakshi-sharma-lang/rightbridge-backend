@@ -119,63 +119,112 @@ export class ChatGateway implements OnModuleInit {
   // =====================================================
   // SEND MESSAGE ROLE BASED
   // =====================================================
-  async handleSendMessage(data: any) {
+async handleSendMessage(data: any) {
+  console.log("\n==============================");
+  console.log("🚀 REALTIME MESSAGE START");
+  console.log("Incoming Data:", JSON.stringify(data, null, 2));
+
   let saved;
 
   // =====================================
   // SAVE MESSAGE DB
   // =====================================
-  if (data.senderRole === 'admin')
-    saved = await this.chatService.sendMessageByAdmin(data);
-  else
-    saved = await this.chatService.sendMessageByUser(data);
+  try {
+    if (data.senderRole === 'admin') {
+      console.log("🧑‍💼 Sender is ADMIN");
+      saved = await this.chatService.sendMessageByAdmin(data);
+    } else {
+      console.log("👤 Sender is USER");
+      saved = await this.chatService.sendMessageByUser(data);
+    }
+
+    console.log("💾 Message saved in DB:", saved?._id || saved?.messageId || "OK");
+  } catch (err) {
+    console.log("❌ ERROR saving message DB:", err);
+  }
 
   const payload = {
     type: "receiveMessage",
-    data: saved.messageData || saved,
+    data: saved?.messageData || saved,
     meta: saved
   };
 
+  console.log("📦 Payload prepared:", JSON.stringify(payload, null, 2));
+
   // =====================================================
-  // 🟢 CASE 1: USER → ADMIN
+  // 🟢 USER → ADMIN
   // =====================================================
-  if (data.senderRole === "user" && data.receiverAdminRole) {
+  if (data.senderRole === "user") {
+    console.log("\n👤 USER → ADMIN FLOW");
+
+    console.log("Target admin role:", data.receiverAdminRole);
+    console.log("All roleSockets keys:", [...this.roleSockets.keys()]);
+
+    if (!data.receiverAdminRole) {
+      console.log("❌ receiverAdminRole missing");
+    }
 
     const roleSet = this.roleSockets.get(data.receiverAdminRole);
 
-    if (roleSet) {
+    if (!roleSet || roleSet.size === 0) {
+      console.log("❌ No admin online for role:", data.receiverAdminRole);
+    } else {
+      console.log("✅ Admin sockets found:", roleSet.size);
+
       roleSet.forEach(sock => {
+        console.log("➡ Sending message to admin socket");
         if (sock.readyState === WebSocket.OPEN) {
           sock.send(JSON.stringify(payload));
+        } else {
+          console.log("❌ Admin socket not open:", sock.readyState);
         }
       });
-
-      console.log("📨 Sent USER message to admin role:", data.receiverAdminRole);
-    } else {
-      console.log("❌ No admin online for role:", data.receiverAdminRole);
     }
   }
 
   // =====================================================
-  // 🟢 CASE 2: ADMIN → USER
+  // 🟢 ADMIN → USER
   // =====================================================
-  if (data.senderRole === "admin" && data.receiverUserId) {
+  if (data.senderRole === "admin") {
+    console.log("\n🧑‍💼 ADMIN → USER FLOW");
+
+    console.log("receiverUserId:", data.receiverUserId);
+    console.log("All connected users:", [...this.userSockets.keys()]);
+
+    if (!data.receiverUserId) {
+      console.log("❌ receiverUserId missing from payload");
+    }
 
     const userSocket = this.userSockets.get(data.receiverUserId);
 
-    if (userSocket && userSocket.readyState === WebSocket.OPEN) {
-      userSocket.send(JSON.stringify(payload));
-      console.log("📨 Admin message sent to user:", data.receiverUserId);
+    if (!userSocket) {
+      console.log("❌ USER NOT CONNECTED VIA SOCKET:", data.receiverUserId);
+    } else {
+      console.log("✅ User socket found");
+
+      if (userSocket.readyState === WebSocket.OPEN) {
+        console.log("➡ Sending realtime message to USER");
+        userSocket.send(JSON.stringify(payload));
+        console.log("🎉 MESSAGE SENT TO USER REALTIME");
+      } else {
+        console.log("❌ User socket not open. State:", userSocket.readyState);
+      }
     }
   }
 
   // =====================================================
-  // 🟢 ALSO SEND TO SAME ADMIN PANEL (SINGLE ECHO)
+  // 🟢 ECHO BACK TO SAME ADMIN PANEL
   // =====================================================
   if (data.senderRole === "admin" && data.adminId) {
+    console.log("\n🧑‍💼 Echo back to same admin panel:", data.adminId);
+
     const adminSet = this.adminSockets.get(data.adminId);
 
-    if (adminSet) {
+    if (!adminSet) {
+      console.log("❌ Admin socket not found for echo");
+    } else {
+      console.log("✅ Admin sockets for echo:", adminSet.size);
+
       adminSet.forEach(sock => {
         if (sock.readyState === WebSocket.OPEN) {
           sock.send(JSON.stringify(payload));
@@ -185,15 +234,20 @@ export class ChatGateway implements OnModuleInit {
   }
 
   // =====================================================
-  // 🔔 NOTIFICATION TO USER
+  // 🔔 NOTIFICATION
   // =====================================================
   if (data.receiverUserId) {
+    console.log("\n🔔 Sending notification to user:", data.receiverUserId);
+
     this.sendNotificationToUser(data.receiverUserId, {
       title: "New Message",
       message: saved?.messageData?.message || saved?.message,
       applicationId: data.applicationId
     });
   }
+
+  console.log("🏁 REALTIME MESSAGE END");
+  console.log("==============================\n");
 }
 
   // =====================================================
