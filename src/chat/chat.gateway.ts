@@ -131,9 +131,18 @@ async handleSendMessage(data: any) {
   // =====================================
   try {
     if (data.senderRole === 'admin') {
-      console.log("🧑‍💼 Sender is ADMIN");
-      saved = await this.chatService.sendMessageByAdmin(data);
-    } else {
+
+  const adminPayload = {
+    adminId: data.adminId,
+    userId: data.receiverUserId || data.userId,  // important
+    applicationId: data.applicationId,
+    message: data.message
+  };
+
+  console.log("📤 ADMIN → DB payload:", adminPayload);
+
+  saved = await this.chatService.sendMessageByAdmin(adminPayload);
+} else {
       console.log("👤 Sender is USER");
       saved = await this.chatService.sendMessageByUser(data);
     }
