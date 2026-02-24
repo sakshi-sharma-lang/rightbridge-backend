@@ -85,7 +85,7 @@ export class ChatGateway implements OnModuleInit {
   }
 
   // =====================================================
-  // TYPING EVENT
+  // TYPING EVENT (UNCHANGED)
   // =====================================================
   handleTyping(data: any) {
     const roomSockets = this.appRooms.get(data.applicationId);
@@ -102,7 +102,7 @@ export class ChatGateway implements OnModuleInit {
   }
 
   // =====================================================
-  // SEND MESSAGE REALTIME
+  // SEND MESSAGE REALTIME (FIXED ONLY HERE)
   // =====================================================
   async handleSendMessage(data: any) {
     let saved;
@@ -112,20 +112,40 @@ export class ChatGateway implements OnModuleInit {
     else
       saved = await this.chatService.sendMessageByUser(data);
 
-    const roomSockets = this.appRooms.get(data.applicationId);
-    if (!roomSockets) return;
+    // ================= USER → ADMIN =================
+    if (data.senderRole === 'user') {
 
-    roomSockets.forEach(sock => {
-      if (sock.readyState === WebSocket.OPEN) {
-        sock.send(JSON.stringify({
+      const adminId = saved.adminId?.toString();
+      const adminSet = this.adminSockets.get(adminId);
+
+      if (adminSet) {
+        adminSet.forEach(sock => {
+          if (sock.readyState === WebSocket.OPEN) {
+            sock.send(JSON.stringify({
+              type: "receiveMessage",
+              data: saved.messageData || saved,
+              meta: saved
+            }));
+          }
+        });
+      }
+    }
+
+    // ================= ADMIN → USER =================
+    if (data.senderRole === 'admin') {
+
+      const userSocket = this.userSockets.get(data.userId);
+
+      if (userSocket && userSocket.readyState === WebSocket.OPEN) {
+        userSocket.send(JSON.stringify({
           type: "receiveMessage",
-          data: saved.messageData || saved,   // 🔥 FIX HERE
-          meta: saved                         // keep full response also
+          data: saved.messageData || saved,
+          meta: saved
         }));
       }
-    });
+    }
 
-    // 🔔 SEND NOTIFICATION ALSO
+    // 🔔 SEND NOTIFICATION ALSO (UNCHANGED)
     if (data.receiverUserId) {
       this.sendNotificationToUser(data.receiverUserId, {
         title: "New Message",
@@ -136,7 +156,7 @@ export class ChatGateway implements OnModuleInit {
   }
 
   // =====================================================
-  // DISCONNECT CLEANUP
+  // DISCONNECT CLEANUP (UNCHANGED)
   // =====================================================
   handleDisconnect(socket: WebSocket) {
 
@@ -162,7 +182,7 @@ export class ChatGateway implements OnModuleInit {
   }
 
   // =====================================================
-  // 🔔 NOTIFICATION FUNCTION
+  // 🔔 NOTIFICATION FUNCTION (UNCHANGED)
   // =====================================================
   sendNotificationToUser(userId: string, payload: any) {
 
