@@ -253,11 +253,9 @@ async getKycDetails(query: {
     }
   }
 
+  // 🔥 PERFORMANCE FIX (before group)
   pipeline.push({ $match: preGroupMatch });
 
-  /* =====================================================
-     GROUP LATEST
-  ===================================================== */
   pipeline.push({ $sort: { createdAt: -1 } });
 
   pipeline.push({
@@ -356,7 +354,7 @@ async getKycDetails(query: {
   }
 
   /* =====================================================
-     APPLICANT NAME ONLY (NOT ID)
+     🔥 CORRECT APPLICANT RESOLVER (ExternalUserId based)
   ===================================================== */
   pipeline.push({
     $addFields: {
@@ -366,7 +364,7 @@ async getKycDetails(query: {
             input: '$application.applicants',
             as: 'a',
             cond: {
-              $eq: ['$$a._id', { $toObjectId: '$kyc.applicantId' }]
+              $eq: ['$$a.externalUserId', '$kyc.externalUserId']
             }
           }
         }
@@ -415,10 +413,7 @@ async getKycDetails(query: {
             _id: '$kyc._id',
             applicationId: '$application.appId',
             applicationObjectId: '$application._id',
-
-            // 🔥 CORRECT SOURCE
-            applicantId: '$kyc.applicantId',
-
+            applicantId: '$kyc.applicantId', // source unchanged
             externalUserId: '$kyc.externalUserId',
             applicantName: {
               $trim: {
