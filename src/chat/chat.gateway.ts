@@ -131,20 +131,15 @@ export class ChatGateway implements OnModuleInit {
       }
     }
 
-    // ================= ADMIN → USER =================
-   // ================= ADMIN → USER =================
+
+// ================= ADMIN → USER =================
 if (data.senderRole === 'admin') {
 
-  // get userId from saved conversation if missing
-  const targetUserId =
-    data.userId || saved?.conversationId
-      ? (await this.chatService
-          .getConversationUserId(saved.conversationId))
-      : null;
+  const targetUserId = saved.userId?.toString() || data.userId;
 
   if (!targetUserId) return;
 
-  const userSocket = this.userSockets.get(targetUserId.toString());
+  const userSocket = this.userSockets.get(targetUserId);
 
   if (userSocket && userSocket.readyState === WebSocket.OPEN) {
     userSocket.send(JSON.stringify({
