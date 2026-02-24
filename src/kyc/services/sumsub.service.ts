@@ -256,7 +256,7 @@ async getKycDetails(query: {
   pipeline.push({ $match: preGroupMatch });
 
   /* =====================================================
-     GROUP
+     GROUP LATEST
   ===================================================== */
   pipeline.push({ $sort: { createdAt: -1 } });
 
@@ -307,7 +307,7 @@ async getKycDetails(query: {
   }
 
   /* =====================================================
-     SAFE applicationId
+     APPLICATION LOOKUP
   ===================================================== */
   pipeline.push({
     $addFields: {
@@ -333,9 +333,6 @@ async getKycDetails(query: {
     },
   });
 
-  /* =====================================================
-     LOOKUP APPLICATION
-  ===================================================== */
   pipeline.push({
     $lookup: {
       from: 'applications',
@@ -359,26 +356,8 @@ async getKycDetails(query: {
   }
 
   /* =====================================================
-     🔥 CORRECT APPLICANT RESOLVER (ONLY ADDITION)
+     APPLICANT NAME ONLY (NOT ID)
   ===================================================== */
-  pipeline.push({
-    $addFields: {
-      kycExternalParts: { $split: ['$kyc.externalUserId', '_'] }
-    }
-  });
-
-  pipeline.push({
-    $addFields: {
-      kycApplicantExternalId: {
-        $concat: [
-          { $arrayElemAt: ['$kycExternalParts', 1] },
-          '_',
-          { $arrayElemAt: ['$kycExternalParts', 2] }
-        ]
-      }
-    }
-  });
-
   pipeline.push({
     $addFields: {
       applicant: {
@@ -387,37 +366,13 @@ async getKycDetails(query: {
             input: '$application.applicants',
             as: 'a',
             cond: {
-              $eq: ['$$a.externalUserId', '$kycApplicantExternalId']
+              $eq: ['$$a._id', { $toObjectId: '$kyc.applicantId' }]
             }
           }
         }
       }
     }
   });
-
-  /* =====================================================
-     COMMENTED OLD BROKEN REGEX (NOT REMOVED)
-  ===================================================== */
-  /*
-  pipeline.push({
-    $addFields: {
-      applicant: {
-        $first: {
-          $filter: {
-            input: '$application.applicants',
-            as: 'a',
-            cond: {
-              $regexMatch: {
-                input: '$kyc.externalUserId',
-                regex: { $concat: ['_', '$$a.externalUserId', '$'] }
-              }
-            }
-          }
-        }
-      }
-    }
-  });
-  */
 
   if (query.applicantName) {
     pipeline.push({
@@ -460,7 +415,10 @@ async getKycDetails(query: {
             _id: '$kyc._id',
             applicationId: '$application.appId',
             applicationObjectId: '$application._id',
-            applicantId: '$applicant._id',
+
+            // 🔥 CORRECT SOURCE
+            applicantId: '$kyc.applicantId',
+
             externalUserId: '$kyc.externalUserId',
             applicantName: {
               $trim: {
