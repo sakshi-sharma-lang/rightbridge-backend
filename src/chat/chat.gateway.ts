@@ -9,7 +9,14 @@ export class ChatGateway implements OnModuleInit {
   private wss: WebSocket.Server;
 
   private userSockets = new Map<string, WebSocket>();
+
+  // adminId -> sockets
   private adminSockets = new Map<string, Set<WebSocket>>();
+
+  // 🔥 ROLE -> sockets (MAIN FIX)
+  private roleSockets = new Map<string, Set<WebSocket>>();
+
+  // optional rooms (typing etc)
   private appRooms = new Map<string, Set<WebSocket>>();
 
   onModuleInit() {
@@ -54,38 +61,46 @@ export class ChatGateway implements OnModuleInit {
   }
 
   // =====================================================
-  // IDENTIFY USER / ADMIN
+  // IDENTIFY
   // =====================================================
   handleIdentify(socket: WebSocket, data: any) {
 
+    // USER
     if (data.role === 'user') {
       this.userSockets.set(data.userId, socket);
       console.log('User online:', data.userId);
-
-      if (data.applicationId) {
-        const room = this.appRooms.get(data.applicationId) ?? new Set<WebSocket>();
-        room.add(socket);
-        this.appRooms.set(data.applicationId, room);
-      }
     }
 
+    // ADMIN
     if (data.role === 'admin') {
+
+      // adminId mapping
       const adminSet = this.adminSockets.get(data.adminId) ?? new Set<WebSocket>();
       adminSet.add(socket);
       this.adminSockets.set(data.adminId, adminSet);
 
       console.log('Admin online:', data.adminId);
 
-      if (data.applicationId) {
-        const room = this.appRooms.get(data.applicationId) ?? new Set<WebSocket>();
-        room.add(socket);
-        this.appRooms.set(data.applicationId, room);
+      // 🔥 ROLE mapping (IMPORTANT)
+      if (data.adminRole) {
+        const roleSet = this.roleSockets.get(data.adminRole) ?? new Set<WebSocket>();
+        roleSet.add(socket);
+        this.roleSockets.set(data.adminRole, roleSet);
+
+        console.log('Admin role:', data.adminRole);
       }
+    }
+
+    // optional room
+    if (data.applicationId) {
+      const room = this.appRooms.get(data.applicationId) ?? new Set<WebSocket>();
+      room.add(socket);
+      this.appRooms.set(data.applicationId, room);
     }
   }
 
   // =====================================================
-  // TYPING EVENT
+  // TYPING
   // =====================================================
   handleTyping(data: any) {
     const roomSockets = this.appRooms.get(data.applicationId);
@@ -102,7 +117,7 @@ export class ChatGateway implements OnModuleInit {
   }
 
   // =====================================================
-  // SEND MESSAGE REALTIME
+  // SEND MESSAGE ROLE BASED
   // =====================================================
   async handleSendMessage(data: any) {
     let saved;
@@ -112,20 +127,47 @@ export class ChatGateway implements OnModuleInit {
     else
       saved = await this.chatService.sendMessageByUser(data);
 
-    const roomSockets = this.appRooms.get(data.applicationId);
-    if (!roomSockets) return;
+    const payload = {
+      type: "receiveMessage",
+      data: saved.messageData || saved,
+      meta: saved
+    };
 
-    roomSockets.forEach(sock => {
-      if (sock.readyState === WebSocket.OPEN) {
-        sock.send(JSON.stringify({
-          type: "receiveMessage",
-          data: saved.messageData || saved,   // 🔥 FIX HERE
-          meta: saved                         // keep full response also
-        }));
+    // =====================================
+    // SEND TO TARGET ADMIN ROLE
+    // =====================================
+    if (data.receiverAdminRole) {
+
+      const roleSet = this.roleSockets.get(data.receiverAdminRole);
+
+      if (roleSet) {
+        roleSet.forEach(sock => {
+          if (sock.readyState === WebSocket.OPEN) {
+            sock.send(JSON.stringify(payload));
+          }
+        });
+
+        console.log("📨 Sent to admin role:", data.receiverAdminRole);
+      } else {
+        console.log("❌ No admin online for role:", data.receiverAdminRole);
       }
-    });
+    }
 
-    // 🔔 SEND NOTIFICATION ALSO
+    // =====================================
+    // SEND TO USER ALSO
+    // =====================================
+    if (data.receiverUserId) {
+      const userSocket = this.userSockets.get(data.receiverUserId);
+
+      if (userSocket && userSocket.readyState === WebSocket.OPEN) {
+        userSocket.send(JSON.stringify(payload));
+        console.log("📨 Sent to user:", data.receiverUserId);
+      }
+    }
+
+    // =====================================
+    // REALTIME NOTIFICATION
+    // =====================================
     if (data.receiverUserId) {
       this.sendNotificationToUser(data.receiverUserId, {
         title: "New Message",
@@ -136,7 +178,7 @@ export class ChatGateway implements OnModuleInit {
   }
 
   // =====================================================
-  // DISCONNECT CLEANUP
+  // DISCONNECT
   // =====================================================
   handleDisconnect(socket: WebSocket) {
 
@@ -151,6 +193,13 @@ export class ChatGateway implements OnModuleInit {
       }
     }
 
+    for (const [role, set] of this.roleSockets) {
+      if (set.has(socket)) {
+        set.delete(socket);
+        if (set.size === 0) this.roleSockets.delete(role);
+      }
+    }
+
     for (const [appId, set] of this.appRooms) {
       if (set.has(socket)) {
         set.delete(socket);
@@ -162,35 +211,18 @@ export class ChatGateway implements OnModuleInit {
   }
 
   // =====================================================
-  // 🔔 NOTIFICATION FUNCTION
+  // NOTIFICATION
   // =====================================================
   sendNotificationToUser(userId: string, payload: any) {
 
-    console.log("\n🔔 REALTIME NOTIFICATION TRY");
-    console.log("UserId:", userId);
-    console.log("Total online users:", this.userSockets.size);
-    console.log("Online user list:", [...this.userSockets.keys()]);
-
     const socket = this.userSockets.get(userId);
-
-    if (!socket) {
-      console.log("❌ User NOT connected via websocket:", userId);
-      return;
-    }
-
-    console.log("✅ User socket found");
+    if (!socket) return;
 
     if (socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({
         type: "notification",
         data: payload
       }));
-
-      console.log("🚀 Notification delivered realtime to:", userId);
-    } else {
-      console.log("❌ Socket exists but not open. State:", socket.readyState);
     }
-
-    console.log("🔔 END NOTIFICATION\n");
   }
 }
