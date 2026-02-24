@@ -135,9 +135,9 @@ export class ChatService {
 
 async sendMessageByUser(data: any) {
   try {
-    const { userId, message, applicationId } = data;
+    const { userId, message, applicationId, adminId } = data;
 
-    if (!userId || !applicationId || !message)
+    if (!userId || !applicationId || !message || !adminId)
       throw new BadRequestException('Missing required fields');
 
     if (!Types.ObjectId.isValid(userId))
@@ -146,6 +146,10 @@ async sendMessageByUser(data: any) {
     if (!Types.ObjectId.isValid(applicationId))
       throw new BadRequestException('Invalid applicationId');
 
+    if (!Types.ObjectId.isValid(adminId))
+      throw new BadRequestException('Invalid adminId');
+
+    // ================= USER =================
     const user: any = await this.userModel
       .findById(userId)
       .select('_id firstName lastName email')
@@ -153,6 +157,7 @@ async sendMessageByUser(data: any) {
 
     if (!user) throw new BadRequestException('User not found');
 
+    // ================= APPLICATION =================
     const application = await this.applicationModel
       .findOne({
         _id: new Types.ObjectId(applicationId),
@@ -166,44 +171,37 @@ async sendMessageByUser(data: any) {
         'Application not found or not belongs to user',
       );
 
+    // ================= ADMIN =================
+    const admin: any = await this.adminModel
+      .findById(adminId)
+      .select('_id role fullName email')
+      .lean();
+
+    if (!admin) throw new BadRequestException('Admin not found');
+
+    // ================= FIND OR CREATE CONVO =================
     let conversation = await this.convoModel.findOne({
       userId: new Types.ObjectId(userId),
       applicationId: new Types.ObjectId(applicationId),
+      adminId: new Types.ObjectId(adminId),
     });
 
-    let admin: any;
-
     if (!conversation) {
-
-  admin = await this.adminModel
-    .findOne({ role: 'SUPER_ADMIN', status: 'active' })
-    .select('_id role fullName email')
-    .lean();
-
-  if (!admin)
-    throw new BadRequestException('Super admin not found');
-
-  conversation = await this.convoModel.create({
-    userId: new Types.ObjectId(userId),
-    applicationId: new Types.ObjectId(applicationId),
-    adminId: admin._id,
-    role: admin.role,
-    userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-    adminName: admin.fullName || admin.email,
-    unreadUser: 0,
-    unreadAdmin: 0,
-    status: 'open',
-    messages: [],
-  });
-
-} else {
-      admin = await this.adminModel
-        .findById(conversation.adminId)
-        .select('_id role fullName email')
-        .lean();
+      conversation = await this.convoModel.create({
+        userId: new Types.ObjectId(userId),
+        applicationId: new Types.ObjectId(applicationId),
+        adminId: admin._id,
+        role: admin.role,
+        userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+        adminName: admin.fullName || admin.email,
+        unreadUser: 0,
+        unreadAdmin: 0,
+        status: 'open',
+        messages: [],
+      });
     }
 
-    // 🔥 CREATE MESSAGE OBJECT
+    // ================= MESSAGE =================
     const newMessage = {
       senderId: new Types.ObjectId(userId),
       senderType: 'user',
@@ -227,8 +225,8 @@ async sendMessageByUser(data: any) {
     return {
       success: true,
       conversationId: conversation._id,
-      adminId: conversation.adminId,
-      messageData: newMessage, // ✅ REAL MESSAGE
+      adminId: conversation.adminId, // 🔥 used by websocket
+      messageData: newMessage,
     };
 
   } catch (error) {
