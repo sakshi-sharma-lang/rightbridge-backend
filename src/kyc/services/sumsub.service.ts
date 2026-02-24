@@ -183,7 +183,7 @@ export class SumsubService {
     }
   }
 
-  async getKycDetails(query: {
+async getKycDetails(query: {
   page?: number;
   limit?: number;
   status?: string;
@@ -201,7 +201,7 @@ export class SumsubService {
   const pipeline: any[] = [];
 
   /* =====================================================
-     PRE-GROUP MATCH (SIMPLE createdAt FILTER)
+     PRE-GROUP MATCH
   ===================================================== */
   const preGroupMatch: any = {
     externalUserId: { $exists: true, $ne: null },
@@ -212,10 +212,8 @@ export class SumsubService {
   if (query.dateRange === 'today') {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
-
     const end = new Date();
     end.setHours(23, 59, 59, 999);
-
     preGroupMatch.createdAt = { $gte: start, $lte: end };
   }
 
@@ -243,13 +241,11 @@ export class SumsubService {
 
   if (query.fromDate || query.toDate) {
     preGroupMatch.createdAt = {};
-
     if (query.fromDate) {
       const from = new Date(query.fromDate);
       from.setHours(0, 0, 0, 0);
       preGroupMatch.createdAt.$gte = from;
     }
-
     if (query.toDate) {
       const to = new Date(query.toDate);
       to.setHours(23, 59, 59, 999);
@@ -260,7 +256,7 @@ export class SumsubService {
   pipeline.push({ $match: preGroupMatch });
 
   /* =====================================================
-     SORT + GROUP (LATEST PER externalUserId)
+     GROUP
   ===================================================== */
   pipeline.push({ $sort: { createdAt: -1 } });
 
@@ -272,7 +268,7 @@ export class SumsubService {
   });
 
   /* =====================================================
-     STATUS + RISK FILTERS
+     STATUS + RISK
   ===================================================== */
   const match: any = {};
 
@@ -311,7 +307,7 @@ export class SumsubService {
   }
 
   /* =====================================================
-     SAFE applicationId handling
+     SAFE applicationId
   ===================================================== */
   pipeline.push({
     $addFields: {
@@ -363,8 +359,46 @@ export class SumsubService {
   }
 
   /* =====================================================
-     RESOLVE APPLICANT (FIXED LOGIC)
+     🔥 CORRECT APPLICANT RESOLVER (ONLY ADDITION)
   ===================================================== */
+  pipeline.push({
+    $addFields: {
+      kycExternalParts: { $split: ['$kyc.externalUserId', '_'] }
+    }
+  });
+
+  pipeline.push({
+    $addFields: {
+      kycApplicantExternalId: {
+        $concat: [
+          { $arrayElemAt: ['$kycExternalParts', 1] },
+          '_',
+          { $arrayElemAt: ['$kycExternalParts', 2] }
+        ]
+      }
+    }
+  });
+
+  pipeline.push({
+    $addFields: {
+      applicant: {
+        $first: {
+          $filter: {
+            input: '$application.applicants',
+            as: 'a',
+            cond: {
+              $eq: ['$$a.externalUserId', '$kycApplicantExternalId']
+            }
+          }
+        }
+      }
+    }
+  });
+
+  /* =====================================================
+     COMMENTED OLD BROKEN REGEX (NOT REMOVED)
+  ===================================================== */
+  /*
   pipeline.push({
     $addFields: {
       applicant: {
@@ -375,33 +409,22 @@ export class SumsubService {
             cond: {
               $regexMatch: {
                 input: '$kyc.externalUserId',
-                regex: {
-                  $concat: ['_', '$$a.externalUserId', '$'],
-                },
-              },
-            },
-          },
-        },
-      },
-    },
+                regex: { $concat: ['_', '$$a.externalUserId', '$'] }
+              }
+            }
+          }
+        }
+      }
+    }
   });
+  */
 
   if (query.applicantName) {
     pipeline.push({
       $match: {
         $or: [
-          {
-            'applicant.firstName': {
-              $regex: query.applicantName,
-              $options: 'i',
-            },
-          },
-          {
-            'applicant.lastName': {
-              $regex: query.applicantName,
-              $options: 'i',
-            },
-          },
+          { 'applicant.firstName': { $regex: query.applicantName, $options: 'i' } },
+          { 'applicant.lastName': { $regex: query.applicantName, $options: 'i' } },
         ],
       },
     });
@@ -417,10 +440,7 @@ export class SumsubService {
           branches: [
             { case: { $eq: ['$kyc.status', 'APPROVED'] }, then: 'Low Risk' },
             { case: { $eq: ['$kyc.status', 'REJECTED'] }, then: 'High Risk' },
-            {
-              case: { $in: ['$kyc.status', ['IN_PROGRESS', 'LINK_SENT']] },
-              then: 'In Progress',
-            },
+            { case: { $in: ['$kyc.status', ['IN_PROGRESS', 'LINK_SENT']] }, then: 'In Progress' },
             { case: { $eq: ['$kyc.status', 'CREATED'] }, then: 'Pending' },
           ],
           default: 'Pending',
@@ -470,24 +490,12 @@ export class SumsubService {
           $group: {
             _id: null,
             totalChecks: { $sum: 1 },
-            completed: {
-              $sum: { $cond: [{ $eq: ['$kyc.status', 'APPROVED'] }, 1, 0] },
-            },
-            failed: {
-              $sum: { $cond: [{ $eq: ['$kyc.status', 'REJECTED'] }, 1, 0] },
-            },
+            completed: { $sum: { $cond: [{ $eq: ['$kyc.status', 'APPROVED'] }, 1, 0] } },
+            failed: { $sum: { $cond: [{ $eq: ['$kyc.status', 'REJECTED'] }, 1, 0] } },
             inProgress: {
-              $sum: {
-                $cond: [
-                  { $in: ['$kyc.status', ['IN_PROGRESS', 'LINK_SENT']] },
-                  1,
-                  0,
-                ],
-              },
+              $sum: { $cond: [{ $in: ['$kyc.status', ['IN_PROGRESS', 'LINK_SENT']] }, 1, 0] },
             },
-            lowRisk: {
-              $sum: { $cond: [{ $eq: ['$kyc.status', 'APPROVED'] }, 1, 0] },
-            },
+            lowRisk: { $sum: { $cond: [{ $eq: ['$kyc.status', 'APPROVED'] }, 1, 0] } },
           },
         },
       ],
