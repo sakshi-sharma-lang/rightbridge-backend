@@ -402,4 +402,20 @@ export class AdminService {
       message: 'Password changed successfully',
     };
   }
+
+  async getSuperAdmin() {
+  const admin = await this.adminModel
+    .findOne({ role: 'super_admin' })
+    .select('-password')
+    .lean();
+
+  if (!admin) {
+    throw new NotFoundException('Super admin not found');
+  }
+
+  return {
+    success: true,
+    data: admin,
+  };
+}
 }

@@ -1,11 +1,11 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException ,NotFoundException} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, Document } from 'mongoose';
 import { Conversation } from './schemas/conversation.schema';
 import { Application } from '../applications/schemas/application.schema';
 import { Admin } from '../admin/schemas/admin.schema';
 import { User } from '../users/schemas/user.schema';
-
+import { AdminService } from '../admin/admin.service'; 
 type ConversationDocument = Conversation & Document;
 
 @Injectable()
@@ -22,6 +22,8 @@ export class ChatService {
 
     @InjectModel(User.name)
     private userModel: Model<User>,
+
+    private readonly adminService: AdminService, 
   ) {}
 
   // =====================================================
@@ -173,28 +175,28 @@ async sendMessageByUser(data: any) {
 
     if (!conversation) {
 
-      admin = await this.adminModel
-        .findOne({ role: 'SUPER_ADMIN', status: 'active' })
-        .select('_id role fullName email')
-        .lean();
+  admin = await this.adminModel
+    .findOne({ role: 'SUPER_ADMIN', status: 'active' })
+    .select('_id role fullName email')
+    .lean();
 
-      if (!admin)
-        throw new BadRequestException('Super admin not found');
+  if (!admin)
+    throw new BadRequestException('Super admin not found');
 
-      conversation = await this.convoModel.create({
-        userId: new Types.ObjectId(userId),
-        applicationId: new Types.ObjectId(applicationId),
-        adminId: admin._id,
-        role: admin.role,
-        userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-        adminName: admin.fullName || admin.email,
-        unreadUser: 0,
-        unreadAdmin: 0,
-        status: 'open',
-        messages: [],
-      });
+  conversation = await this.convoModel.create({
+    userId: new Types.ObjectId(userId),
+    applicationId: new Types.ObjectId(applicationId),
+    adminId: admin._id,
+    role: admin.role,
+    userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+    adminName: admin.fullName || admin.email,
+    unreadUser: 0,
+    unreadAdmin: 0,
+    status: 'open',
+    messages: [],
+  });
 
-    } else {
+} else {
       admin = await this.adminModel
         .findById(conversation.adminId)
         .select('_id role fullName email')
@@ -615,4 +617,7 @@ async getUserConversations(userId: string, applicationId: string) {
       data: applications,
     };
   }
+
+
+  
 }

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module,forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { ChatService } from './chat.service';
@@ -9,7 +9,7 @@ import { Conversation, ConversationSchema } from './schemas/conversation.schema'
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { Admin, AdminSchema } from '../admin/schemas/admin.schema';
 import { Application, ApplicationSchema } from '../applications/schemas/application.schema';
-
+import { AdminModule } from '../admin/admin.module'; 
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -18,6 +18,8 @@ import { Application, ApplicationSchema } from '../applications/schemas/applicat
       { name: Admin.name, schema: AdminSchema },
       { name: Application.name, schema: ApplicationSchema },
     ]),
+    forwardRef(() => AdminModule),  
+
   ],
   providers: [ChatService, ChatGateway],
   controllers: [ChatController],

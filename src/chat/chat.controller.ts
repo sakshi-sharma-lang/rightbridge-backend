@@ -1,9 +1,14 @@
 import { Controller, Get, Param, Post, Body } from '@nestjs/common';
 import { ChatService } from './chat.service';
-
+import { AdminService } from '../admin/admin.service';
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard'; 
 @Controller()
 export class ChatController {
-  constructor(private chatService: ChatService) {}
+  constructor(private chatService: ChatService,
+    private adminService: AdminService,   
+
+    ) {}
 
   // =====================================================
   // USER SEND MESSAGE
@@ -78,5 +83,11 @@ export class ChatController {
   @Get('user/applications/:userId')
   async getUserApplications(@Param('userId') userId: string) {
     return this.chatService.getApplicationsByUserId(userId);
+  }
+
+    @UseGuards(JwtAuthGuard)
+    @Get('superadmin')
+  async getSuperAdmin() {
+    return this.adminService.getSuperAdmin();
   }
 }

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
@@ -20,7 +20,6 @@ import { ApplicationsModule } from '../applications/applications.module';
 import { InternalNotesModule } from './internal-notes/internal-notes.module';
 import { NotificationModule } from '../notification/notification.module';
 
-// ✅ IMPORT CHAT MODULE (NOT ChatGateway)
 import { ChatModule } from '../chat/chat.module';
 
 @Module({
@@ -50,7 +49,8 @@ import { ChatModule } from '../chat/chat.module';
     ApplicationsModule,
     InternalNotesModule,
     NotificationModule,
-    ChatModule, // ✅ IMPORTANT
+
+    forwardRef(() => ChatModule), 
   ],
 
   controllers: [
@@ -62,6 +62,10 @@ import { ChatModule } from '../chat/chat.module';
     AdminService,
     AdminApplicationsService,
     AdminJwtStrategy,
+  ],
+
+  exports: [
+    AdminService,  
   ],
 })
 export class AdminModule {}
