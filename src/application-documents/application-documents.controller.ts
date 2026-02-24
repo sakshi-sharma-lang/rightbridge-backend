@@ -111,4 +111,12 @@ export class ApplicationDocumentsController {
 
     return this.service.uploadAdminDocument(applicationId, userId, type, file);
   }
-}
+
+  @Get('admin/download/:applicationId/:uid')
+@UseGuards(AdminJwtGuard)
+async downloadAdminDoc(
+  @Param('applicationId') applicationId: string,
+  @Param('uid') uid: string,
+) {
+  return this.service.downloadDocument(applicationId, uid);
+}}

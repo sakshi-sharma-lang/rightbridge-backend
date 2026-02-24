@@ -10,7 +10,6 @@ import { Application } from '../applications/schemas/application.schema';
 import { DocumentItem } from './schemas/application-document.schema';
 import { DOCUMENT_TYPE_MAP, REQUIRED_DOCUMENTS } from './document-types';
 import { S3Helper } from '../common/s3.helper';
-
 @Injectable()
 export class ApplicationDocumentsService {
   constructor(
@@ -388,4 +387,74 @@ export class ApplicationDocumentsService {
       throw new InternalServerErrorException('Admin upload failed');
     }
   }
+
+
+  // ================= DOWNLOAD DOCUMENT =================
+async downloadDocument(applicationId: string, uid: string) {
+  try {
+    if (!applicationId || !uid) {
+      throw new BadRequestException('applicationId and uid required');
+    }
+
+    // 🔥 IMPORTANT: fetch all records then filter manually
+    const allRecords: any[] = await this.documentModel.find().lean();
+
+    // find correct application
+    const record = allRecords.find(
+      (r) => String(r.applicationId).trim() === String(applicationId).trim(),
+    );
+
+    if (!record) {
+      console.log("NOT FOUND applicationId:", applicationId);
+      throw new BadRequestException('Application documents not found');
+    }
+
+    let foundDoc: any = null;
+
+    // ===== user documents =====
+    if (Array.isArray(record.documents)) {
+      foundDoc = record.documents.find(
+        (d: any) => String(d.uid) === String(uid),
+      );
+    }
+
+    // ===== admin documents (all arrays) =====
+    if (!foundDoc && record.adminDocumentUpload) {
+      for (const key of Object.keys(record.adminDocumentUpload)) {
+        const arr = record.adminDocumentUpload[key];
+
+        if (Array.isArray(arr)) {
+          const match = arr.find(
+            (d: any) => String(d.uid) === String(uid),
+          );
+          if (match) {
+            foundDoc = match;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!foundDoc) {
+      throw new BadRequestException('Document not found with this uid');
+    }
+
+    return {
+      success: true,
+      fileName: foundDoc.originalName,
+      url: foundDoc.filePath,
+      size: foundDoc.size,
+      type: foundDoc.type,
+      uploadedBy: foundDoc.uploadedBy,
+      createdAt: foundDoc.createdAt,
+    };
+  } catch (error) {
+    if (error instanceof BadRequestException) throw error;
+
+    console.error('DOWNLOAD ERROR:', error);
+    throw new InternalServerErrorException('Download failed');
+  }
+}
+
+
 }
