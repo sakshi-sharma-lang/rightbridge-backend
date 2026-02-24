@@ -85,7 +85,7 @@ export class ChatGateway implements OnModuleInit {
   }
 
   // =====================================================
-  // TYPING EVENT (UNCHANGED)
+  // TYPING EVENT
   // =====================================================
   handleTyping(data: any) {
     const roomSockets = this.appRooms.get(data.applicationId);
@@ -102,7 +102,7 @@ export class ChatGateway implements OnModuleInit {
   }
 
   // =====================================================
-  // SEND MESSAGE REALTIME (FIXED ONLY HERE)
+  // SEND MESSAGE REALTIME
   // =====================================================
   async handleSendMessage(data: any) {
     let saved;
@@ -112,45 +112,20 @@ export class ChatGateway implements OnModuleInit {
     else
       saved = await this.chatService.sendMessageByUser(data);
 
-    // ================= USER → ADMIN =================
-    if (data.senderRole === 'user') {
+    const roomSockets = this.appRooms.get(data.applicationId);
+    if (!roomSockets) return;
 
-      const adminId = saved.adminId?.toString();
-      const adminSet = this.adminSockets.get(adminId);
-
-      if (adminSet) {
-        adminSet.forEach(sock => {
-          if (sock.readyState === WebSocket.OPEN) {
-            sock.send(JSON.stringify({
-              type: "receiveMessage",
-              data: saved.messageData || saved,
-              meta: saved
-            }));
-          }
-        });
+    roomSockets.forEach(sock => {
+      if (sock.readyState === WebSocket.OPEN) {
+        sock.send(JSON.stringify({
+          type: "receiveMessage",
+          data: saved.messageData || saved,   // 🔥 FIX HERE
+          meta: saved                         // keep full response also
+        }));
       }
-    }
+    });
 
-
-// ================= ADMIN → USER =================
-if (data.senderRole === 'admin') {
-
-  const targetUserId = saved.userId?.toString() || data.userId;
-
-  if (!targetUserId) return;
-
-  const userSocket = this.userSockets.get(targetUserId);
-
-  if (userSocket && userSocket.readyState === WebSocket.OPEN) {
-    userSocket.send(JSON.stringify({
-      type: "receiveMessage",
-      data: saved.messageData || saved,
-      meta: saved
-    }));
-  }
-}
-
-    // 🔔 SEND NOTIFICATION ALSO (UNCHANGED)
+    // 🔔 SEND NOTIFICATION ALSO
     if (data.receiverUserId) {
       this.sendNotificationToUser(data.receiverUserId, {
         title: "New Message",
@@ -161,7 +136,7 @@ if (data.senderRole === 'admin') {
   }
 
   // =====================================================
-  // DISCONNECT CLEANUP (UNCHANGED)
+  // DISCONNECT CLEANUP
   // =====================================================
   handleDisconnect(socket: WebSocket) {
 
@@ -187,7 +162,7 @@ if (data.senderRole === 'admin') {
   }
 
   // =====================================================
-  // 🔔 NOTIFICATION FUNCTION (UNCHANGED)
+  // 🔔 NOTIFICATION FUNCTION
   // =====================================================
   sendNotificationToUser(userId: string, payload: any) {
 
