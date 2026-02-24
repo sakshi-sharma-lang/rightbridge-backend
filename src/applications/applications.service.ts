@@ -145,69 +145,35 @@ export class ApplicationsService {
       delete safeBody.rejectReason;
       delete safeBody.applicationStatus;
 
-     // ===============================
-// SAFE APPLICANTS PARSE
-// ===============================
-let parsedApplicants: any = bodyApplicants;
+      const applicants = Array.isArray(body.applicants)
+        ? body.applicants.map((a, index) => ({
+            applyingAs: a.applyingAs ?? '',
+            firstName: a.firstName ?? '',
+            lastName: a.lastName ?? '',
+            email: a.email ?? '',
+            mobile: a.mobile ?? '',
+            phoneNumber: a.phoneNumber ?? '',
+            dateOfBirth: a.dateOfBirth ?? '',
+            nationality: a.nationality ?? '',
+            address: a.address ?? '',
+            postcode: a.postcode ?? '',
+            ownershipShare: a.ownershipShare ?? '',
+            ownershipRole: a.ownershipRole ?? '',
+            timeAtAddress: a.timeAtAddress ?? '',
+            numberOfApplicants: a.numberOfApplicants ?? '1',
+            previousAddress: {
+              previousResidentialAddress:
+                a.previousAddress?.previousResidentialAddress ?? '',
+              previousPostcode: a.previousAddress?.previousPostcode ?? '',
+            },
+            companyAddress: a.companyAddress ?? '',
+            companyRegistrationNumber: a.companyRegistrationNumber ?? '',
+            userId: new Types.ObjectId(userId),
 
-if (typeof parsedApplicants === 'string') {
-  try {
-    parsedApplicants = JSON.parse(parsedApplicants);
-  } catch {
-    throw new BadRequestException('Invalid applicants format');
-  }
-}
-
-if (!Array.isArray(parsedApplicants) || parsedApplicants.length === 0) {
-  throw new BadRequestException('At least one applicant required');
-}
-
-// ===============================
-// BACKEND GENERATE externalUserId
-// ===============================
-const applicants = parsedApplicants.map((a, index) => {
-  const externalUserId = `${appId}_${userId}_${index + 1}`;
-
-  return {
-    applyingAs: a.applyingAs ?? '',
-    firstName: a.firstName ?? '',
-    lastName: a.lastName ?? '',
-    email: a.email ?? '',
-    mobile: a.mobile ?? '',
-    phoneNumber: a.phoneNumber ?? '',
-    dateOfBirth: a.dateOfBirth ?? '',
-    nationality: a.nationality ?? '',
-    address: a.address ?? '',
-    postcode: a.postcode ?? '',
-    ownershipShare: a.ownershipShare ?? '',
-    ownershipRole: a.ownershipRole ?? '',
-    timeAtAddress: a.timeAtAddress ?? '',
-    numberOfApplicants: a.numberOfApplicants ?? '1',
-    previousAddress: {
-      previousResidentialAddress:
-        a.previousAddress?.previousResidentialAddress ?? '',
-      previousPostcode: a.previousAddress?.previousPostcode ?? '',
-    },
-    companyAddress: a.companyAddress ?? '',
-    companyRegistrationNumber: a.companyRegistrationNumber ?? '',
-    userId: new Types.ObjectId(userId),
-
-    // 🔥 BACKEND GENERATED ONLY
-    externalUserId,
-  };
-});
-
-// ===============================
-// 🔴 HARD BACKEND VALIDATION
-// Application will NOT create if missing
-// ===============================
-const missingExternal = applicants.some(a => !a.externalUserId);
-
-if (missingExternal) {
-  throw new BadRequestException(
-    'System error: externalUserId not generated. Application blocked.',
-  );
-}
+            //  backend generated (not from frontend)
+            externalUserId: `${appId}_${userId}_${index + 1}`,
+          }))
+        : [];
 
       //  AUTO REJECT CALCULATION (FINAL WORKING VERSION)
       let autoRejectStatus: any = {};
@@ -407,16 +373,32 @@ async updateApplicationDetails(
       throw new ForbiddenException('Application not found');
     }
 
-   // console.log('STEP 1: FRONTEND BODY =>', JSON.stringify(body, null, 2));
-
-    //  ONLY THIS LINE ADDED (SAFE)
+    // SAFE dot conversion (your original)
     body = this.safeDotToObject(body);
 
     // =========================================================
     //  FULL UPDATE FROM FRONTEND (UNCHANGED)
+    //  ONLY FIX: externalUserId preservation
     // =========================================================
     Object.keys(body).forEach((key) => {
-      application[key] = body[key];
+
+      // 🔥 ONLY FIX ADDED HERE
+      if (key === 'applicants' && Array.isArray(body.applicants)) {
+
+        const existingApplicants = application.applicants || [];
+
+        const mergedApplicants = body.applicants.map((a, index) => ({
+          ...a,
+          externalUserId:
+            existingApplicants[index]?.externalUserId ||
+            `${application.appId}_${application.userId}_${index + 1}`,
+        }));
+
+        application.applicants = mergedApplicants;
+
+      } else {
+        application[key] = body[key];
+      }
     });
 
     // =========================================================
@@ -437,7 +419,6 @@ async updateApplicationDetails(
 
       if (!isNaN(loanAmount) && !isNaN(propertyValue) && propertyValue > 0) {
         const ltv = (loanAmount / propertyValue) * 100;
-      //  console.log('LTV =>', ltv);
 
         if (ltv > 75) {
           application.status = 'AUTO_REJECTED' as any;
@@ -450,7 +431,6 @@ async updateApplicationDetails(
           body?.applicationEdit !== true &&
           body?.applicationEdit !== 'true'
         ) {
-       
           application.status = 'dip_stage' as any;
           application.application_stage_management = ['dip_submitted'];
           application.rejectReason = '';
@@ -462,7 +442,6 @@ async updateApplicationDetails(
           body?.applicationEdit !== true &&
           body?.applicationEdit !== 'true'
         ) {
-         
           application.isDraft = true;
         }
       }
@@ -471,11 +450,8 @@ async updateApplicationDetails(
     }
 
     const updated = await application.save();
-
-    // console.log(' APPLICATION UPDATED SUCCESS');
-    // console.log('========== UPDATE END ==========\n');
-
     return updated;
+
   } catch (error) {
     console.error(' UPDATE ERROR:', error);
     throw new InternalServerErrorException(error.message);
