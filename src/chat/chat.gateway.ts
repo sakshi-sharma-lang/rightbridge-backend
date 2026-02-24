@@ -120,62 +120,81 @@ export class ChatGateway implements OnModuleInit {
   // SEND MESSAGE ROLE BASED
   // =====================================================
   async handleSendMessage(data: any) {
-    let saved;
+  let saved;
 
-    if (data.senderRole === 'admin')
-      saved = await this.chatService.sendMessageByAdmin(data);
-    else
-      saved = await this.chatService.sendMessageByUser(data);
+  // =====================================
+  // SAVE MESSAGE DB
+  // =====================================
+  if (data.senderRole === 'admin')
+    saved = await this.chatService.sendMessageByAdmin(data);
+  else
+    saved = await this.chatService.sendMessageByUser(data);
 
-    const payload = {
-      type: "receiveMessage",
-      data: saved.messageData || saved,
-      meta: saved
-    };
+  const payload = {
+    type: "receiveMessage",
+    data: saved.messageData || saved,
+    meta: saved
+  };
 
-    // =====================================
-    // SEND TO TARGET ADMIN ROLE
-    // =====================================
-    if (data.receiverAdminRole) {
+  // =====================================================
+  // 🟢 CASE 1: USER → ADMIN
+  // =====================================================
+  if (data.senderRole === "user" && data.receiverAdminRole) {
 
-      const roleSet = this.roleSockets.get(data.receiverAdminRole);
+    const roleSet = this.roleSockets.get(data.receiverAdminRole);
 
-      if (roleSet) {
-        roleSet.forEach(sock => {
-          if (sock.readyState === WebSocket.OPEN) {
-            sock.send(JSON.stringify(payload));
-          }
-        });
+    if (roleSet) {
+      roleSet.forEach(sock => {
+        if (sock.readyState === WebSocket.OPEN) {
+          sock.send(JSON.stringify(payload));
+        }
+      });
 
-        console.log("📨 Sent to admin role:", data.receiverAdminRole);
-      } else {
-        console.log("❌ No admin online for role:", data.receiverAdminRole);
-      }
+      console.log("📨 Sent USER message to admin role:", data.receiverAdminRole);
+    } else {
+      console.log("❌ No admin online for role:", data.receiverAdminRole);
     }
+  }
 
-    // =====================================
-    // SEND TO USER ALSO
-    // =====================================
-    if (data.receiverUserId) {
-      const userSocket = this.userSockets.get(data.receiverUserId);
+  // =====================================================
+  // 🟢 CASE 2: ADMIN → USER
+  // =====================================================
+  if (data.senderRole === "admin" && data.receiverUserId) {
 
-      if (userSocket && userSocket.readyState === WebSocket.OPEN) {
-        userSocket.send(JSON.stringify(payload));
-        console.log("📨 Sent to user:", data.receiverUserId);
-      }
+    const userSocket = this.userSockets.get(data.receiverUserId);
+
+    if (userSocket && userSocket.readyState === WebSocket.OPEN) {
+      userSocket.send(JSON.stringify(payload));
+      console.log("📨 Admin message sent to user:", data.receiverUserId);
     }
+  }
 
-    // =====================================
-    // REALTIME NOTIFICATION
-    // =====================================
-    if (data.receiverUserId) {
-      this.sendNotificationToUser(data.receiverUserId, {
-        title: "New Message",
-        message: saved?.messageData?.message || saved?.message,
-        applicationId: data.applicationId
+  // =====================================================
+  // 🟢 ALSO SEND TO SAME ADMIN PANEL (SINGLE ECHO)
+  // =====================================================
+  if (data.senderRole === "admin" && data.adminId) {
+    const adminSet = this.adminSockets.get(data.adminId);
+
+    if (adminSet) {
+      adminSet.forEach(sock => {
+        if (sock.readyState === WebSocket.OPEN) {
+          sock.send(JSON.stringify(payload));
+        }
       });
     }
   }
+
+  // =====================================================
+  // 🔔 NOTIFICATION TO USER
+  // =====================================================
+  if (data.receiverUserId) {
+    this.sendNotificationToUser(data.receiverUserId, {
+      title: "New Message",
+      message: saved?.messageData?.message || saved?.message,
+      applicationId: data.applicationId
+    });
+  }
+}
 
   // =====================================================
   // DISCONNECT
