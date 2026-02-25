@@ -129,105 +129,76 @@ export class ChatGateway implements OnModuleInit {
   // =====================================================
   // SEND MESSAGE REALTIME
   // =====================================================
- async handleSendMessage(data: any) {
+async handleSendMessage(data: any) {
+
   console.log("\n==============================");
   console.log("📨 NEW MESSAGE EVENT");
-  console.log("Incoming:", JSON.stringify(data, null, 2));
+  console.log("Incoming Data:", JSON.stringify(data, null, 2));
 
   console.log("🟢 Online Users:", [...this.userSockets.keys()]);
   console.log("🟢 Online Admins:", [...this.adminSockets.keys()]);
+  console.log("🟢 Active Rooms:", [...this.appRooms.keys()]);
 
-  let saved;
+  let savedMessage;
 
-  // ================= SAVE DB =================
+  // ================= SAVE IN DB =================
   try {
+    console.log("💾 Attempting DB Save...");
+
     if (data.senderRole === 'admin') {
-      saved = await this.chatService.sendMessageByAdmin(data);
+      savedMessage = await this.chatService.sendMessageByAdmin(data);
     } else {
-      saved = await this.chatService.sendMessageByUser(data);
+      savedMessage = await this.chatService.sendMessageByUser(data);
     }
 
-    console.log("💾 DB SAVE SUCCESS");
+    console.log("✅ DB SAVE SUCCESS");
+    console.log("Saved Wrapper:", JSON.stringify(savedMessage, null, 2));
+    console.log("Saved Actual Message:", JSON.stringify(savedMessage?.messageData, null, 2));
+
   } catch (err) {
-    console.log("❌ DB SAVE ERROR:", err);
+    console.log("❌ DB SAVE ERROR:", err?.message || err);
     return;
   }
 
+  // =====================================================
+  // ROOM CHECK
+  // =====================================================
+  const room = this.appRooms.get(data.applicationId);
+
+  if (!room) {
+    console.log("❌ ROOM NOT FOUND for applicationId:", data.applicationId);
+    return;
+  }
+
+  console.log("📡 Room Found:", data.applicationId);
+  console.log("👥 Total Sockets In Room:", room.size);
+
+  // =====================================================
+  // PREPARE PAYLOAD
+  // =====================================================
   const payload = JSON.stringify({
     type: "receiveMessage",
-    data: saved?.messageData || saved,
-    meta: saved
+    data: savedMessage.messageData
   });
 
-  // =====================================================
-  // 👤 USER → ADMIN MESSAGE
-  // =====================================================
-  if (data.senderRole === 'user') {
-
-    const adminId = String(data.receiverAdminId || '');
-
-    console.log("➡ USER sending to admin:", adminId);
-
-    if (!adminId) {
-      console.log("❌ receiverAdminId missing from frontend");
-      return;
-    }
-
-    const adminSet = this.adminSockets.get(adminId);
-
-    console.log("Admin socket found?", !!adminSet);
-
-    if (!adminSet) {
-      console.log("❌ ADMIN NOT ONLINE OR WRONG ID");
-      return;
-    }
-
-    adminSet.forEach(sock => {
-      if (sock.readyState === WebSocket.OPEN) {
-        sock.send(payload);
-        console.log("✅ Message delivered to admin realtime");
-      } else {
-        console.log("❌ Admin socket closed");
-      }
-    });
-
-    return;
-  }
+  console.log("📦 Outgoing Payload:", payload);
 
   // =====================================================
-  // 🛡 ADMIN → USER MESSAGE
+  // BROADCAST
   // =====================================================
-  if (data.senderRole === 'admin') {
+  let deliveredCount = 0;
 
-    const userId = String(data.receiverUserId || '');
-
-    console.log("➡ ADMIN sending to user:", userId);
-
-    if (!userId) {
-      console.log("❌ receiverUserId missing");
-      return;
-    }
-
-    const userSocket = this.userSockets.get(userId);
-
-    console.log("User socket found?", !!userSocket);
-
-    if (!userSocket) {
-      console.log("❌ USER NOT ONLINE OR WRONG ID");
-      return;
-    }
-
-    if (userSocket.readyState === WebSocket.OPEN) {
-      userSocket.send(payload);
-      console.log("✅ Message delivered to user realtime");
+  room.forEach(sock => {
+    if (sock.readyState === WebSocket.OPEN) {
+      sock.send(payload);
+      deliveredCount++;
     } else {
-      console.log("❌ User socket closed");
+      console.log("⚠ Found closed socket in room");
     }
+  });
 
-    return;
-  }
-
-  console.log("⚠ Unknown senderRole");
+  console.log(`🚀 MESSAGE DELIVERED TO ${deliveredCount} SOCKET(S)`);
+  console.log("==============================\n");
 }
 
   // =====================================================

@@ -219,15 +219,17 @@ async sendMessageByUser(data: any) {
     conversation.lastMessageAt = new Date();
     conversation.lastMessageBy = 'user';
     conversation.unreadAdmin = (conversation.unreadAdmin || 0) + 1;
-
     await conversation.save();
+// get exact saved message from DB
+const savedMessage =
+  conversation.messages[conversation.messages.length - 1];
 
-    return {
-      success: true,
-      conversationId: conversation._id,
-      adminId: conversation.adminId, // 🔥 used by websocket
-      messageData: newMessage,
-    };
+return {
+  success: true,
+  conversationId: conversation._id,
+  adminId: conversation.adminId,
+  messageData: savedMessage,
+};
 
   } catch (error) {
     console.error('sendMessageByUser error =>', error);
@@ -326,11 +328,15 @@ async sendMessageByAdmin(data: any) {
 
     await conversation.save();
 
-    return {
-      success: true,
-      conversationId: conversation._id,
-      messageData: newMessage, // ✅ REAL MESSAGE
-    };
+// get exact saved message from DB
+const savedMessage =
+  conversation.messages[conversation.messages.length - 1];
+
+return {
+  success: true,
+  conversationId: conversation._id,
+  messageData: savedMessage,
+};
 
   } catch (error) {
     console.error('sendMessageByAdmin error =>', error);
