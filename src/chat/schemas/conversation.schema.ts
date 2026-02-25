@@ -29,6 +29,8 @@ export class Conversation {
   @Prop({ default: '' })
   adminName: string;
 
+   applicationId_userId
+
   // ================= LAST MESSAGE =================
   @Prop({ default: '' })
   lastMessage: string;
