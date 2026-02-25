@@ -79,33 +79,16 @@ export class ChatGateway implements OnModuleInit {
 
     // ADMIN CONNECT
     if (data.role === 'admin') {
-  const adminId = String(data.adminId);
+      const adminId = String(data.adminId);
 
-  // 🔴 fetch admin from DB
-  const admin = await this.chatService.getAdminById(adminId);
+      const adminSet =
+        this.adminSockets.get(adminId) ?? new Set<WebSocket>();
 
-  // 🚫 block viewer
-  if (!admin || admin.role === 'viewer') {
-    console.log("⛔ Viewer blocked from chat:", adminId);
+      adminSet.add(socket);
+      this.adminSockets.set(adminId, adminSet);
 
-    socket.send(JSON.stringify({
-      type: "error",
-      message: "Chat access denied"
-    }));
-
-    socket.close();
-    return;
-  }
-
-  // ✅ your original code (unchanged)
-  const adminSet =
-    this.adminSockets.get(adminId) ?? new Set<WebSocket>();
-
-  adminSet.add(socket);
-  this.adminSockets.set(adminId, adminSet);
-
-  console.log("🛡 Admin online:", adminId);
-}
+      console.log("🛡 Admin online:", adminId);
+    }
   }
 
   // =====================================================
