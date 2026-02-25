@@ -78,34 +78,38 @@ export class ChatGateway implements OnModuleInit {
  
     // USER
     if (data.role === 'user') {
-      this.userSockets.set(data.userId, socket);
-      console.log("👤 User online:", data.userId);
- 
-      if (data.applicationId) {
-        const room = this.appRooms.get(data.applicationId) ?? new Set<WebSocket>();
+      const userIdKey = String(data.userId ?? '');
+      if (userIdKey) {
+        this.userSockets.set(userIdKey, socket);
+        console.log("👤 User online:", userIdKey);
+      }
+      const appIdKey = data.applicationId ? String(data.applicationId) : '';
+      if (appIdKey) {
+        const room = this.appRooms.get(appIdKey) ?? new Set<WebSocket>();
         room.add(socket);
-        this.appRooms.set(data.applicationId, room);
+        this.appRooms.set(appIdKey, room);
       }
     }
  
     // ADMIN
     if (data.role === 'admin') {
-      const adminSet = this.adminSockets.get(data.adminId) ?? new Set<WebSocket>();
-      adminSet.add(socket);
-      this.adminSockets.set(data.adminId, adminSet);
- 
-      console.log("🛡 Admin online:", data.adminId);
- 
-      if (data.applicationId) {
-        const room = this.appRooms.get(data.applicationId) ?? new Set<WebSocket>();
+      const adminIdKey = data.adminId ? String(data.adminId) : '';
+      if (adminIdKey) {
+        const adminSet = this.adminSockets.get(adminIdKey) ?? new Set<WebSocket>();
+        adminSet.add(socket);
+        this.adminSockets.set(adminIdKey, adminSet);
+        console.log("🛡 Admin online:", adminIdKey);
+      }
+      const appIdKey = data.applicationId ? String(data.applicationId) : '';
+      if (appIdKey) {
+        const room = this.appRooms.get(appIdKey) ?? new Set<WebSocket>();
         room.add(socket);
-        this.appRooms.set(data.applicationId, room);
+        this.appRooms.set(appIdKey, room);
       }
     }
  
-    console.log("ROOM SIZE:",
-      this.appRooms.get(data.applicationId)?.size || 0
-    );
+    const appIdForLog = data.applicationId ? String(data.applicationId) : '';
+    console.log("ROOM SIZE:", appIdForLog ? (this.appRooms.get(appIdForLog)?.size ?? 0) : 0);
   }
  
   // =====================================================
@@ -160,18 +164,24 @@ async handleSendMessage(data: any) {
     return;
   }
  
-  // =====================================================
-  // ROOM CHECK
-  // =====================================================
-  const room = this.appRooms.get(data.applicationId);
+  // "User sent to specific admin" = only that admin + user receive (no other admins)
+  const senderRoleRaw = (data.senderRole ?? data.role ?? '').toString().toLowerCase();
+  const isUserToAdmin =
+    !!data.adminId && (senderRoleRaw === 'user' || data.role === 'user');
  
-  if (!room) {
+  // =====================================================
+  // ROOM CHECK (only needed when admin sends to user; user->admin uses targeted delivery)
+  // =====================================================
+  const applicationIdKey = data.applicationId ? String(data.applicationId) : '';
+  const room = applicationIdKey ? this.appRooms.get(applicationIdKey) : undefined;
+  if (!isUserToAdmin && !room) {
     console.log("❌ ROOM NOT FOUND for applicationId:", data.applicationId);
     return;
   }
- 
-  console.log("📡 Room Found:", data.applicationId);
-  console.log("👥 Total Sockets In Room:", room.size);
+  if (room) {
+    console.log("📡 Room Found:", data.applicationId);
+    console.log("👥 Total Sockets In Room:", room.size);
+  }
  
   // =====================================================
   // PREPARE PAYLOAD
@@ -183,9 +193,9 @@ async handleSendMessage(data: any) {
       : raw
         ? { ...(typeof raw === 'object' && raw !== null ? raw : {}) }
         : {};
-  // When user sends to an admin, tell frontend which admin should see this (so other roles don't)
-  if (data.senderRole === 'user' && data.adminId) {
-    messageData.toAdminId = data.adminId;
+ 
+  if (isUserToAdmin) {
+    messageData.toAdminId = String(data.adminId);
   }
   const payload = JSON.stringify({
     type: "receiveMessage",
@@ -193,20 +203,22 @@ async handleSendMessage(data: any) {
   });
  
   console.log("📦 Outgoing Payload:", payload);
+  console.log("📌 isUserToAdmin:", isUserToAdmin, "adminId:", data.adminId);
  
   // =====================================================
   // BROADCAST
   // =====================================================
   let deliveredCount = 0;
  
-  if (data.senderRole === 'user' && data.adminId) {
-    // User sent to a specific admin: only send to that admin's socket(s) and to the user
-    const userSocket = this.userSockets.get(data.userId);
+  if (isUserToAdmin) {
+    // User sent to a specific admin: ONLY that admin's socket(s) + user. Do NOT use room.
+    const userSocket = this.userSockets.get(String(data.userId));
     if (userSocket?.readyState === WebSocket.OPEN) {
       userSocket.send(payload);
       deliveredCount++;
     }
-    const adminSet = this.adminSockets.get(data.adminId);
+    const adminKey = String(data.adminId);
+    const adminSet = this.adminSockets.get(adminKey);
     if (adminSet) {
       adminSet.forEach((sock) => {
         if (sock.readyState === WebSocket.OPEN) {
@@ -215,8 +227,9 @@ async handleSendMessage(data: any) {
         }
       });
     }
-  } else {
-    // Admin sent to user, or no specific recipient: broadcast to whole room
+    console.log("📤 Targeted delivery: user + admin", adminKey, "only. Delivered:", deliveredCount);
+  } else if (room) {
+    // Admin sent to user: broadcast to whole room
     room.forEach((sock) => {
       if (sock.readyState === WebSocket.OPEN) {
         sock.send(payload);
