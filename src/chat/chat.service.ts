@@ -123,7 +123,7 @@ export class ChatService {
       message,
       messageType: 'text',
       time: new Date(),
-      isRead: false,
+      // isRead: false,
     };
 
     conversation.messages.push(newMessage);
@@ -192,7 +192,7 @@ export class ChatService {
       message,
       messageType: 'text',
       time: new Date(),
-      isRead: false,
+      // isRead: false,
     };
 
     conversation.messages.push(newMessage);
@@ -225,9 +225,9 @@ export class ChatService {
     if (!conversation)
       return { success: true, data: [] };
 
-    conversation.messages.forEach((msg: any) => {
-      if (msg.senderType === 'admin') msg.isRead = true;
-    });
+    // conversation.messages.forEach((msg: any) => {
+    //   if (msg.senderType === 'admin') msg.isRead = true;
+    // });
 
     conversation.unreadUser = 0;
     await conversation.save();
@@ -254,9 +254,9 @@ export class ChatService {
     if (!conversation)
       return { success: true, data: [] };
 
-    conversation.messages.forEach((msg: any) => {
-      if (msg.senderType === 'user') msg.isRead = true;
-    });
+    // conversation.messages.forEach((msg: any) => {
+    //   if (msg.senderType === 'user') msg.isRead = true;
+    // });
 
     conversation.unreadAdmin = 0;
     await conversation.save();
