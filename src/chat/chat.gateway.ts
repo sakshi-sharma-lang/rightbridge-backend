@@ -8,13 +8,8 @@ export class ChatGateway implements OnModuleInit {
 
   private wss: WebSocket.Server;
 
-  // single user → single socket
   private userSockets = new Map<string, WebSocket>();
-
-  // admin can open multiple tabs
   private adminSockets = new Map<string, Set<WebSocket>>();
-
-  // application room → all users + admins
   private appRooms = new Map<string, Set<WebSocket>>();
 
   // =====================================================
@@ -59,15 +54,9 @@ export class ChatGateway implements OnModuleInit {
   // ROUTER
   // =====================================================
   async routeMessage(socket: WebSocket, data: any) {
-
-    if (data.type === 'identify')
-      this.handleIdentify(socket, data);
-
-    if (data.type === 'typing')
-      this.handleTyping(data);
-
-    if (data.type === 'sendMessage')
-      await this.handleSendMessage(data);
+    if (data.type === 'identify') this.handleIdentify(socket, data);
+    if (data.type === 'typing') this.handleTyping(data);
+    if (data.type === 'sendMessage') await this.handleSendMessage(data);
   }
 
   // =====================================================
@@ -76,7 +65,6 @@ export class ChatGateway implements OnModuleInit {
   handleIdentify(socket: WebSocket, data: any) {
     console.log("IDENTIFY:", data);
 
-    // USER
     if (data.role === 'user') {
       this.userSockets.set(data.userId, socket);
       console.log("👤 User online:", data.userId);
@@ -88,7 +76,6 @@ export class ChatGateway implements OnModuleInit {
       }
     }
 
-    // ADMIN
     if (data.role === 'admin') {
       const adminSet = this.adminSockets.get(data.adminId) ?? new Set<WebSocket>();
       adminSet.add(socket);
@@ -127,7 +114,7 @@ export class ChatGateway implements OnModuleInit {
   }
 
   // =====================================================
-  // SEND MESSAGE REALTIME
+  // SEND MESSAGE REALTIME (🔥 CHANGED ONLY THIS FUNCTION)
   // =====================================================
   async handleSendMessage(data: any) {
     console.log("\n==============================");
@@ -145,46 +132,71 @@ export class ChatGateway implements OnModuleInit {
 
     console.log("💾 DB SAVED");
 
-    // SEND REALTIME IN ROOM
-    const roomSockets = this.appRooms.get(data.applicationId);
-
-    if (!roomSockets) {
-      console.log("❌ No room found for:", data.applicationId);
-      return;
-    }
-
-    console.log("👥 Room users:", roomSockets.size);
-
-    roomSockets.forEach(sock => {
-      if (sock.readyState === WebSocket.OPEN) {
-        sock.send(JSON.stringify({
-          type: "receiveMessage",
-          data: saved.messageData || saved,
-          meta: saved
-        }));
-      }
+    const payload = JSON.stringify({
+      type: "receiveMessage",
+      data: saved.messageData || saved,
+      meta: saved
     });
 
     // =====================================================
-    // 🔔 SEND DIRECT NOTIFICATION
+    // 🟢 USER SENDING MESSAGE
     // =====================================================
-    if (data.receiverUserId) {
-      this.sendNotificationToUser(data.receiverUserId, {
-        title: "New Message",
-        message: saved?.messageData?.message || saved?.message,
-        applicationId: data.applicationId
+    if (data.senderRole === 'user') {
+
+      const assignedAdminId = saved?.conversation?.assignedAdminId;
+      const superAdminId = saved?.conversation?.superAdminId;
+
+      let targetAdminId;
+
+      if (assignedAdminId) {
+        targetAdminId = assignedAdminId;
+        console.log("➡ Send to UNDERWRITER:", targetAdminId);
+      } else {
+        targetAdminId = superAdminId;
+        console.log("➡ Send to SUPERADMIN:", targetAdminId);
+      }
+
+      const adminSet = this.adminSockets.get(targetAdminId);
+
+      if (!adminSet) {
+        console.log("❌ Target admin not online");
+        return;
+      }
+
+      adminSet.forEach(sock => {
+        if (sock.readyState === WebSocket.OPEN) {
+          sock.send(payload);
+        }
       });
+
+      return;
     }
 
-    console.log("==============================\n");
+    // =====================================================
+    // 🟢 ADMIN SENDING MESSAGE → USER ONLY
+    // =====================================================
+    if (data.senderRole === 'admin') {
+
+      const userId = saved?.conversation?.userId || data.userId;
+
+      console.log("➡ Admin message to user:", userId);
+
+      const userSocket = this.userSockets.get(userId);
+
+      if (userSocket && userSocket.readyState === WebSocket.OPEN) {
+        userSocket.send(payload);
+      } else {
+        console.log("❌ User offline");
+      }
+
+      return;
+    }
   }
 
   // =====================================================
   // DISCONNECT CLEANUP
   // =====================================================
   handleDisconnect(socket: WebSocket) {
-
-    // user remove
     for (const [userId, s] of this.userSockets) {
       if (s === socket) {
         this.userSockets.delete(userId);
@@ -192,7 +204,6 @@ export class ChatGateway implements OnModuleInit {
       }
     }
 
-    // admin remove
     for (const [adminId, set] of this.adminSockets) {
       if (set.has(socket)) {
         set.delete(socket);
@@ -201,7 +212,6 @@ export class ChatGateway implements OnModuleInit {
       }
     }
 
-    // room remove
     for (const [appId, set] of this.appRooms) {
       if (set.has(socket)) {
         set.delete(socket);
@@ -213,13 +223,11 @@ export class ChatGateway implements OnModuleInit {
   }
 
   // =====================================================
-  // 🔔 NOTIFICATION
+  // NOTIFICATION
   // =====================================================
   sendNotificationToUser(userId: string, payload: any) {
 
     console.log("\n🔔 REALTIME NOTIFICATION TRY");
-    console.log("User:", userId);
-    console.log("Online users:", [...this.userSockets.keys()]);
 
     const socket = this.userSockets.get(userId);
 
@@ -238,7 +246,5 @@ export class ChatGateway implements OnModuleInit {
     } else {
       console.log("❌ Socket not open");
     }
-
-    console.log("🔔 END\n");
   }
 }
