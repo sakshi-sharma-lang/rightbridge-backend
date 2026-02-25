@@ -29,7 +29,7 @@ export class Conversation {
   @Prop({ default: '' })
   adminName: string;
 
-   @Prop({ required: true, unique: true })
+   @Prop({ required: true, unique: false })
   conversationKey: string;
 
   // ================= LAST MESSAGE =================
