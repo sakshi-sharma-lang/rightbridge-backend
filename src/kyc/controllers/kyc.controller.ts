@@ -334,4 +334,49 @@ async getApplicant(@Query('applicantId') applicantId: string) {
   return this.sumsubService.getApplicantById(applicantId);
 }
 
+
+@Get('status/details')
+@UseGuards(AdminJwtGuard) 
+async getKycByApplicationId(
+  @Query('applicationId') applicationId: string,
+) {
+  try {
+    if (!applicationId || applicationId.trim() === '') {
+      throw new BadRequestException(
+        'applicationId query parameter is required',
+      );
+    }
+
+    // Find ALL KYC records for this application
+    const kycRecords = await this.kycModel
+      .find({ applicationId })
+      .sort({ createdAt: -1 }) // latest first (optional)
+      .lean();
+
+    if (!kycRecords || kycRecords.length === 0) {
+      throw new NotFoundException(
+        `No KYC records found for applicationId: ${applicationId}`,
+      );
+    }
+
+    return {
+      success: true,
+      message: 'KYC records fetched successfully',
+      total: kycRecords.length,
+      data: kycRecords,
+    };
+  } catch (error: any) {
+    if (
+      error instanceof BadRequestException ||
+      error instanceof NotFoundException
+    ) {
+      throw error;
+    }
+
+    throw new InternalServerErrorException(
+      error?.message || 'Unable to fetch KYC records',
+    );
+  }
+}
+
 }
