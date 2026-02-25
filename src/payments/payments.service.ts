@@ -98,7 +98,7 @@ export class PaymentsService {
       status: intent.status, // exact stripe status
     });
 
-    // ⭐ send full data to frontend
+    //  send full data to frontend
     return {
       statusCode: 201,
       message: 'Payment intent created',
@@ -591,7 +591,36 @@ async getPaymentsManagement(query: {
   }
 }
 
+async getPaymentStatus(applicationId: string) {
 
+  if (!applicationId) {
+    return {
+      success: false,
+      message: 'applicationId required',
+    };
+  }
+
+  const payment = await this.paymentModel
+    .findOne({ applicationId })
+    .select('status amount applicationId')
+    .lean();
+
+  if (!payment) {
+    return {
+      success: true,
+      status: 'NOT_PAID',
+      amount: 0,
+      applicationId,
+    };
+  }
+
+  return {
+    success: true,
+    status: payment.status,
+    amount: payment.amount,
+    applicationId: payment.applicationId,
+  };
+}
 
 
 }

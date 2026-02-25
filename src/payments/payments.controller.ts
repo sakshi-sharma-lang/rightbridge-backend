@@ -62,4 +62,12 @@ export class PaymentsController {
   async getPaymentsManagement(@Query() query: any) {
     return this.service.getPaymentsManagement(query);
   }
+
+  @Get('status/:applicationId')
+@UseGuards(JwtAuthGuard)
+async getPaymentStatus(
+  @Param('applicationId') applicationId: string,
+) {
+  return this.service.getPaymentStatus(applicationId);
+}
 }

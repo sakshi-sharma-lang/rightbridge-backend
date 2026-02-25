@@ -42,6 +42,15 @@ export class AdminService {
     if (exists) {
       throw new UnauthorizedException('Email already registered');
     }
+     const allowedRoles = ['super_admin', 'underwriter', 'operation', 'viewer'];
+
+  // ❌ if role not allowed → stop creation
+  if (!allowedRoles.includes(data.role)) {
+    throw new UnauthorizedException(
+      'Invalid role. Only super_admin, underwriter, operation, viewer allowed',
+    );
+  }
+
     const appId = await this.generateAppId();
     const plainPassword = this.generateRandomPassword();
     const hashedPassword = await bcrypt.hash(plainPassword, 10);
