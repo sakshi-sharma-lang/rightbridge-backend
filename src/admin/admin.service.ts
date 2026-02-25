@@ -47,7 +47,7 @@ export class AdminService {
   // ❌ if role not allowed → stop creation
   if (!allowedRoles.includes(data.role)) {
     throw new UnauthorizedException(
-      'Invalid role. Only super_admin, underwriter, operation, viewer allowed',
+      'Invalid role. Only super_admin, underwriter, operations, viewer allowed',
     );
   }
 
