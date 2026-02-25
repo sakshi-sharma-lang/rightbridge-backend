@@ -91,19 +91,21 @@ export class ChatGateway implements OnModuleInit {
   }
 
   // =====================================================
-  // SEND MESSAGE REALTIME (FINAL SAFE)
+  // SEND MESSAGE REALTIME
   // =====================================================
   async handleSendMessage(data: any) {
 
     console.log("\n==============================");
-    console.log("📨 NEW MESSAGE");
-    console.log("Incoming:", data);
+    console.log("📨 NEW MESSAGE Incoming:", data);
 
     let savedMessage;
 
-    // SAVE DB
+    // ==============================
+    // SAVE MESSAGE DB
+    // ==============================
     try {
-      if (data.senderRole === 'admin') {
+      // 🔥 FIX: senderRole → senderType
+      if (data.senderType === 'admin') {
         savedMessage = await this.chatService.sendMessageByAdmin(data);
       } else {
         savedMessage = await this.chatService.sendMessageByUser(data);
@@ -117,7 +119,7 @@ export class ChatGateway implements OnModuleInit {
     const messageData = savedMessage?.messageData;
 
     if (!conversation) {
-      console.log("❌ conversation missing");
+      console.log("❌ conversation missing after save");
       return;
     }
 
@@ -133,19 +135,19 @@ export class ChatGateway implements OnModuleInit {
     // SEND TO USER
     // =========================================
     const userSocket = this.userSockets.get(
-      conversation.userId.toString()
+      conversation.userId?.toString()
     );
 
-    if (userSocket?.readyState === WebSocket.OPEN) {
+    if (userSocket && userSocket.readyState === WebSocket.OPEN) {
       userSocket.send(payload);
       delivered++;
     }
 
     // =========================================
-    // SEND ONLY ASSIGNED ADMIN
+    // SEND ONLY ASSIGNED ADMIN (MULTI TAB SAFE)
     // =========================================
     const adminSet = this.adminSockets.get(
-      conversation.adminId.toString()
+      conversation.adminId?.toString()
     );
 
     adminSet?.forEach(sock => {
@@ -164,7 +166,7 @@ export class ChatGateway implements OnModuleInit {
   // =====================================================
   handleDisconnect(socket: WebSocket) {
 
-    // user remove
+    // remove user
     for (const [userId, s] of this.userSockets) {
       if (s === socket) {
         this.userSockets.delete(userId);
@@ -172,11 +174,14 @@ export class ChatGateway implements OnModuleInit {
       }
     }
 
-    // admin remove
+    // remove admin
     for (const [adminId, set] of this.adminSockets) {
       if (set.has(socket)) {
         set.delete(socket);
-        if (set.size === 0) this.adminSockets.delete(adminId);
+
+        if (set.size === 0)
+          this.adminSockets.delete(adminId);
+
         console.log("❌ Admin offline:", adminId);
       }
     }
@@ -185,12 +190,11 @@ export class ChatGateway implements OnModuleInit {
   }
 
   // =====================================================
-  // NOTIFICATION
+  // SEND NOTIFICATION TO USER
   // =====================================================
   sendNotificationToUser(userId: string, payload: any) {
 
     const socket = this.userSockets.get(userId);
-
     if (!socket) return;
 
     if (socket.readyState === WebSocket.OPEN) {
