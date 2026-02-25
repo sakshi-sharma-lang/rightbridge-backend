@@ -29,7 +29,8 @@ export class Conversation {
   @Prop({ default: '' })
   adminName: string;
 
-   applicationId_userId
+   @Prop({ required: true, unique: true })
+  conversationKey: string;
 
   // ================= LAST MESSAGE =================
   @Prop({ default: '' })
@@ -89,6 +90,6 @@ export const ConversationSchema = SchemaFactory.createForClass(Conversation);
 // ONE conversation per:
 // user + application + role + admin
 ConversationSchema.index(
-  { userId: 1, applicationId: 1, role: 1, adminId: 1 },
+  { userId: 1, applicationId: 1 },
   { unique: true }
 );
