@@ -117,17 +117,38 @@ async updateStageManagment(appId: string, stage: string, email: string) {
 
         console.log("📡 Sending realtime notification via WS...");
 
-        this.chatGateway.sendNotificationToUser(
-          app.userId.toString(),
-          {
-            notificationId: notification._id,
-            applicationId: app._id,
-            stage: stage,
-            message: notificationMessage,
-            isRead: false,
-            createdAt: notification.createdAt,
-          }
-        );
+   console.log("📡 Sending realtime notification via WS...");
+
+// format stage user readable
+const formattedStage = stage
+  .replace(/_/g, " ")
+  .replace(/\b\w/g, (c) => c.toUpperCase());
+
+const finalMessage = `Your application moved to ${formattedStage}`;
+
+// payload for frontend
+const payload = {
+  id: notification._id,
+  type: "stage_update",
+  title: "Application Stage Updated",
+  message: finalMessage,
+  applicationId: app._id.toString(),
+  stage: stage,
+  createdAt: notification.createdAt || new Date(),
+  isRead: false,
+};
+
+// log payload
+console.log("📦 WS PAYLOAD:", JSON.stringify(payload, null, 2));
+console.log("👤 Sending to user:", app.userId.toString());
+
+// send realtime
+this.chatGateway.sendNotificationToUser(
+  app.userId.toString(),
+  payload
+);
+
+console.log("✅ Realtime notification sent");
 
         console.log("✅ Realtime notification sent");
 

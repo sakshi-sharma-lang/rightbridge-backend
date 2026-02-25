@@ -193,16 +193,29 @@ export class ChatGateway implements OnModuleInit {
   // =====================================================
   // SEND NOTIFICATION TO USER
   // =====================================================
-  sendNotificationToUser(userId: string, payload: any) {
+ sendNotificationToUser(userId: string, payload: any) {
+  console.log("\n================ WS NOTIFICATION ================");
+  console.log("👤 Sending to user:", userId);
+  console.log("📦 Payload:", JSON.stringify(payload, null, 2));
 
-    const socket = this.userSockets.get(userId);
-    if (!socket) return;
+  const socket = this.userSockets.get(String(userId));
 
-    if (socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({
-        type: "notification",
-        data: payload
-      }));
-    }
+  if (!socket) {
+    console.log("❌ User socket not found (user offline)");
+    console.log("================================================\n");
+    return;
   }
+
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({
+      type: "notification",
+      data: payload
+    }));
+
+    console.log("✅ Notification delivered to socket");
+  } else {
+    console.log("❌ Socket not open");
+  }
+
+}
 }

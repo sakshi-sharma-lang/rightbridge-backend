@@ -350,7 +350,7 @@ async getKycByApplicationId(
     // Find ALL KYC records for this application
     const kycRecords = await this.kycModel
       .find({ applicationId })
-      .sort({ createdAt: -1 }) // latest first (optional)
+      .sort({ createdAt: -1 })
       .lean();
 
     if (!kycRecords || kycRecords.length === 0) {
@@ -359,11 +359,39 @@ async getKycByApplicationId(
       );
     }
 
+    /* ==========================================
+       🔥 ADD RISK LABEL
+    ========================================== */
+    const dataWithRisk = kycRecords.map((kyc) => {
+      let riskLabel = 'Pending';
+
+      switch (kyc.status) {
+        case 'APPROVED':
+          riskLabel = 'Low Risk';
+          break;
+        case 'REJECTED':
+          riskLabel = 'High Risk';
+          break;
+        case 'IN_PROGRESS':
+        case 'LINK_SENT':
+          riskLabel = 'In Progress';
+          break;
+        case 'CREATED':
+          riskLabel = 'Pending';
+          break;
+      }
+
+      return {
+        ...kyc,
+        riskLabel, // 👈 added key
+      };
+    });
+
     return {
       success: true,
       message: 'KYC records fetched successfully',
-      total: kycRecords.length,
-      data: kycRecords,
+      total: dataWithRisk.length,
+      data: dataWithRisk,
     };
   } catch (error: any) {
     if (
