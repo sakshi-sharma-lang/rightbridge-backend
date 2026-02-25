@@ -1,11 +1,11 @@
-import { Injectable, BadRequestException ,NotFoundException} from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, Document } from 'mongoose';
 import { Conversation } from './schemas/conversation.schema';
 import { Application } from '../applications/schemas/application.schema';
 import { Admin } from '../admin/schemas/admin.schema';
 import { User } from '../users/schemas/user.schema';
-import { AdminService } from '../admin/admin.service'; 
+
 type ConversationDocument = Conversation & Document;
 
 @Injectable()
@@ -22,120 +22,54 @@ export class ChatService {
 
     @InjectModel(User.name)
     private userModel: Model<User>,
-
-    private readonly adminService: AdminService, 
   ) {}
 
   // =====================================================
-  // CREATE OR GET CONVERSATION (ROLE + ADMIN BASED)
+  // INTERNAL: GET OR CREATE CONVERSATION (SAFE)
   // =====================================================
- async getOrCreateConversation(
-  userId: string,
-  applicationId: string,
-  role: string,
-  adminId: string,
-) {
-  try {
-    // =====================================================
-    // 1. OBJECT ID VALIDATION
-    // =====================================================
-    if (!Types.ObjectId.isValid(userId))
-      throw new BadRequestException('Invalid userId');
-
-    if (!Types.ObjectId.isValid(applicationId))
-      throw new BadRequestException('Invalid applicationId');
-
-    if (!Types.ObjectId.isValid(adminId))
-      throw new BadRequestException('Invalid adminId');
-
-    if (!role) throw new BadRequestException('role required');
-
-    // =====================================================
-    // 2. CHECK USER EXIST
-    // =====================================================
-    const user = await this.userModel
-      .findById(userId)
-      .select('_id firstName lastName')
-      .lean();
-
-    if (!user) throw new BadRequestException('User not found');
-
-    // =====================================================
-    // 3. CHECK ADMIN EXIST
-    // =====================================================
-    const admin = await this.adminModel
-      .findById(adminId)
-      .select('_id role fullName email')
-      .lean();
-
-    if (!admin) throw new BadRequestException('Admin not found');
-
-    if (admin.role === 'viewer')
-      throw new BadRequestException('Viewer cannot access chat');
-
-    // =====================================================
-    // 4. CHECK APPLICATION EXIST + BELONGS TO USER
-    // =====================================================
-    const application = await this.applicationModel
-      .findOne({
-        _id: new Types.ObjectId(applicationId),
-        userId: new Types.ObjectId(userId), //  important check
-      })
-      .select('_id appId status')
-      .lean();
-
-    if (!application)
-      throw new BadRequestException(
-        'Application not found or does not belong to this user',
-      );
-
-    // =====================================================
-    // 5. FIND EXISTING CONVERSATION
-    // =====================================================
-    let convo = await this.convoModel.findOne({
-  userId: new Types.ObjectId(userId),
-  applicationId: new Types.ObjectId(applicationId),
-});
-
-    if (convo) return convo;
-
-    // =====================================================
-    // 6. CREATE NEW CONVERSATION
-    // =====================================================
-    convo = await this.convoModel.create({
+  private async getOrCreateConversation(
+    userId: string,
+    applicationId: string,
+    adminId: string,
+    role: string,
+    userName: string,
+    adminName: string,
+  ) {
+    let conversation = await this.convoModel.findOne({
       userId: new Types.ObjectId(userId),
       applicationId: new Types.ObjectId(applicationId),
-      role,
       adminId: new Types.ObjectId(adminId),
+      role,
+    });
 
-      // optional but useful
-      adminName: admin.fullName || admin.email,
-      userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+    if (conversation) return conversation;
 
+    const conversationKey = `${applicationId}_${adminId}_${userId}`;
+
+    conversation = await this.convoModel.create({
+      userId: new Types.ObjectId(userId),
+      applicationId: new Types.ObjectId(applicationId),
+      adminId: new Types.ObjectId(adminId),
+      role,
+      conversationKey,
+      userName,
+      adminName,
       unreadUser: 0,
       unreadAdmin: 0,
       status: 'open',
       messages: [],
     });
 
-    return convo;
-
-  } catch (error) {
-    console.error('getOrCreateConversation error =>', error);
-    throw new BadRequestException(error.message || 'Conversation error');
+    return conversation;
   }
-}
 
   // =====================================================
-  // USER SEND MESSAGE (ROLE + ADMIN BASED)
+  // USER SEND MESSAGE
   // =====================================================
-
-
-async sendMessageByUser(data: any) {
-  try {
+  async sendMessageByUser(data: any) {
     const { userId, message, applicationId, adminId } = data;
 
-    if (!userId || !applicationId || !message || !adminId)
+    if (!userId || !applicationId || !adminId || !message)
       throw new BadRequestException('Missing required fields');
 
     if (!Types.ObjectId.isValid(userId))
@@ -147,29 +81,13 @@ async sendMessageByUser(data: any) {
     if (!Types.ObjectId.isValid(adminId))
       throw new BadRequestException('Invalid adminId');
 
-    // ================= USER =================
     const user: any = await this.userModel
       .findById(userId)
-      .select('_id firstName lastName email')
+      .select('_id firstName lastName')
       .lean();
 
     if (!user) throw new BadRequestException('User not found');
 
-    // ================= APPLICATION =================
-    const application = await this.applicationModel
-      .findOne({
-        _id: new Types.ObjectId(applicationId),
-        userId: new Types.ObjectId(userId),
-      })
-      .select('_id')
-      .lean();
-
-    if (!application)
-      throw new BadRequestException(
-        'Application not found or not belongs to user',
-      );
-
-    // ================= ADMIN =================
     const admin: any = await this.adminModel
       .findById(adminId)
       .select('_id role fullName email')
@@ -177,32 +95,30 @@ async sendMessageByUser(data: any) {
 
     if (!admin) throw new BadRequestException('Admin not found');
 
-    // ================= FIND OR CREATE CONVO =================
-   let conversation = await this.convoModel.findOne({
-  userId: new Types.ObjectId(userId),
-  applicationId: new Types.ObjectId(applicationId),
-});
+    const application = await this.applicationModel.findOne({
+      _id: new Types.ObjectId(applicationId),
+      userId: new Types.ObjectId(userId),
+    });
 
-    if (!conversation) {
-      conversation = await this.convoModel.create({
-        userId: new Types.ObjectId(userId),
-        applicationId: new Types.ObjectId(applicationId),
-        adminId: admin._id,
-        role: admin.role,
-        userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-        adminName: admin.fullName || admin.email,
-        unreadUser: 0,
-        unreadAdmin: 0,
-        status: 'open',
-        messages: [],
-      });
-    }
+    if (!application)
+      throw new BadRequestException('Application invalid');
 
-    // ================= MESSAGE =================
+    const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    const adminName = admin.fullName || admin.email;
+
+    const conversation = await this.getOrCreateConversation(
+      userId,
+      applicationId,
+      adminId,
+      admin.role,
+      userName,
+      adminName,
+    );
+
     const newMessage = {
       senderId: new Types.ObjectId(userId),
       senderType: 'user',
-      senderName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+      senderName: userName,
       senderRole: 'user',
       message,
       messageType: 'text',
@@ -211,46 +127,28 @@ async sendMessageByUser(data: any) {
     };
 
     conversation.messages.push(newMessage);
-
     conversation.lastMessage = message;
     conversation.lastMessageAt = new Date();
     conversation.lastMessageBy = 'user';
-    conversation.unreadAdmin = (conversation.unreadAdmin || 0) + 1;
+    conversation.unreadAdmin += 1;
+
     await conversation.save();
-// get exact saved message from DB
-const savedMessage =
-  conversation.messages[conversation.messages.length - 1];
 
-return {
-  success: true,
-  conversationId: conversation._id,
-  adminId: conversation.adminId,
-  messageData: savedMessage,
-};
-
-  } catch (error) {
-    console.error('sendMessageByUser error =>', error);
-    throw new BadRequestException(error.message || 'Send message failed');
+    return {
+      success: true,
+      conversation,
+      messageData: newMessage,
+    };
   }
-}
+
   // =====================================================
   // ADMIN SEND MESSAGE
   // =====================================================
-async sendMessageByAdmin(data: any) {
-  try {
+  async sendMessageByAdmin(data: any) {
     const { userId, adminId, message, applicationId } = data;
 
     if (!userId || !adminId || !applicationId || !message)
       throw new BadRequestException('Missing required fields');
-
-    if (!Types.ObjectId.isValid(userId))
-      throw new BadRequestException('Invalid userId');
-
-    if (!Types.ObjectId.isValid(adminId))
-      throw new BadRequestException('Invalid adminId');
-
-    if (!Types.ObjectId.isValid(applicationId))
-      throw new BadRequestException('Invalid applicationId');
 
     const admin: any = await this.adminModel
       .findById(adminId)
@@ -259,8 +157,6 @@ async sendMessageByAdmin(data: any) {
 
     if (!admin) throw new BadRequestException('Admin not found');
 
-    const role = admin.role;
-
     const user: any = await this.userModel
       .findById(userId)
       .select('_id firstName lastName')
@@ -268,44 +164,31 @@ async sendMessageByAdmin(data: any) {
 
     if (!user) throw new BadRequestException('User not found');
 
-    const application = await this.applicationModel
-      .findOne({
-        _id: new Types.ObjectId(applicationId),
-        userId: new Types.ObjectId(userId),
-      })
-      .select('_id')
-      .lean();
+    const application = await this.applicationModel.findOne({
+      _id: new Types.ObjectId(applicationId),
+      userId: new Types.ObjectId(userId),
+    });
 
     if (!application)
-      throw new BadRequestException(
-        'Application not found or not belongs to user',
-      );
+      throw new BadRequestException('Application invalid');
 
-   let conversation = await this.convoModel.findOne({
-  userId: new Types.ObjectId(userId),
-  applicationId: new Types.ObjectId(applicationId),
-});
-    if (!conversation) {
-      conversation = await this.convoModel.create({
-        userId: new Types.ObjectId(userId),
-        applicationId: new Types.ObjectId(applicationId),
-        role,
-        adminId: new Types.ObjectId(adminId),
-        userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-        adminName: admin.fullName || admin.email,
-        unreadUser: 0,
-        unreadAdmin: 0,
-        status: 'open',
-        messages: [],
-      });
-    }
+    const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    const adminName = admin.fullName || admin.email;
 
-    // 🔥 CREATE MESSAGE OBJECT
+    const conversation = await this.getOrCreateConversation(
+      userId,
+      applicationId,
+      adminId,
+      admin.role,
+      userName,
+      adminName,
+    );
+
     const newMessage = {
       senderId: new Types.ObjectId(adminId),
       senderType: 'admin',
-      senderName: admin.fullName || admin.email,
-      senderRole: role,
+      senderName: adminName,
+      senderRole: admin.role,
       message,
       messageType: 'text',
       time: new Date(),
@@ -313,69 +196,41 @@ async sendMessageByAdmin(data: any) {
     };
 
     conversation.messages.push(newMessage);
-
     conversation.lastMessage = message;
     conversation.lastMessageAt = new Date();
     conversation.lastMessageBy = 'admin';
-    conversation.unreadUser = (conversation.unreadUser || 0) + 1;
+    conversation.unreadUser += 1;
     conversation.unreadAdmin = 0;
 
     await conversation.save();
 
     return {
       success: true,
-      conversationId: conversation._id,
-      messageData: newMessage, // ✅ REAL MESSAGE
+      conversation,
+      messageData: newMessage,
     };
-
-  } catch (error) {
-    console.error('sendMessageByAdmin error =>', error);
-    throw new BadRequestException(error.message || 'Send failed');
   }
-}
+
   // =====================================================
   // USER OPEN CHAT
   // =====================================================
-async getUserChat(userId: string, applicationId: string, role: string) {
-  try {
-    if (!Types.ObjectId.isValid(userId))
-      throw new BadRequestException('Invalid userId');
+  async getUserChat(userId: string, applicationId: string, role: string) {
 
-    if (!Types.ObjectId.isValid(applicationId))
-      throw new BadRequestException('Invalid applicationId');
-
-    if (!role)
-      throw new BadRequestException('Role required');
-
-    // 🔥 find role based chat
     const conversation = await this.convoModel.findOne({
       userId: new Types.ObjectId(userId),
       applicationId: new Types.ObjectId(applicationId),
-      role: role,
+      role,
     });
 
-    if (!conversation) {
-      return {
-        success: true,
-        data: [],
-        message: 'No chat found for this role',
-      };
-    }
-
-    // 🔵 mark admin msg read for user
-    let updated = false;
+    if (!conversation)
+      return { success: true, data: [] };
 
     conversation.messages.forEach((msg: any) => {
-      if (msg.senderType === 'admin' && !msg.isRead) {
-        msg.isRead = true;
-        updated = true;
-      }
+      if (msg.senderType === 'admin') msg.isRead = true;
     });
 
-    if (updated) {
-      conversation.unreadUser = 0;
-      await conversation.save();
-    }
+    conversation.unreadUser = 0;
+    await conversation.save();
 
     return {
       success: true,
@@ -383,115 +238,36 @@ async getUserChat(userId: string, applicationId: string, role: string) {
       role: conversation.role,
       data: conversation,
     };
-  } catch (error) {
-    console.error('getUserChat error =>', error);
-    throw new BadRequestException(error.message || 'Chat fetch failed');
   }
-}
 
   // =====================================================
   // ADMIN OPEN CHAT
   // =====================================================
-async getAdminChat(applicationId: string, role: string, adminId: string) {
-  try {
+  async getAdminChat(applicationId: string, role: string, adminId: string) {
 
-    // =====================================================
-    // 1. VALIDATE IDS
-    // =====================================================
-    if (!Types.ObjectId.isValid(applicationId))
-      throw new BadRequestException('Invalid applicationId');
-
-    if (!Types.ObjectId.isValid(adminId))
-      throw new BadRequestException('Invalid adminId');
-
-    if (!role)
-      throw new BadRequestException('role required');
-
-    // =====================================================
-    // 2. CHECK ADMIN EXISTS
-    // =====================================================
-    const admin: any = await this.adminModel
-      .findById(adminId)
-      .select('_id role fullName')
-      .lean();
-
-    if (!admin)
-      throw new BadRequestException('Admin not found');
-
-    //  SECURITY: ignore frontend role, use DB role
-    const adminRole = admin.role;
-
-    if (adminRole === 'viewer')
-      throw new BadRequestException('Viewer cannot access chat');
-
-    // =====================================================
-    // 3. CHECK APPLICATION EXISTS
-    // =====================================================
-    const application = await this.applicationModel
-      .findById(applicationId)
-      .select('_id userId')
-      .lean();
-
-    if (!application)
-      throw new BadRequestException('Application not found');
-
-    // =====================================================
-    // 4. FIND CONVERSATION
-    // =====================================================
     const conversation = await this.convoModel.findOne({
       applicationId: new Types.ObjectId(applicationId),
-      role: adminRole,
       adminId: new Types.ObjectId(adminId),
+      role,
     });
 
     if (!conversation)
       return { success: true, data: [] };
 
-    // =====================================================
-    // 5. MARK USER MESSAGES READ
-    // =====================================================
-    let updated = false;
-
     conversation.messages.forEach((msg: any) => {
-      if (msg.senderType === 'user' && !msg.isRead) {
-        msg.isRead = true;
-        updated = true;
-      }
+      if (msg.senderType === 'user') msg.isRead = true;
     });
 
-    if (updated) {
-      conversation.unreadAdmin = 0;
-      await conversation.save();
-    }
+    conversation.unreadAdmin = 0;
+    await conversation.save();
 
     return {
       success: true,
       data: conversation,
     };
-
-  } catch (error) {
-    console.error('getAdminChat error =>', error);
-    throw new BadRequestException(error.message || 'Failed to load chat');
-  }
-}
-
-  // =====================================================
-  // ADMIN SIDEBAR
-  // =====================================================
-  async getAdminConversations(adminId: string) {
-    if (!Types.ObjectId.isValid(adminId))
-      throw new BadRequestException('Invalid adminId');
-
-    return this.convoModel
-      .find({ adminId: new Types.ObjectId(adminId) })
-      .populate('userId', 'firstName lastName email')
-      .sort({ updatedAt: -1 });
   }
 
-  // =====================================================
-  // USER SIDEBAR
-  // =====================================================
-async getUserConversations(userId: string, applicationId: string) {
+  async getUserConversations(userId: string, applicationId: string) {
 
   if (!Types.ObjectId.isValid(userId))
     throw new BadRequestException('Invalid userId');
@@ -544,30 +320,31 @@ async getUserConversations(userId: string, applicationId: string) {
   };
 }
 
-  // =====================================================
-  // USER TOTAL UNREAD
-  // =====================================================
-  async getUserTotalUnread(userId: string) {
+async getApplicationsByUserId(userId: string) {
 
-  const conversations = await this.convoModel.find({
-    userId: new Types.ObjectId(userId),
-  });
+    const applications = await this.applicationModel
+      .find({ userId: new Types.ObjectId(userId) })
+      .select('_id appId status applicationStatus createdAt')
+      .sort({ createdAt: -1 })
+      .lean();
 
-  let totalUnread = 0;
+    return {
+      success: true,
+      total: applications.length,
+      data: applications,
+    };
+  }
 
-  conversations.forEach((conv) => {
-    totalUnread += conv.unreadUser || 0;
-  });
+  async getAdminConversations(adminId: string) {
+    if (!Types.ObjectId.isValid(adminId))
+      throw new BadRequestException('Invalid adminId');
 
-  return {
-    success: true,
-    totalUnread,
-  };
-}
-
-  // =====================================================
-  // ADMIN TOTAL UNREAD
-  // =====================================================
+    return this.convoModel
+      .find({ adminId: new Types.ObjectId(adminId) })
+      .populate('userId', 'firstName lastName email')
+      .sort({ updatedAt: -1 });
+  }
+    // =====================================================
  async getAdminTotalUnread(adminId: string) {
 
   const conversations = await this.convoModel.find({
@@ -586,24 +363,21 @@ async getUserConversations(userId: string, applicationId: string) {
   };
 }
 
-  // =====================================================
-  // USER APPLICATION LIST
-  // =====================================================
-  async getApplicationsByUserId(userId: string) {
+  async getUserTotalUnread(userId: string) {
 
-    const applications = await this.applicationModel
-      .find({ userId: new Types.ObjectId(userId) })
-      .select('_id appId status applicationStatus createdAt')
-      .sort({ createdAt: -1 })
-      .lean();
+  const conversations = await this.convoModel.find({
+    userId: new Types.ObjectId(userId),
+  });
 
-    return {
-      success: true,
-      total: applications.length,
-      data: applications,
-    };
-  }
+  let totalUnread = 0;
 
+  conversations.forEach((conv) => {
+    totalUnread += conv.unreadUser || 0;
+  });
 
-  
+  return {
+    success: true,
+    totalUnread,
+  };
+}
 }
