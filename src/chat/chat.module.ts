@@ -11,7 +11,7 @@ import { Admin, AdminSchema } from '../admin/schemas/admin.schema';
 import { Application, ApplicationSchema } from '../applications/schemas/application.schema';
 
 import { AdminModule } from '../admin/admin.module';
-import { NotificationModule } from '../notification/notification.module';  // 🔥 ADD THIS
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
@@ -23,7 +23,7 @@ import { NotificationModule } from '../notification/notification.module';  // �
     ]),
 
     forwardRef(() => AdminModule),
-    forwardRef(() => NotificationModule), // 🔥 MUST
+    forwardRef(() => NotificationModule), 
   ],
   providers: [ChatService, ChatGateway],
   controllers: [ChatController],

@@ -7,9 +7,9 @@ import { ChatModule } from '../chat/chat.module';
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: Notification.name, schema: NotificationSchema },
+      { name: Notification.name, schema: NotificationSchema }
     ]),
-    forwardRef(() => ChatModule), 
+    forwardRef(() => ChatModule),
   ],
   providers: [NotificationService],
   exports: [NotificationService],

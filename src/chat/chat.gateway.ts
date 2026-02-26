@@ -229,7 +229,7 @@ export class ChatGateway implements OnModuleInit {
         if (set.size === 0)
           this.adminSockets.delete(adminId);
 
-        console.log("❌ Admin offline:", adminId);
+        console.log(" Admin offline:", adminId);
       }
     }
 

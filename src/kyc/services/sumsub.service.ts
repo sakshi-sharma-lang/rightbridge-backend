@@ -12,6 +12,9 @@ import { Application } from '../../applications/schemas/application.schema';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Kyc } from '../schemas/kyc.schema';
+import { Admin } from '../../admin/schemas/admin.schema';
+import { NotificationService } from '../../notification/notification.service';
+
 
 @Injectable()
 export class SumsubService {
@@ -20,6 +23,10 @@ export class SumsubService {
     private readonly applicationModel: Model<Application>,
     @InjectModel(Kyc.name)
     private readonly kycModel: Model<Kyc>,
+     @InjectModel(Admin.name)
+  private adminModel: Model<Admin>,
+    private notificationService: NotificationService, 
+
   ) {}
   private readonly baseUrl = process.env.SUMSUB_BASE_URL!;
   private readonly appToken = process.env.SUMSUB_APP_TOKEN!;
@@ -473,56 +480,97 @@ async getKycDetails(query: {
   };
 }
 
-  async getApplicantById(applicantId: string) {
-    try {
-      if (!applicantId) {
-        throw new BadRequestException('applicantId is required');
-      }
-
-      const ts = Math.floor(Date.now() / 1000);
-      const path = `/resources/applicants/${applicantId}/one`;
-      const signature = this.createSignature('GET', path, ts);
-
-      const res = await axios.get(this.baseUrl + path, {
-        headers: this.getHeaders(signature, ts),
-        timeout: 10000, // ⏱️ prevent hanging requests
-      });
-
-      return res.data;
-    } catch (err: any) {
-      // Axios error
-      if (err?.response) {
-        const status = err.response.status;
-        const message =
-          err.response.data?.description ||
-          err.response.data?.error ||
-          'Sumsub API error';
-
-        switch (status) {
-          case 400:
-            throw new BadRequestException(message);
-
-          case 401:
-          case 403:
-            throw new UnauthorizedException('Unauthorized with Sumsub API');
-
-          case 404:
-            throw new NotFoundException('Applicant not found in Sumsub');
-
-          default:
-            throw new InternalServerErrorException(message);
-        }
-      }
-
-      // Network / timeout error
-      if (err?.code === 'ECONNABORTED') {
-        throw new InternalServerErrorException('Sumsub API timeout');
-      }
-
-      // Fallback
-      throw new InternalServerErrorException(
-        err?.message || 'Failed to fetch Sumsub data',
-      );
+async getApplicantById(applicantId: string) {
+  try {
+    if (!applicantId) {
+      throw new BadRequestException('applicantId is required');
     }
+
+    // ============================================
+    // 🔐 Create Sumsub Signature
+    // ============================================
+    const ts = Math.floor(Date.now() / 1000);
+    const path = `/resources/applicants/${applicantId}/one`;
+    const signature = this.createSignature('GET', path, ts);
+
+    // ============================================
+    // 📡 Call Sumsub API
+    // ============================================
+    const res = await axios.get(this.baseUrl + path, {
+      headers: this.getHeaders(signature, ts),
+      timeout: 10000,
+    });
+
+    const applicantData = res.data;
+
+    const reviewStatus =
+      applicantData?.review?.reviewStatus || 'unknown';
+
+    const reviewResult =
+      applicantData?.review?.reviewResult?.reviewAnswer || 'pending';
+
+    const externalUserId =
+      applicantData?.externalUserId || 'N/A';
+
+    // ============================================
+    // 🔎 Get KYC Record (to fetch applicationId)
+    // ============================================
+    const kycRecord = await this.kycModel
+      .findOne({ applicantId })
+      .lean();
+
+    const applicationId = kycRecord?.applicationId || null;
+
+    // ============================================
+    // 🔔 Notify Admin ONLY if KYC completed
+    // ============================================
+  
+
+      const superAdmin = await this.adminModel
+        .findOne({ role: 'super_admin' })
+        .select('_id')
+        .lean();
+
+      if (superAdmin?._id) {
+        await this.notificationService.sendToAdmin({
+          adminId: superAdmin._id.toString(),
+          message: `KYC completed for Application ID: ${applicationId}. Status: ${reviewResult}.`,
+          stage: 'kyc_completed',
+          type: 'kyc',
+          applicationId: applicationId,
+        });
+      }
+ 
+
+    return applicantData;
+
+  } catch (err: any) {
+
+    if (err?.response) {
+      const status = err.response.status;
+      const message =
+        err.response.data?.description ||
+        err.response.data?.error ||
+        'Sumsub API error';
+
+      switch (status) {
+        case 400:
+          throw new BadRequestException(message);
+        case 401:
+        case 403:
+          throw new UnauthorizedException('Unauthorized with Sumsub API');
+        case 404:
+          throw new NotFoundException('Applicant not found');
+        default:
+          throw new InternalServerErrorException(message);
+      }
+    }
+
+    if (err?.code === 'ECONNABORTED') {
+      throw new InternalServerErrorException('Sumsub timeout');
+    }
+
+    throw new InternalServerErrorException(err?.message);
   }
+}
 }
