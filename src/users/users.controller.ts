@@ -5,18 +5,26 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { MailService } from '../mail/mail.service';
 import { UpdateUserDto } from './dto/update-user-by-email.dto';
 
+import { Notification, NotificationDocument } from '../notification/schemas/notification.schema';
+import { ChatGateway } from '../chat/chat.gateway';
+
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+
 
 @Controller('users')
 export class UsersController {
   constructor(private usersService: UsersService,
   private readonly mailService: MailService, 
+   private readonly chatGateway: ChatGateway,
 
-
+  @InjectModel(Notification.name)
+  private readonly notificationModel: Model<NotificationDocument>,
     ) {}
 
   
-  @Post('register')
- async create(@Body() createUserDto: CreateUserDto) { //  use DTO
+@Post('register')
+async create(@Body() createUserDto: CreateUserDto) { //  use DTO
   const { email, phoneNumber, password, ...rest } = createUserDto;
 
   // 🔹 Check email
@@ -51,9 +59,38 @@ export class UsersController {
       otp_expiry_time,
     );
 
+    // 🔔 notification for OTP resend
+   const notification = await this.notificationModel.create({
+  userId: emailExists._id,
+  applicationId: null,
+  stage: "otp_resent",
+  message: 'OTP resent successfully. Please verify your email.',
+  type: 'stage_update',
+  isRead: false,
+});
+
+    const payload = {
+      id: notification._id,
+      type: "stage_update",
+      title: "OTP Sent",
+      message: 'OTP resent successfully. Please verify your email.',
+      applicationId: null,
+      stage: "otp_resent",
+      createdAt: notification.createdAt || new Date(),
+      isRead: false,
+    };
+
+    console.log("📦 WS PAYLOAD:", JSON.stringify(payload, null, 2));
+    console.log("👤 Sending to user:", emailExists._id.toString());
+
+    this.chatGateway.sendNotificationToUser(
+      emailExists._id.toString(),
+      payload
+    );
+
     return {
       message: 'OTP resent successfully. Please verify your email.',
-        error: null,
+      error: null,
       statusCode: 200,
     };
   }
@@ -91,6 +128,35 @@ export class UsersController {
     otp_expiry_time,
   );
 
+  // 🔔 CREATE NOTIFICATION (REGISTER SUCCESS)
+ const notification = await this.notificationModel.create({
+  userId: user._id,
+  applicationId: null,
+  stage: "register",
+  message: 'Your account has been created. Please verify your email using OTP.',
+  type: 'stage_update',
+  isRead: false,
+});
+
+  const payload = {
+    id: notification._id,
+    type: "stage_update",
+    title: "Registration Successful",
+    message: 'Your account has been created. Please verify your email using OTP.',
+    applicationId: null,
+    stage: "register",
+    createdAt: notification.createdAt || new Date(),
+    isRead: false,
+  };
+
+  console.log("📦 WS PAYLOAD:", JSON.stringify(payload, null, 2));
+  console.log("👤 Sending to user:", user._id.toString());
+
+  this.chatGateway.sendNotificationToUser(
+    user._id.toString(),
+    payload
+  );
+
   const {
     password: _pwd,
     otp: _otp,
@@ -99,11 +165,11 @@ export class UsersController {
   } = user.toObject();
 
   return {
-  message: 'User registered successfully',
-  error: null,
-  statusCode: 201,
-  data: result,
-};
+    message: 'User registered successfully',
+    error: null,
+    statusCode: 201,
+    data: result,
+  };
 }
 
 

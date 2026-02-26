@@ -5,17 +5,21 @@ import { UsersController } from './users.controller';
 import { User, UserSchema } from './schemas/user.schema';
 
 import { MailModule } from '../mail/mail.module';
+import { ChatModule } from '../chat/chat.module';
+
+import { Notification, NotificationSchema } from '../notification/schemas/notification.schema';
 
 @Module({
-
   imports: [
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
+      { name: Notification.name, schema: NotificationSchema },
     ]),
     MailModule,
+    ChatModule, // 🔥 fix
   ],
   controllers: [UsersController],
   providers: [UsersService],
-  exports: [UsersService], //  MUST BE HERE
+  exports: [UsersService],
 })
 export class UsersModule {}

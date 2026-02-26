@@ -9,8 +9,9 @@ export class Notification {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Application', required: true })
-  applicationId: Types.ObjectId;
+  // Optional
+  @Prop({ type: Types.ObjectId, ref: 'Application', required: false })
+  applicationId?: Types.ObjectId | null;
 
   @Prop({ required: true })
   stage: string;
