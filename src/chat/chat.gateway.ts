@@ -84,8 +84,7 @@ export class ChatGateway implements OnModuleInit {
     }
 
     // ADMIN CONNECT
-    // ADMIN → USER
-if (data.role === 'admin' || data.senderRole === 'super_admin') {
+    if (data.role === 'admin') {
       const adminId = String(data.adminId);
 
       const adminSet =
@@ -101,7 +100,7 @@ if (data.role === 'admin' || data.senderRole === 'super_admin') {
   // =====================================================
   // SEND MESSAGE REALTIME
   // =====================================================
-  async handleSendMessage(data: any) {
+async handleSendMessage(data: any) {
 
   console.log("\n==============================");
   console.log("📨 NEW MESSAGE Incoming:", data);
@@ -109,10 +108,13 @@ if (data.role === 'admin' || data.senderRole === 'super_admin') {
   let savedMessage;
 
   // ==============================
-  // SAVE MESSAGE DB
+  // DETECT SENDER USING IDs
   // ==============================
+  const isAdminSender = Boolean(data.adminId && !data.userId);
+  const isUserSender = Boolean(data.userId && !data.adminId);
+
   try {
-    if (data.senderType === 'admin') {
+    if (isAdminSender) {
       savedMessage = await this.chatService.sendMessageByAdmin(data);
     } else {
       savedMessage = await this.chatService.sendMessageByUser(data);
@@ -141,9 +143,8 @@ if (data.role === 'admin' || data.senderRole === 'super_admin') {
   // =========================================
   // SEND MESSAGE TO USER
   // =========================================
-  const userSocket = this.userSockets.get(
-    conversation.userId?.toString()
-  );
+  const conversationUserId = conversation.userId?.toString();
+  const userSocket = this.userSockets.get(conversationUserId);
 
   if (userSocket && userSocket.readyState === WebSocket.OPEN) {
     userSocket.send(payload);
@@ -151,11 +152,10 @@ if (data.role === 'admin' || data.senderRole === 'super_admin') {
   }
 
   // =========================================
-  // SEND MESSAGE TO ADMIN (MULTI TAB SAFE)
+  // SEND MESSAGE TO ADMIN
   // =========================================
-  const adminSet = this.adminSockets.get(
-    conversation.adminId?.toString()
-  );
+  const conversationAdminId = conversation.adminId?.toString();
+  const adminSet = this.adminSockets.get(conversationAdminId);
 
   adminSet?.forEach(sock => {
     if (sock.readyState === WebSocket.OPEN) {
@@ -165,40 +165,32 @@ if (data.role === 'admin' || data.senderRole === 'super_admin') {
   });
 
   // =====================================================
-  // 🔔 ONE TO ONE MESSAGE NOTIFICATION (ALWAYS)
+  // 🔔 NOTIFICATION (ID BASED — NO ROLE CHECK)
   // =====================================================
   try {
 
     const text = messageData?.message || "New message";
 
-    // USER → ADMIN
-    if (data.senderType === 'user') {
-      const adminId = conversation.adminId?.toString();
-
-      if (adminId) {
-        await this.notificationService.sendToAdmin({
-          adminId: adminId,
-          message: `User: ${text}`,
-          stage: 'chat',
-          type: 'chat',
-          applicationId: conversation.applicationId?.toString() || null,
-        });
-      }
+    // If admin sent → notify user
+    if (isAdminSender && conversationUserId) {
+      await this.notificationService.sendToUser({
+        userId: conversationUserId,
+        message: `Admin: ${text}`,
+        stage: 'chat',
+        type: 'chat',
+        applicationId: conversation.applicationId?.toString() || null,
+      });
     }
 
-    // ADMIN → USER
-    if (data.senderType === 'admin') {
-      const userId = conversation.userId?.toString();
-
-      if (userId) {
-        await this.notificationService.sendToUser({
-          userId: userId,
-          message: `Admin: ${text}`,
-          stage: 'chat',
-          type: 'chat',
-          applicationId: conversation.applicationId?.toString() || null,
-        });
-      }
+    // If user sent → notify admin
+    if (isUserSender && conversationAdminId) {
+      await this.notificationService.sendToAdmin({
+        adminId: conversationAdminId,
+        message: `User: ${text}`,
+        stage: 'chat',
+        type: 'chat',
+        applicationId: conversation.applicationId?.toString() || null,
+      });
     }
 
   } catch (err) {
