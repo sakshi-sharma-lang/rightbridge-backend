@@ -100,7 +100,7 @@ export class ChatGateway implements OnModuleInit {
   // =====================================================
   // SEND MESSAGE REALTIME
   // =====================================================
-async handleSendMessage(data: any) {
+  async handleSendMessage(data: any) {
 
   console.log("\n==============================");
   console.log("📨 NEW MESSAGE Incoming:", data);
@@ -108,13 +108,10 @@ async handleSendMessage(data: any) {
   let savedMessage;
 
   // ==============================
-  // DETECT SENDER USING IDs
+  // SAVE MESSAGE DB
   // ==============================
-  const isAdminSender = Boolean(data.adminId && !data.userId);
-  const isUserSender = Boolean(data.userId && !data.adminId);
-
   try {
-    if (isAdminSender) {
+    if (data.senderType === 'admin') {
       savedMessage = await this.chatService.sendMessageByAdmin(data);
     } else {
       savedMessage = await this.chatService.sendMessageByUser(data);
@@ -143,8 +140,9 @@ async handleSendMessage(data: any) {
   // =========================================
   // SEND MESSAGE TO USER
   // =========================================
-  const conversationUserId = conversation.userId?.toString();
-  const userSocket = this.userSockets.get(conversationUserId);
+  const userSocket = this.userSockets.get(
+    conversation.userId?.toString()
+  );
 
   if (userSocket && userSocket.readyState === WebSocket.OPEN) {
     userSocket.send(payload);
@@ -152,10 +150,11 @@ async handleSendMessage(data: any) {
   }
 
   // =========================================
-  // SEND MESSAGE TO ADMIN
+  // SEND MESSAGE TO ADMIN (MULTI TAB SAFE)
   // =========================================
-  const conversationAdminId = conversation.adminId?.toString();
-  const adminSet = this.adminSockets.get(conversationAdminId);
+  const adminSet = this.adminSockets.get(
+    conversation.adminId?.toString()
+  );
 
   adminSet?.forEach(sock => {
     if (sock.readyState === WebSocket.OPEN) {
@@ -165,32 +164,40 @@ async handleSendMessage(data: any) {
   });
 
   // =====================================================
-  // 🔔 NOTIFICATION (ID BASED — NO ROLE CHECK)
+  // 🔔 ONE TO ONE MESSAGE NOTIFICATION (ALWAYS)
   // =====================================================
   try {
 
     const text = messageData?.message || "New message";
 
-    // If admin sent → notify user
-    if (isAdminSender && conversationUserId) {
-      await this.notificationService.sendToUser({
-        userId: conversationUserId,
-        message: `Admin: ${text}`,
-        stage: 'chat',
-        type: 'chat',
-        applicationId: conversation.applicationId?.toString() || null,
-      });
+    // USER → ADMIN
+    if (data.senderType === 'user') {
+      const adminId = conversation.adminId?.toString();
+
+      if (adminId) {
+        await this.notificationService.sendToAdmin({
+          adminId: adminId,
+          message: `User: ${text}`,
+          stage: 'chat',
+          type: 'chat',
+          applicationId: conversation.applicationId?.toString() || null,
+        });
+      }
     }
 
-    // If user sent → notify admin
-    if (isUserSender && conversationAdminId) {
-      await this.notificationService.sendToAdmin({
-        adminId: conversationAdminId,
-        message: `User: ${text}`,
-        stage: 'chat',
-        type: 'chat',
-        applicationId: conversation.applicationId?.toString() || null,
-      });
+    // ADMIN → USER
+    if (data.senderType === 'admin') {
+      const userId = conversation.userId?.toString();
+
+      if (userId) {
+        await this.notificationService.sendToUser({
+          userId: userId,
+          message: `Admin: ${text}`,
+          stage: 'chat',
+          type: 'chat',
+          applicationId: conversation.applicationId?.toString() || null,
+        });
+      }
     }
 
   } catch (err) {
