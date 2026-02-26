@@ -69,7 +69,7 @@ export class NotificationService {
         data: notification,
       };
     } catch (error) {
-      console.error('❌ sendToUser error:', error.message);
+      console.error('❌ FULL USER ERROR:', error);
       return {
         success: false,
         message: error.message || 'Failed to send user notification',
@@ -132,7 +132,7 @@ export class NotificationService {
         data: notification,
       };
     } catch (error) {
-      console.error('❌ sendToAdmin error:', error.message);
+      console.error('❌ FULL ADMIN ERROR:', error);
       return {
         success: false,
         message: error.message || 'Failed to send admin notification',
