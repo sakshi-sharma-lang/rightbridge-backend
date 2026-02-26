@@ -5,25 +5,23 @@ import { Application } from '../applications/schemas/application.schema';
 import { MailService } from '../mail/mail.service'; 
 import { User } from '../users/schemas/user.schema'; 
 
-import { Notification } from '../notification/schemas/notification.schema';
-import { ChatGateway } from '../chat/chat.gateway';
 
+import { ChatGateway } from '../chat/chat.gateway';
+import { NotificationService } from '../notification/notification.service';
 
 
 @Injectable()
 export class AdminApplicationsService {
- constructor(
+constructor(
   @InjectModel(Application.name)
   private readonly applicationModel: Model<Application>,
 
   @InjectModel(User.name)
   private readonly userModel: Model<User>,
 
-  @InjectModel(Notification.name)
-  private readonly notificationModel: Model<Notification>,
-
   private readonly mailService: MailService,
-  private readonly chatGateway: ChatGateway,
+
+  private readonly notificationService: NotificationService,
 ) {}
 
 
@@ -98,66 +96,32 @@ async updateStageManagment(appId: string, stage: string, email: string) {
     // =====================================================
     // 🔔 SAVE NOTIFICATION + REALTIME
     // =====================================================
-    if (app.userId) {
-      try {
-        const notificationMessage = `Your application stage updated to ${stage}`;
+   // =====================================================
+// 🔔 NOTIFICATION (CLEAN WAY - USING SERVICE)
+// =====================================================
+if (app.userId) {
+  try {
 
-        console.log("🔔 Creating DB notification for user:", app.userId);
+    const formattedStage = stage
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
 
-        const notification = await this.notificationModel.create({
-          userId: app.userId,
-          applicationId: app._id,
-          stage: stage,
-          message: notificationMessage,
-          type: 'stage_update',
-          isRead: false,
-        });
+    const finalMessage = `Your application moved to ${formattedStage}`;
 
-        console.log("✅ Notification saved:", notification._id);
+    await this.notificationService.sendToUser({
+      userId: app.userId.toString(),
+      message: finalMessage,
+      stage: stage,
+      type: 'stage_update',
+      applicationId: app._id.toString(),
+    });
 
-        console.log("📡 Sending realtime notification via WS...");
+    console.log("✅ Notification handled by NotificationService");
 
-   console.log("📡 Sending realtime notification via WS...");
-
-// format stage user readable
-const formattedStage = stage
-  .replace(/_/g, " ")
-  .replace(/\b\w/g, (c) => c.toUpperCase());
-
-const finalMessage = `Your application moved to ${formattedStage}`;
-
-// payload for frontend
-const payload = {
-  id: notification._id,
-  type: "stage_update",
-  title: "Application Stage Updated",
-  message: finalMessage,
-  applicationId: app._id.toString(),
-  stage: stage,
-  createdAt: notification.createdAt || new Date(),
-  isRead: false,
-};
-
-// log payload
-console.log("📦 WS PAYLOAD:", JSON.stringify(payload, null, 2));
-console.log("👤 Sending to user:", app.userId.toString());
-
-// send realtime
-this.chatGateway.sendNotificationToUser(
-  app.userId.toString(),
-  payload
-);
-
-console.log("✅ Realtime notification sent");
-
-        console.log("✅ Realtime notification sent");
-
-      } catch (notificationError) {
-        console.log("❌ Notification error:", notificationError.message);
-      }
-    } else {
-      console.log("⚠️ No userId found, skipping realtime notification");
-    }
+  } catch (notificationError) {
+    console.log("❌ Notification error:", notificationError.message);
+  }
+}
 
     // =====================================================
     // EMAIL CHECK

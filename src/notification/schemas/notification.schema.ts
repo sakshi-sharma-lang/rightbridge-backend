@@ -6,8 +6,8 @@ export type NotificationDocument = Notification & Document;
 @Schema({ timestamps: true })
 export class Notification {
 
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
-  userId: Types.ObjectId;
+@Prop({ required: false })
+userId: Types.ObjectId;
 
   // Optional
   @Prop({ type: Types.ObjectId, ref: 'Application', required: false })
@@ -16,13 +16,16 @@ export class Notification {
   @Prop({ required: true })
   stage: string;
 
+  @Prop({ type: Types.ObjectId, ref: 'Admin', required: false })
+  adminId?: Types.ObjectId;
+
   @Prop({ required: true })
   message: string;
 
   @Prop({ default: false })
   isRead: boolean;
 
-  @Prop({ default: 'stage_update' })
+  @Prop({ default: '' })
   type: string;
 
   createdAt?: Date;

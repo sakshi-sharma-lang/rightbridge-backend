@@ -14,6 +14,9 @@ import Stripe from 'stripe';
 import { Payment } from './schemas/payment.schema';
 import { Application } from '../applications/schemas/application.schema';
 
+import { NotificationService } from '../notification/notification.service';
+
+import { Admin, AdminDocument } from '../admin/schemas/admin.schema';
 @Injectable()
 export class PaymentsService {
   private stripe: Stripe;
@@ -24,6 +27,10 @@ export class PaymentsService {
 
     @InjectModel(Application.name)
     private readonly applicationModel: Model<Application>,
+
+      @InjectModel(Admin.name)
+  private readonly adminModel: Model<AdminDocument>,
+    private readonly notificationService: NotificationService
   ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
   }
@@ -215,25 +222,60 @@ export class PaymentsService {
           break;
         }
 
-        case 'payment_intent.succeeded': {
-          console.log('➡️ Handling payment_intent.succeeded');
+       case 'payment_intent.succeeded': {
+  console.log('➡️ Handling payment_intent.succeeded');
 
-          const result = await this.paymentModel.updateOne(
-            { stripePaymentIntentId: intent.id },
-            {
-              $set: {
-                applicationId: intent.metadata?.applicationId,
-                userId: intent.metadata?.userId,
-                amount: intent.amount / 100,
-                status: 'PAID',
-              },
-            },
-            { upsert: true },
-          );
+  const result = await this.paymentModel.updateOne(
+    { stripePaymentIntentId: intent.id },
+    {
+      $set: {
+        applicationId: intent.metadata?.applicationId,
+        userId: intent.metadata?.userId,
+        amount: intent.amount / 100,
+        status: 'PAID',
+      },
+    },
+    { upsert: true },
+  );
 
-          console.log('DB result:', result);
-          break;
-        }
+  console.log('DB result:', result);
+
+  // =====================================================
+  // 🔔 SEND NOTIFICATION TO USER + ADMIN
+  // =====================================================
+  try {
+    const userId = intent.metadata?.userId;
+    const applicationId = intent.metadata?.applicationId;
+
+    if (userId) {
+      await this.notificationService.sendToUser({
+        userId: userId,
+        message: `Payment successful (£${intent.amount / 100})`,
+        stage: 'payment_success',
+        type: 'payment',
+        applicationId: applicationId || null,
+      });
+    }
+
+    // 🔔 notify admin (change adminId if dynamic)
+    const ADMIN_ID = "6954c6f2a0fd9b2bedd97c68"; 
+
+    await this.notificationService.sendToAdmin({
+      adminId: ADMIN_ID,
+      message: `User completed payment (£${intent.amount / 100})`,
+      stage: 'payment_success',
+      type: 'payment',
+      applicationId: applicationId || null,
+    });
+
+    console.log("✅ Payment notifications sent");
+
+  } catch (err) {
+    console.log("❌ Payment notification error:", err.message);
+  }
+
+  break;
+}
 
         case 'payment_intent.payment_failed': {
           console.log('➡️ Handling payment_intent.payment_failed');
@@ -622,5 +664,17 @@ async getPaymentStatus(applicationId: string) {
   };
 }
 
+async getSuperAdminId(): Promise<string | null> {
+  const admin = await this.adminModel
+    .findOne({ role: 'super_admin' }) // filter optional
+    .select('_id')
+    .lean();
 
+  if (!admin) {
+    console.log("❌ Super admin not found");
+    return null;
+  }
+
+  return admin._id.toString();
+}
 }

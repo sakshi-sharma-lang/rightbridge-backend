@@ -1,11 +1,17 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import * as WebSocket from 'ws';
+import { NotificationService } from '../notification/notification.service';
+import { Inject, forwardRef } from '@nestjs/common';
 
 @Injectable()
 export class ChatGateway implements OnModuleInit {
-  constructor(private chatService: ChatService) {}
+ constructor(
+  private chatService: ChatService,
 
+  @Inject(forwardRef(() => NotificationService))
+  private notificationService: NotificationService,
+) {}
   private wss: WebSocket.Server;
 
   // single user → single socket
@@ -96,71 +102,111 @@ export class ChatGateway implements OnModuleInit {
   // =====================================================
   async handleSendMessage(data: any) {
 
-    console.log("\n==============================");
-    console.log("📨 NEW MESSAGE Incoming:", data);
+  console.log("\n==============================");
+  console.log("📨 NEW MESSAGE Incoming:", data);
 
-    let savedMessage;
+  let savedMessage;
 
-    // ==============================
-    // SAVE MESSAGE DB
-    // ==============================
-    try {
-      // 🔥 FIX: senderRole → senderType
-      if (data.senderType === 'admin') {
-        savedMessage = await this.chatService.sendMessageByAdmin(data);
-      } else {
-        savedMessage = await this.chatService.sendMessageByUser(data);
-      }
-    } catch (err) {
-      console.log("❌ DB SAVE ERROR:", err);
-      return;
+  // ==============================
+  // SAVE MESSAGE DB
+  // ==============================
+  try {
+    if (data.senderType === 'admin') {
+      savedMessage = await this.chatService.sendMessageByAdmin(data);
+    } else {
+      savedMessage = await this.chatService.sendMessageByUser(data);
     }
+  } catch (err) {
+    console.log("❌ DB SAVE ERROR:", err);
+    return;
+  }
 
-    const conversation = savedMessage?.conversation;
-    const messageData = savedMessage?.messageData;
+  const conversation = savedMessage?.conversation;
+  const messageData = savedMessage?.messageData;
 
-    if (!conversation) {
-      console.log("❌ conversation missing after save");
-      return;
-    }
+  if (!conversation) {
+    console.log("❌ conversation missing after save");
+    return;
+  }
 
-    const payload = JSON.stringify({
-      type: "receiveMessage",
-      conversationId: conversation._id,
-      data: messageData
-    });
+  const payload = JSON.stringify({
+    type: "receiveMessage",
+    conversationId: conversation._id,
+    data: messageData
+  });
 
-    let delivered = 0;
+  let delivered = 0;
 
-    // =========================================
-    // SEND TO USER
-    // =========================================
-    const userSocket = this.userSockets.get(
-      conversation.userId?.toString()
-    );
+  // =========================================
+  // SEND MESSAGE TO USER
+  // =========================================
+  const userSocket = this.userSockets.get(
+    conversation.userId?.toString()
+  );
 
-    if (userSocket && userSocket.readyState === WebSocket.OPEN) {
-      userSocket.send(payload);
+  if (userSocket && userSocket.readyState === WebSocket.OPEN) {
+    userSocket.send(payload);
+    delivered++;
+  }
+
+  // =========================================
+  // SEND MESSAGE TO ADMIN (MULTI TAB SAFE)
+  // =========================================
+  const adminSet = this.adminSockets.get(
+    conversation.adminId?.toString()
+  );
+
+  adminSet?.forEach(sock => {
+    if (sock.readyState === WebSocket.OPEN) {
+      sock.send(payload);
       delivered++;
     }
+  });
 
-    // =========================================
-    // SEND ONLY ASSIGNED ADMIN (MULTI TAB SAFE)
-    // =========================================
-    const adminSet = this.adminSockets.get(
-      conversation.adminId?.toString()
-    );
+  // =====================================================
+  // 🔔 ONE TO ONE MESSAGE NOTIFICATION (ALWAYS)
+  // =====================================================
+  try {
 
-    adminSet?.forEach(sock => {
-      if (sock.readyState === WebSocket.OPEN) {
-        sock.send(payload);
-        delivered++;
+    const text = messageData?.message || "New message";
+
+    // USER → ADMIN
+    if (data.senderType === 'user') {
+      const adminId = conversation.adminId?.toString();
+
+      if (adminId) {
+        await this.notificationService.sendToAdmin({
+          adminId: adminId,
+          message: `User: ${text}`,
+          stage: 'chat',
+          type: 'chat',
+          applicationId: conversation.applicationId?.toString() || null,
+        });
       }
-    });
+    }
 
-    console.log("🚀 Delivered sockets:", delivered);
-    console.log("==============================\n");
+    // ADMIN → USER
+    if (data.senderType === 'admin') {
+      const userId = conversation.userId?.toString();
+
+      if (userId) {
+        await this.notificationService.sendToUser({
+          userId: userId,
+          message: `Admin: ${text}`,
+          stage: 'chat',
+          type: 'chat',
+          applicationId: conversation.applicationId?.toString() || null,
+        });
+      }
+    }
+
+  } catch (err) {
+    console.log("❌ Notification error:", err.message);
   }
+
+  console.log("🚀 Delivered sockets:", delivered);
+  console.log("==============================\n");
+}
 
   // =====================================================
   // DISCONNECT CLEANUP
@@ -218,4 +264,33 @@ export class ChatGateway implements OnModuleInit {
   }
 
 }
+// =====================================================
+// SEND NOTIFICATION TO ADMIN (MULTI TAB SAFE)
+// =====================================================
+sendNotificationToAdmin(adminId: string, payload: any) {
+  console.log("\n=========== ADMIN WS NOTIFICATION ===========");
+  console.log("🛡 Sending to admin:", adminId);
+  console.log("Payload:", payload);
+
+  const adminSet = this.adminSockets.get(String(adminId));
+
+  if (!adminSet || adminSet.size === 0) {
+    console.log("❌ Admin offline (no sockets)");
+    console.log("============================================\n");
+    return;
+  }
+
+  adminSet.forEach(socket => {
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: "notification",
+        data: payload
+      }));
+    }
+  });
+
+  console.log("✅ Admin notification delivered");
+  console.log("============================================\n");
+}
+
 }
