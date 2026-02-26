@@ -229,41 +229,41 @@ export class KycController {
 @Post('client-status/update')
 async saveOrUpdateKyc(@Body() body: any) {
   try {
-    const { externalUserId, applicationId } = body;
+    const { applicantId } = body;
 
-    if (!externalUserId && !applicationId) {
-      throw new BadRequestException(
-        'externalUserId or applicationId is required',
-      );
+    if (!applicantId) {
+      throw new BadRequestException('applicantId is required');
     }
 
+    // never allow _id overwrite
     delete body._id;
 
-    const saved = await this.kycModel.findOneAndUpdate(
+    const updated = await this.kycModel.findOneAndUpdate(
+      { applicantId: applicantId },   // 🔴 match ONLY by applicantId
+      { $set: body },
       {
-        $or: [
-          { externalUserId: externalUserId || null },
-          { applicationId: applicationId || null },
-        ],
-      },
-      body,
-      {
-        upsert: true,
         new: true,
+        upsert: false,               // 🔴 DO NOT create new record
         runValidators: false,
         strict: false,
       },
     );
 
+    if (!updated) {
+      throw new BadRequestException(
+        `No record found for applicantId ${applicantId}`,
+      );
+    }
+
     return {
       success: true,
-      message: 'KYC data saved successfully',
-      action: 'UPSERTED', // created or updated
-      kycId: saved._id,
+      message: 'KYC updated successfully',
+      action: 'UPDATED',
+      kycId: updated._id,
     };
   } catch (error: any) {
     throw new InternalServerErrorException(
-      error?.message || 'Failed to save KYC data',
+      error?.message || 'Failed to update KYC data',
     );
   }
 }

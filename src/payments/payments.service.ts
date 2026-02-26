@@ -257,17 +257,26 @@ export class PaymentsService {
       });
     }
 
-    // 🔔 notify admin (change adminId if dynamic)
-    const ADMIN_ID = "6954c6f2a0fd9b2bedd97c68"; 
 
-    await this.notificationService.sendToAdmin({
-      adminId: ADMIN_ID,
-      message: `User completed payment (£${intent.amount / 100})`,
-      stage: 'payment_success',
-      type: 'payment',
-      applicationId: applicationId || null,
-    });
+// 🔍 find super admin dynamically
+const superAdmin = await this.adminModel
+  .findOne({ role: 'super_admin' })
+  .select('_id')
+  .lean();
 
+if (superAdmin?._id) {
+  await this.notificationService.sendToAdmin({
+    adminId: superAdmin._id.toString(),
+    message: `User completed payment (£${intent.amount / 100})`,
+    stage: 'payment_success',
+    type: 'payment',
+    applicationId: applicationId || null,
+  });
+
+  console.log("✅ Admin notification sent");
+} else {
+  console.log("❌ Super admin not found");
+}
     console.log("✅ Payment notifications sent");
 
   } catch (err) {

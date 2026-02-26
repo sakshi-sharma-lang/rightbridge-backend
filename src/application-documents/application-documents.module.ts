@@ -11,12 +11,21 @@ import {
   ApplicationSchema,
 } from '../applications/schemas/application.schema';
 
+import { NotificationModule } from '../notification/notification.module';
+
+// ✅ IMPORT ADMIN SCHEMA (adjust path if needed)
+import { Admin, AdminSchema } from '../admin/schemas/admin.schema';
+
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: ApplicationDocument.name, schema: ApplicationDocumentSchema },
       { name: Application.name, schema: ApplicationSchema },
+
+      // ⭐ THIS IS REQUIRED
+      { name: Admin.name, schema: AdminSchema },
     ]),
+    NotificationModule,
   ],
   controllers: [ApplicationDocumentsController],
   providers: [ApplicationDocumentsService],

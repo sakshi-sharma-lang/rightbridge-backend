@@ -10,6 +10,7 @@ import { Application } from '../applications/schemas/application.schema';
 import { DocumentItem } from './schemas/application-document.schema';
 import { DOCUMENT_TYPE_MAP, REQUIRED_DOCUMENTS } from './document-types';
 import { S3Helper } from '../common/s3.helper';
+import { NotificationService } from '../notification/notification.service';
 @Injectable()
 export class ApplicationDocumentsService {
   constructor(
@@ -18,73 +19,75 @@ export class ApplicationDocumentsService {
 
     @InjectModel(Application.name)
     private applicationModel: Model<Application>,
+
+    @InjectModel('Admin')
+    private adminModel: Model<any>,
+
+  private readonly notificationService: NotificationService, 
+
   ) {}
 
   // ================= USER UPLOAD =================
-  async moveAndSave(
-    userId: string,
-    applicationId: string,
-    type: string,
-    file: Express.Multer.File,
-    uploadedBy?: string,
-  ) {
-    try {
-      //  validations
-      if (!userId) throw new BadRequestException('userId is required');
-      if (!applicationId)
-        throw new BadRequestException('applicationId is required');
-      if (!Types.ObjectId.isValid(applicationId))
-        throw new BadRequestException('Invalid applicationId format');
+// ================= USER UPLOAD =================
+async moveAndSave(
+  userId: string,
+  applicationId: string,
+  type: string,
+  file: Express.Multer.File,
+  uploadedBy?: string,
+) {
+  try {
+    if (!userId) throw new BadRequestException('userId is required');
+    if (!applicationId)
+      throw new BadRequestException('applicationId is required');
+    if (!Types.ObjectId.isValid(applicationId))
+      throw new BadRequestException('Invalid applicationId format');
 
-      if (!type) throw new BadRequestException('Document type is required');
-      if (!file) throw new BadRequestException('File is required');
+    if (!type) throw new BadRequestException('Document type is required');
+    if (!file) throw new BadRequestException('File is required');
 
-      if (!file.buffer || file.size === 0)
-        throw new BadRequestException('Uploaded file is empty');
+    if (!file.buffer || file.size === 0)
+      throw new BadRequestException('Uploaded file is empty');
 
-      if (!REQUIRED_DOCUMENTS.includes(type as any)) {
-        throw new BadRequestException(
-          `Invalid document type. Allowed types: ${REQUIRED_DOCUMENTS.join(', ')}`,
-        );
-      }
+    if (!REQUIRED_DOCUMENTS.includes(type as any)) {
+      throw new BadRequestException(
+        `Invalid document type. Allowed types: ${REQUIRED_DOCUMENTS.join(', ')}`,
+      );
+    }
 
-      const application = await this.applicationModel.findById(applicationId);
-      if (!application) throw new BadRequestException('Application not found');
+    const application = await this.applicationModel.findById(applicationId);
+    if (!application) throw new BadRequestException('Application not found');
 
-      //  upload to S3
-      const now = new Date();
+    // upload to S3
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
 
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const key = `userdocument/${year}/${month}/${day}/${applicationId}/${type}/${Date.now()}-${file.originalname}`;
-      const s3Url = await S3Helper.upload(file, key);
+    const key = `userdocument/${year}/${month}/${day}/${applicationId}/${type}/${Date.now()}-${file.originalname}`;
+    const s3Url = await S3Helper.upload(file, key);
 
-      const newDoc: DocumentItem = {
-        type,
-        filePath: s3Url,
-        originalName: file.originalname,
-        size: file.size,
-        uploadedBy: uploadedBy ?? 'user',
-        createdAt: new Date(),
-      };
+    const newDoc: DocumentItem = {
+      type,
+      filePath: s3Url,
+      originalName: file.originalname,
+      size: file.size,
+      uploadedBy: uploadedBy ?? 'user',
+      createdAt: new Date(),
+    };
 
-      let record = await this.documentModel.findOne({ applicationId, userId });
+    let record = await this.documentModel.findOne({ applicationId, userId });
 
-      if (!record) {
-        record = await this.documentModel.create({
-          applicationId,
-          userId,
-          documents: [newDoc],
-        });
-
-        return { message: 'Document uploaded successfully', record };
-      }
-
+    if (!record) {
+      record = await this.documentModel.create({
+        applicationId,
+        userId,
+        documents: [newDoc],
+      });
+    } else {
       const index = record.documents.findIndex((d) => d.type === type);
 
       if (index !== -1) {
-        // delete old from S3
         try {
           await S3Helper.delete(record.documents[index].filePath);
         } catch (e) {
@@ -96,21 +99,41 @@ export class ApplicationDocumentsService {
       }
 
       await record.save();
-
-      return {
-        message:
-          index !== -1
-            ? 'Document replaced successfully'
-            : 'Document uploaded successfully',
-        record,
-      };
-    } catch (error) {
-      if (error instanceof BadRequestException) throw error;
-
-      console.error('UPLOAD DOCUMENT ERROR:', error);
-      throw new InternalServerErrorException('Document upload failed');
     }
+
+    // 🔔 notify admin
+    try {
+      const superAdmin = await this.adminModel
+        .findOne({ role: 'super_admin' })
+        .select('_id')
+        .lean();
+
+      if (superAdmin?._id) {
+        await this.notificationService.sendToAdmin({
+          adminId: superAdmin._id.toString(),
+          message: `User uploaded document: ${this.humanizeType(type)}`,
+          stage: 'document_uploaded',
+          type: 'document',
+          applicationId: applicationId,
+        });
+
+        console.log('✅ Admin notified for document upload');
+      }
+    } catch (err) {
+      console.log('❌ Admin notification error:', err.message);
+    }
+
+    return {
+      message: 'Document uploaded successfully',
+      record,
+    };
+
+  } catch (error) {
+    if (error instanceof BadRequestException) throw error;
+    console.error('UPLOAD DOCUMENT ERROR:', error);
+    throw new InternalServerErrorException('Document upload failed');
   }
+}
 
   // ================= USER GET =================
   async getByApplication(applicationId: string, userId: string) {
@@ -366,15 +389,36 @@ export class ApplicationDocumentsService {
       };
 
       //  save in DB
-      await this.documentModel.findOneAndUpdate(
-        { applicationId, userId },
-        {
-          $push: {
-            [`adminDocumentUpload.${type}`]: newDoc,
-          },
-        },
-        { upsert: true, new: true },
-      );
+      //  save in DB
+await this.documentModel.findOneAndUpdate(
+  { applicationId, userId },
+  {
+    $push: {
+      [`adminDocumentUpload.${type}`]: newDoc,
+    },
+  },
+  { upsert: true, new: true },
+);
+
+// 🔔 ADMIN uploaded → notify USER
+try {
+  await this.notificationService.sendToUser({
+    userId: userId,
+    message: `Admin uploaded ${this.humanizeType(type)} for your application`,
+    stage: 'admin_document_uploaded',
+    type: 'document',
+    applicationId: applicationId,
+  });
+
+  console.log("✅ User notified for admin upload");
+} catch (err) {
+  console.log("❌ User notification error:", err.message);
+}
+
+return {
+  message: 'Admin document uploaded successfully',
+  data: newDoc,
+};
 
       return {
         message: 'Admin document uploaded successfully',
