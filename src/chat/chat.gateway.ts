@@ -84,7 +84,8 @@ export class ChatGateway implements OnModuleInit {
     }
 
     // ADMIN CONNECT
-    if (data.role === 'admin') {
+    // ADMIN → USER
+if (data.role === 'admin' || data.senderRole === 'super_admin') {
       const adminId = String(data.adminId);
 
       const adminSet =
