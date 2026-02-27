@@ -76,8 +76,6 @@ async sendMessageByUser(data: any) {
   try {
     const { userId, adminId, message, applicationId, role } = data;
 
-    // const allowedRoles = ['super_admin', 'underwriter', 'operations'];
-
     // ===============================
     // Required Field Validation
     // ===============================
@@ -95,14 +93,6 @@ async sendMessageByUser(data: any) {
 
     if (!role)
       throw new BadRequestException('role is required');
-
-    // ===============================
-    // Role Validation
-    // ===============================
-    // if (!allowedRoles.includes(role))
-    //   throw new BadRequestException(
-    //     `Invalid role. Allowed roles: ${allowedRoles.join(', ')}`
-    //   );
 
     // ===============================
     // ObjectId Validation
@@ -170,6 +160,10 @@ async sendMessageByUser(data: any) {
       userName,
       adminName,
     );
+
+    if (!conversation.messages) {
+      conversation.messages = [];
+    }
 
     // ===============================
     // Prepare Message Object
@@ -196,15 +190,19 @@ async sendMessageByUser(data: any) {
     await conversation.save();
 
     // ===============================
-    // Send Notification To Admin
+    // Send Notification (Safe Mode)
     // ===============================
-    await this.notificationService.sendToAdmin({
-      adminId,
-      message: `${userName} sent you a message`,
-      stage: 'chat_message',
-      type: 'chat',
-      applicationId,
-    });
+    try {
+      await this.notificationService.sendToAdmin({
+        adminId,
+        message: `${userName} sent you a message`,
+        stage: 'chat_message',
+        type: 'chat',
+        applicationId,
+      });
+    } catch (notifyError) {
+      console.error('Notification Error:', notifyError);
+    }
 
     // ===============================
     // Return Response
@@ -217,25 +215,25 @@ async sendMessageByUser(data: any) {
     };
 
   } catch (error) {
-    if (error instanceof BadRequestException || error instanceof NotFoundException) {
-      throw error;
-    }
 
-    console.error('sendMessageByUser Error:', error);
-    throw new InternalServerErrorException(
-      'Something went wrong while sending message'
-    );
+    // 🔥 SHOW REAL ERROR
+    console.error('========== REAL ERROR ==========');
+    console.error(error);
+    console.error('MESSAGE:', error?.message);
+    console.error('STACK:', error?.stack);
+    console.error('================================');
+
+    // Return actual error instead of hiding it
+    throw error;
   }
 }
 
   // =====================================================
   // ADMIN SEND MESSAGE
   // =====================================================
- async sendMessageByAdmin(data: any) {
+async sendMessageByAdmin(data: any) {
   try {
     const { userId, adminId, message, applicationId, role } = data;
-
-    ///const allowedRoles = ['super_admin', 'underwriter', 'operations'];
 
     // ===============================
     // Required Field Validation
@@ -254,14 +252,6 @@ async sendMessageByUser(data: any) {
 
     if (!role)
       throw new BadRequestException('role is required');
-
-    // ===============================
-    // Role Validation
-    // ===============================
-    // if (!allowedRoles.includes(role))
-    //   throw new BadRequestException(
-    //     `Invalid role. Allowed roles: ${allowedRoles.join(', ')}`
-    //   );
 
     // ===============================
     // ObjectId Validation
@@ -329,6 +319,11 @@ async sendMessageByUser(data: any) {
       userName,
       adminName,
     );
+
+    // Prevent undefined crash
+    if (!conversation.messages) {
+      conversation.messages = [];
+    }
 
     // ===============================
     // Prepare Message Object
@@ -358,15 +353,19 @@ async sendMessageByUser(data: any) {
     await conversation.save();
 
     // ===============================
-    // Send Notification To User
+    // Send Notification (Safe Mode)
     // ===============================
-    await this.notificationService.sendToUser({
-      userId,
-      message: `${adminName} replied to your message`,
-      stage: 'chat_message',
-      type: 'chat',
-      applicationId,
-    });
+    try {
+      await this.notificationService.sendToUser({
+        userId,
+        message: `${adminName} replied to your message`,
+        stage: 'chat_message',
+        type: 'chat',
+        applicationId,
+      });
+    } catch (notifyError) {
+      console.error('Notification Error:', notifyError);
+    }
 
     // ===============================
     // Return Response
@@ -379,22 +378,16 @@ async sendMessageByUser(data: any) {
     };
 
   } catch (error) {
-    console.error('sendMessageByAdmin error:', error);
 
-    if (
-      error instanceof BadRequestException ||
-      error instanceof NotFoundException
-    ) {
-      throw error;
-    }
+    // 🔥 SHOW FULL REAL ERROR
+    console.error('========== ADMIN REAL ERROR ==========');
+    console.error(error);
+    console.error('MESSAGE:', error?.message);
+    console.error('STACK:', error?.stack);
+    console.error('======================================');
 
-    if (error.name === 'CastError') {
-      throw new BadRequestException('Invalid ID format');
-    }
-
-    throw new InternalServerErrorException(
-      'Something went wrong while sending message'
-    );
+    // Do NOT hide real error while debugging
+    throw error;
   }
 }
   // =====================================================
