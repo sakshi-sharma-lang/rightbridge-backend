@@ -68,7 +68,7 @@ export class ChatService {
   // =====================================================
 async sendMessageByUser(data: any) {
   try {
-    const { userId, message, applicationId, adminId } = data;
+    const { userId, message, applicationId, adminId ,senderRole } = data;
 
     // ==============================
     // 1️⃣ REQUIRED FIELD VALIDATION
@@ -76,6 +76,9 @@ async sendMessageByUser(data: any) {
     if (!userId || !applicationId || !adminId || !message) {
       throw new BadRequestException('Missing required fields');
     }
+    if (!senderRole) {
+  throw new BadRequestException('senderRole is required');
+}
 
     // ==============================
     // 2️⃣ OBJECT ID VALIDATION
@@ -161,7 +164,7 @@ async sendMessageByUser(data: any) {
       senderId: new Types.ObjectId(userId),
       senderType: 'user',
       senderName: userName,
-      senderRole: user.role,
+      senderRole: senderRole,
       message,
       messageType: 'text',
       time: new Date(),
@@ -209,7 +212,10 @@ async sendMessageByUser(data: any) {
   // =====================================================
 async sendMessageByAdmin(data: any) {
   try {
-    const { userId, adminId, message, applicationId } = data;
+    const { userId, adminId, message, applicationId  ,senderRole} = data;
+    if (!senderRole) {
+  throw new BadRequestException('senderRole is required');
+}
 
     // ==============================
     // 1️⃣ REQUIRED FIELD VALIDATION
@@ -300,7 +306,7 @@ async sendMessageByAdmin(data: any) {
       senderId: new Types.ObjectId(adminId),
       senderType: 'admin',
       senderName: adminName,
-      senderRole: admin.role,
+      senderRole: senderRole,
       message,
       messageType: 'text',
       time: new Date(),
