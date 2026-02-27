@@ -199,29 +199,49 @@ if (!conversationId) {
   // =====================================================
   // SEND NOTIFICATION TO USER
   // =====================================================
-  // sendNotificationToUser(userId: string, payload: any) {
+ sendNotificationToAdmin(adminId: string, payload: any) {
 
-  //   console.log("\n================ WS NOTIFICATION ================");
-  //   console.log("👤 Sending to user:", userId);
-  //   console.log("📦 Payload:", JSON.stringify(payload, null, 2));
+  const adminSet = this.adminSockets.get(String(adminId));
 
-  //   const socket = this.userSockets.get(String(userId));
+  if (!adminSet) return;
 
-  //   if (!socket) {
-  //     console.log("❌ User socket not found (user offline)");
-  //     console.log("================================================\n");
-  //     return;
-  //   }
+  adminSet.forEach(socket => {
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: "notification",
+        data: payload
+      }));
+    }
+  });
+}
 
-  //   if (socket.readyState === WebSocket.OPEN) {
-  //     socket.send(JSON.stringify({
-  //       type: "notification",
-  //       data: payload
-  //     }));
+// =====================================================
+// SEND NOTIFICATION TO USER
+// =====================================================
 
-  //     console.log("✅ Notification delivered to socket");
-  //   } else {
-  //     console.log("❌ Socket not open");
-  //   }
-  // }
+// =====================================================
+// SEND NOTIFICATION TO USER
+// =====================================================
+sendNotificationToUser(userId: string, payload: any) {
+
+  console.log("🔔 sendNotificationToUser CALLED:", userId);
+
+  const socket = this.userSockets.get(String(userId));
+
+  if (!socket) {
+    console.log("❌ No user socket found");
+    return;
+  }
+
+  if (socket.readyState === WebSocket.OPEN) {
+    console.log("✅ Sending user notification");
+    socket.send(JSON.stringify({
+      type: "notification",
+      data: payload
+    }));
+  }
+}
+
+
+
 }
