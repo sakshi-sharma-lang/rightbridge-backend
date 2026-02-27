@@ -191,6 +191,44 @@ if (!conversationId) {
   }
 
  
+ // =====================================================
+// REALTIME NOTIFICATION → USER
+// =====================================================
+sendNotificationToUser(userId: string, payload: any) {
+  const socket = this.userSockets.get(String(userId));
+
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(
+      JSON.stringify({
+        type: 'notification',
+        data: payload,
+      }),
+    );
+    console.log("🔔 Realtime notification sent to user:", userId);
+  }
+}
+
+// =====================================================
+// REALTIME NOTIFICATION → ADMIN (MULTI TAB SAFE)
+// =====================================================
+sendNotificationToAdmin(adminId: string, payload: any) {
+  const adminSet = this.adminSockets.get(String(adminId));
+
+  adminSet?.forEach((socket) => {
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(
+        JSON.stringify({
+          type: 'notification',
+          data: payload,
+        }),
+      );
+    }
+  });
+
+  if (adminSet?.size) {
+    console.log("🔔 Realtime notification sent to admin:", adminId);
+  }
+}
 
 
 
