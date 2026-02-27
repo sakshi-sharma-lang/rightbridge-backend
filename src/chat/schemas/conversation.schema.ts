@@ -14,13 +14,10 @@ export class Conversation {
 
   // ================= ROLE =================
   // super_admin / underwriter / operations
-  @Prop({
-    type: String,
-    enum: ['super_admin', 'underwriter', 'operations'],
-    required: true,
-  })
-  role: string;
 
+
+  @Prop({ default: '' })
+  role: string;
 
   @Prop({ type: Types.ObjectId, ref: 'Admin', required: true })
   adminId: Types.ObjectId;
