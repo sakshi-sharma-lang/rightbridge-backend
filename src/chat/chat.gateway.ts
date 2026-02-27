@@ -101,17 +101,17 @@ export class ChatGateway implements OnModuleInit {
     // ==============================
     // SAVE MESSAGE DB
     // ==============================
-    try {
-      // 🔥 FIX: senderRole → senderType
-      if (data.senderType === 'admin') {
-        savedMessage = await this.chatService.sendMessageByAdmin(data);
-      } else {
-        savedMessage = await this.chatService.sendMessageByUser(data);
-      }
-    } catch (err) {
-      console.log("❌ DB SAVE ERROR:", err);
-      return;
-    }
+    // try {
+    //   // 🔥 FIX: senderRole → senderType
+    //   if (data.senderType === 'admin') {
+    //     savedMessage = await this.chatService.sendMessageByAdmin(data);
+    //   } else {
+    //     savedMessage = await this.chatService.sendMessageByUser(data);
+    //   }
+    // } catch (err) {
+    //   console.log("❌ DB SAVE ERROR:", err);
+    //   return;
+    // }
 
     const conversation = savedMessage?.conversation;
     const messageData = savedMessage?.messageData;

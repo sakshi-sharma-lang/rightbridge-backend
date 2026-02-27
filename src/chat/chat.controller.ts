@@ -24,6 +24,7 @@ export class ChatController {
   async sendAdminMessage(@Body() body: any) {
     return this.chatService.sendMessageByAdmin(body);
   }
+
   // =====================================================
   // USER TOTAL UNREAD
   // =====================================================
@@ -31,6 +32,7 @@ export class ChatController {
   async userTotalUnread(@Param('userId') userId: string) {
     return this.chatService.getUserTotalUnread(userId);
   }
+
   // =====================================================
   // ADMIN TOTAL UNREAD
   // =====================================================
@@ -46,6 +48,7 @@ export class ChatController {
   async getAdminConversations(@Param('adminId') adminId: string) {
     return this.chatService.getAdminConversations(adminId);
   }
+
   // =====================================================
   // USER SIDEBAR (ALL ROLES OF APPLICATION)
   // =====================================================
