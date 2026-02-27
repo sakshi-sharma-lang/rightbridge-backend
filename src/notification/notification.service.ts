@@ -124,7 +124,7 @@ export class NotificationService {
       };
 
       // realtime socket
-      // this.chatGateway.sendNotificationToAdmin(adminId, payload);
+       this.chatGateway.sendNotificationToAdmin(adminId, payload);
 
       return {
         success: true,
