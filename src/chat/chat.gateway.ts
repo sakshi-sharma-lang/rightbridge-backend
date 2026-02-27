@@ -253,6 +253,7 @@ sendNotificationToAdmin(adminId: string, payload: any) {
   console.log("Active admin IDs:", Array.from(this.adminSockets.keys()));
 
   const adminSet = this.adminSockets.get(String(adminId));
+  console.log("Active admin IDs:", Array.from(this.adminSockets.keys()));
 
   if (!adminSet || adminSet.size === 0) {
     console.log("❌ No active sockets found for this admin");

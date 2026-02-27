@@ -117,14 +117,14 @@ export class UsersController {
         .select('_id')
         .lean();
 
-      if (superAdmin?._id) {
+   
         await this.notificationService.sendToAdmin({
           adminId: superAdmin._id.toString(),
           message: `New user registered: ${user.firstName} ${user.lastName || ''}`,
           stage: 'user_registered',
           type: 'registration',
         });
-      }
+    
 
       console.log('✅ Register notifications sent');
 
