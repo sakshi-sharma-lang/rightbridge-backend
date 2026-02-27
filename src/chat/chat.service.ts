@@ -72,13 +72,13 @@ export class ChatService {
   async sendMessageByUser(data: any) {
   const { userId, message, applicationId, adminId, messageId } = data;
 
-  if (!userId || !applicationId || !adminId || !message || !messageId)
-    throw new BadRequestException('Missing required fields');
+  // if (!userId || !applicationId || !adminId || !message || !messageId)
+  //   throw new BadRequestException('Missing required fields');
 
-  if (!Types.ObjectId.isValid(userId) ||
-      !Types.ObjectId.isValid(adminId) ||
-      !Types.ObjectId.isValid(applicationId))
-    throw new BadRequestException('Invalid ID format');
+  // if (!Types.ObjectId.isValid(userId) ||
+  //     !Types.ObjectId.isValid(adminId) ||
+  //     !Types.ObjectId.isValid(applicationId))
+  //   throw new BadRequestException('Invalid ID format');
 
   const user: any = await this.userModel
     .findById(userId)
@@ -172,15 +172,15 @@ export class ChatService {
   try {
     const { userId, adminId, message, applicationId, messageId } = data;
 
-    if (!userId || !adminId || !applicationId || !message || !messageId) {
-      throw new BadRequestException('Missing required fields');
-    }
+    // if (!userId || !adminId || !applicationId || !message || !messageId) {
+    //   throw new BadRequestException('Missing required fields');
+    // }
 
-    if (!Types.ObjectId.isValid(userId) ||
-        !Types.ObjectId.isValid(adminId) ||
-        !Types.ObjectId.isValid(applicationId)) {
-      throw new BadRequestException('Invalid ID format');
-    }
+    // if (!Types.ObjectId.isValid(userId) ||
+    //     !Types.ObjectId.isValid(adminId) ||
+    //     !Types.ObjectId.isValid(applicationId)) {
+    //   throw new BadRequestException('Invalid ID format');
+    // }
 
     const admin: any = await this.adminModel
       .findById(adminId)
