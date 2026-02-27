@@ -76,7 +76,7 @@ async sendMessageByUser(data: any) {
   try {
     const { userId, adminId, message, applicationId, role } = data;
 
-    const allowedRoles = ['super_admin', 'underwriter', 'operations'];
+    // const allowedRoles = ['super_admin', 'underwriter', 'operations'];
 
     // ===============================
     // Required Field Validation
@@ -99,10 +99,10 @@ async sendMessageByUser(data: any) {
     // ===============================
     // Role Validation
     // ===============================
-    if (!allowedRoles.includes(role))
-      throw new BadRequestException(
-        `Invalid role. Allowed roles: ${allowedRoles.join(', ')}`
-      );
+    // if (!allowedRoles.includes(role))
+    //   throw new BadRequestException(
+    //     `Invalid role. Allowed roles: ${allowedRoles.join(', ')}`
+    //   );
 
     // ===============================
     // ObjectId Validation
@@ -235,7 +235,7 @@ async sendMessageByUser(data: any) {
   try {
     const { userId, adminId, message, applicationId, role } = data;
 
-    const allowedRoles = ['super_admin', 'underwriter', 'operations'];
+    ///const allowedRoles = ['super_admin', 'underwriter', 'operations'];
 
     // ===============================
     // Required Field Validation
@@ -258,10 +258,10 @@ async sendMessageByUser(data: any) {
     // ===============================
     // Role Validation
     // ===============================
-    if (!allowedRoles.includes(role))
-      throw new BadRequestException(
-        `Invalid role. Allowed roles: ${allowedRoles.join(', ')}`
-      );
+    // if (!allowedRoles.includes(role))
+    //   throw new BadRequestException(
+    //     `Invalid role. Allowed roles: ${allowedRoles.join(', ')}`
+    //   );
 
     // ===============================
     // ObjectId Validation
