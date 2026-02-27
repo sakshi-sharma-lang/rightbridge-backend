@@ -190,57 +190,10 @@ if (!conversationId) {
     console.log("Client disconnected");
   }
 
-  // =====================================================
-  // SEND NOTIFICATION TO USER
-  // =====================================================
  
 
 
-  // =====================================================
-  // SEND NOTIFICATION TO USER
-  // =====================================================
- sendNotificationToAdmin(adminId: string, payload: any) {
 
-  const adminSet = this.adminSockets.get(String(adminId));
-
-  if (!adminSet) return;
-
-  adminSet.forEach(socket => {
-    if (socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({
-        type: "notification",
-        data: payload
-      }));
-    }
-  });
-}
-
-// =====================================================
-// SEND NOTIFICATION TO USER
-// =====================================================
-
-// =====================================================
-// SEND NOTIFICATION TO USER
-// =====================================================
-sendNotificationToUser(userId: string, payload: any) {
-
-  console.log("🔔 sendNotificationToUser CALLED:", userId);
-
-  const socket = this.userSockets.get(String(userId));
-
-  if (!socket) {
-    console.log("❌ No user socket found");
-    return;
-  }
-
-  if (socket.readyState === WebSocket.OPEN) {
-    console.log("✅ Sending user notification");
-    socket.send(JSON.stringify({
-      type: "notification",
-      data: payload
-    }));
-  }
-}
 
 
 

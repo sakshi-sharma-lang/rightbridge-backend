@@ -1,11 +1,18 @@
-import { Injectable, BadRequestException ,InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  InternalServerErrorException,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
+
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, Document } from 'mongoose';
 import { Conversation } from './schemas/conversation.schema';
 import { Application } from '../applications/schemas/application.schema';
 import { Admin } from '../admin/schemas/admin.schema';
 import { User } from '../users/schemas/user.schema';
-
+import { NotificationService } from '../notification/notification.service';
 type ConversationDocument = Conversation & Document;
 
 @Injectable()
@@ -22,6 +29,8 @@ export class ChatService {
 
     @InjectModel(User.name)
     private userModel: Model<User>,
+   @Inject(forwardRef(() => NotificationService))
+private notificationService: NotificationService,
   ) {}
 
   // =====================================================
@@ -182,8 +191,22 @@ async sendMessageByUser(data: any) {
     // ==============================
     // 🔟 SAVE
     // ==============================
-    
+
     await conversation.save();
+    // ==============================
+// 🔔 SEND NOTIFICATION TO ADMIN
+// ==============================
+try {
+  await this.notificationService.sendToAdmin({
+    adminId: adminId,
+    message: message,
+    stage: 'chat_message',
+    type: 'chat',
+    applicationId: applicationId,
+  });
+} catch (err) {
+  console.error('Notification error:', err);
+}
 
     // ==============================
     // RETURN RESPONSE
@@ -328,6 +351,18 @@ async sendMessageByAdmin(data: any) {
     // 9️⃣ SAVE
     // ==============================
     await conversation.save();
+
+try {
+  await this.notificationService.sendToUser({
+    userId: userId,
+    message: message,
+    stage: 'chat_message',
+    type: 'chat',
+    applicationId: applicationId,
+  });
+} catch (err) {
+  console.error('Notification error:', err);
+}
 
     // ==============================
     // 🔟 RETURN
