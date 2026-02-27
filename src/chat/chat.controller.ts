@@ -7,10 +7,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 export class ChatController {
   constructor(private chatService: ChatService,
     private adminService: AdminService,   
-
     ) {}
 
-  // =====================================================
   // USER SEND MESSAGE
   // body: userId, applicationId, role, adminId, message
   // =====================================================
@@ -18,7 +16,6 @@ export class ChatController {
   async sendUserMessage(@Body() body: any) {
     return this.chatService.sendMessageByUser(body);
   }
-
   // =====================================================
   // ADMIN SEND MESSAGE
   // body: adminId, applicationId, role, userId, message
@@ -27,7 +24,6 @@ export class ChatController {
   async sendAdminMessage(@Body() body: any) {
     return this.chatService.sendMessageByAdmin(body);
   }
-
   // =====================================================
   // USER TOTAL UNREAD
   // =====================================================
@@ -35,7 +31,6 @@ export class ChatController {
   async userTotalUnread(@Param('userId') userId: string) {
     return this.chatService.getUserTotalUnread(userId);
   }
-
   // =====================================================
   // ADMIN TOTAL UNREAD
   // =====================================================
@@ -51,26 +46,25 @@ export class ChatController {
   async getAdminConversations(@Param('adminId') adminId: string) {
     return this.chatService.getAdminConversations(adminId);
   }
-
   // =====================================================
   // USER SIDEBAR (ALL ROLES OF APPLICATION)
   // =====================================================
   @Get('user/chat/sidebar/:userId/:applicationId')
-  async getUserConversations(
+    async getUserConversations(
+      @Param('userId') userId: string,
+      @Param('applicationId') applicationId: string,
+    ) {
+      return this.chatService.getUserConversations(userId, applicationId);
+    }
+
+  @Get('user/chat/open/:userId/:applicationId/:role')
+  async getUserChat(
     @Param('userId') userId: string,
     @Param('applicationId') applicationId: string,
+    @Param('role') role: string,
   ) {
-    return this.chatService.getUserConversations(userId, applicationId);
+    return this.chatService.getUserChat(userId, applicationId, role);
   }
-
-   @Get('user/chat/open/:userId/:applicationId/:role')
-async getUserChat(
-  @Param('userId') userId: string,
-  @Param('applicationId') applicationId: string,
-  @Param('role') role: string,
-) {
-  return this.chatService.getUserChat(userId, applicationId, role);
-}
 
   @Get('admin/chat/open/:applicationId/:role/:adminId')
   async getAdminChat(
@@ -86,8 +80,8 @@ async getUserChat(
     return this.chatService.getApplicationsByUserId(userId);
   }
 
-    @UseGuards(JwtAuthGuard)
-    @Get('superadmin')
+  @UseGuards(JwtAuthGuard)
+  @Get('superadmin')
   async getSuperAdmin() {
     return this.adminService.getSuperAdmin();
   }

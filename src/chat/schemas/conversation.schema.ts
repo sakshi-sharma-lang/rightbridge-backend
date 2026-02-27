@@ -21,17 +21,14 @@ export class Conversation {
   })
   role: string;
 
-  // ================= TARGET ADMIN =================
-  // jis admin ke saath user chat karega
+
   @Prop({ type: Types.ObjectId, ref: 'Admin', required: true })
   adminId: Types.ObjectId;
 
   @Prop({ default: '' })
   adminName: string;
 
-  // realtime room key (can use conversationId also)
-  @Prop({ required: true })
-  conversationKey: string;
+
 
   // ================= LAST MESSAGE =================
   @Prop({ default: '' })
@@ -43,21 +40,19 @@ export class Conversation {
   @Prop({ default: '' })
   lastMessageBy: string; // user/admin
 
-  // ================= UNREAD =================
   @Prop({ default: 0 })
   unreadUser: number;
 
   @Prop({ default: 0 })
   unreadAdmin: number;
 
-  // ================= STATUS =================
   @Prop({ default: 'open' })
   status: string;
 
   @Prop()
   userName: string;
 
-  // ================= MESSAGES =================
+
   @Prop({
     type: [
       {
@@ -86,10 +81,7 @@ export class Conversation {
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);
 
-//
-// 🔥 MOST IMPORTANT PART
-// Multi admin support ke liye correct unique index
-//
+
 
 ConversationSchema.index(
   { userId: 1, applicationId: 1, adminId: 1, role: 1 },

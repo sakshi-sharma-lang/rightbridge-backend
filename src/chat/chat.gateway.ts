@@ -51,9 +51,6 @@ export class ChatGateway implements OnModuleInit {
     }, 1200);
   }
 
-  // =====================================================
-  // ROUTER
-  // =====================================================
   async routeMessage(socket: WebSocket, data: any) {
 
     if (data.type === 'identify')
@@ -216,6 +213,5 @@ export class ChatGateway implements OnModuleInit {
   } else {
     console.log("❌ Socket not open");
   }
-
 }
 }
