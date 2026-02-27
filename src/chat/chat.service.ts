@@ -199,8 +199,8 @@ async sendMessageByUser(data: any) {
 try {
   await this.notificationService.sendToAdmin({
     adminId: adminId,
-    message: `📩 ${adminName}: ${message.slice(0, 60)}${message.length > 60 ? '...' : ''}`
-    stage: 'chat_message',
+message: `You have received a new message: "${message.slice(0, 60)}${message.length > 60 ? '...' : ''}"`  , 
+ stage: 'chat_message',
     type: 'chat',
     applicationId: applicationId,
   });
@@ -355,7 +355,7 @@ async sendMessageByAdmin(data: any) {
 try {
   await this.notificationService.sendToUser({
     userId: userId,
-    message: `📩 ${adminName}: ${message.slice(0, 60)}${message.length > 60 ? '...' : ''}`,
+    message: `You have received a new message: "${message.slice(0, 60)}${message.length > 60 ? '...' : ''}"`,
     stage: 'chat_message',
     type: 'chat',
     applicationId: applicationId,
