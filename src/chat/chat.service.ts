@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException ,InternalServerErrorException } from '@nestjs/common';
+import { Injectable, BadRequestException ,InternalServerErrorException ,NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, Document } from 'mongoose';
 import { Conversation } from './schemas/conversation.schema';
@@ -73,170 +73,293 @@ export class ChatService {
   // USER SEND MESSAGE
   // =====================================================
 async sendMessageByUser(data: any) {
-
-  const { userId, adminId, message, applicationId, role } = data;
-
-  const allowedRoles = ['super_admin', 'underwriter', 'operations'];
-
-  if (!userId || !applicationId || !adminId || !message || !role)
-    throw new BadRequestException('Missing required fields');
-
-  if (!allowedRoles.includes(role))
-    throw new BadRequestException('Invalid role');
-
-  if (!Types.ObjectId.isValid(userId))
-    throw new BadRequestException('Invalid userId');
-
-  if (!Types.ObjectId.isValid(applicationId))
-    throw new BadRequestException('Invalid applicationId');
-
-  if (!Types.ObjectId.isValid(adminId))
-    throw new BadRequestException('Invalid adminId');
-
-  const user: any = await this.userModel
-    .findById(userId)
-    .select('_id firstName lastName')
-    .lean();
-
-  if (!user) throw new BadRequestException('User not found');
-
-  const admin: any = await this.adminModel
-    .findById(adminId)
-    .select('_id role fullName email')
-    .lean();
-
-  if (!admin) throw new BadRequestException('Admin not found');
-
-  const application = await this.applicationModel.findOne({
-    _id: new Types.ObjectId(applicationId),
-    userId: new Types.ObjectId(userId),
-  });
-
-  if (!application)
-    throw new BadRequestException('Application invalid');
-
-  const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
-  const adminName = admin.fullName || admin.email;
-
-  const conversation = await this.getOrCreateConversation(
-    userId,
-    applicationId,
-    adminId,
-    role, // ✅ frontend role
-    userName,
-    adminName,
-  );
-
-  const newMessage = {
-    senderId: new Types.ObjectId(userId),
-    senderType: 'user',
-    senderName: userName,
-    senderRole: 'user',
-    message,
-    messageType: 'text',
-    time: new Date(),
-  };
-
-  conversation.messages.push(newMessage);
-  conversation.lastMessage = message;
-  conversation.lastMessageAt = new Date();
-  conversation.lastMessageBy = 'user';
-  conversation.unreadAdmin += 1;
-
-  await conversation.save();
-
-  await this.notificationService.sendToAdmin({
-    adminId,
-    message: `${userName} sent you a message`,
-    stage: 'chat_message',
-    type: 'chat',
-    applicationId,
-  });
-
-  return {
-    success: true,
-    conversation,
-    messageData: newMessage,
-  };
-}
-
-  // =====================================================
-  // ADMIN SEND MESSAGE
-  // =====================================================
-  async sendMessageByAdmin(data: any) {
   try {
     const { userId, adminId, message, applicationId, role } = data;
 
-    // validate input
-    if (!userId || !adminId || !applicationId || !message || !role) {
-      throw new BadRequestException('Missing required fields');
-    }
+    const allowedRoles = ['super_admin', 'underwriter', 'operations'];
 
-    // find admin
-    const admin: any = await this.adminModel
-      .findById(adminId)
-      .select('_id role fullName email')
-      .lean();
+    // ===============================
+    // Required Field Validation
+    // ===============================
+    if (!userId)
+      throw new BadRequestException('userId is required');
 
-    if (!admin) {
-      throw new BadRequestException('Admin not found');
-    }
+    if (!applicationId)
+      throw new BadRequestException('applicationId is required');
 
-    // find user
+    if (!adminId)
+      throw new BadRequestException('adminId is required');
+
+    if (!message || typeof message !== 'string' || !message.trim())
+      throw new BadRequestException('message must be a non-empty string');
+
+    if (!role)
+      throw new BadRequestException('role is required');
+
+    // ===============================
+    // Role Validation
+    // ===============================
+    if (!allowedRoles.includes(role))
+      throw new BadRequestException(
+        `Invalid role. Allowed roles: ${allowedRoles.join(', ')}`
+      );
+
+    // ===============================
+    // ObjectId Validation
+    // ===============================
+    if (!Types.ObjectId.isValid(userId))
+      throw new BadRequestException('Invalid userId format');
+
+    if (!Types.ObjectId.isValid(applicationId))
+      throw new BadRequestException('Invalid applicationId format');
+
+    if (!Types.ObjectId.isValid(adminId))
+      throw new BadRequestException('Invalid adminId format');
+
+    // ===============================
+    // Fetch User
+    // ===============================
     const user: any = await this.userModel
       .findById(userId)
       .select('_id firstName lastName')
       .lean();
 
-    if (!user) {
-      throw new BadRequestException('User not found');
-    }
+    if (!user)
+      throw new NotFoundException('User not found');
 
-    // check application
+    // ===============================
+    // Fetch Admin
+    // ===============================
+    const admin: any = await this.adminModel
+      .findById(adminId)
+      .select('_id role fullName email')
+      .lean();
+
+    if (!admin)
+      throw new NotFoundException('Admin not found');
+
+    // ===============================
+    // Validate Application Ownership
+    // ===============================
     const application = await this.applicationModel.findOne({
       _id: new Types.ObjectId(applicationId),
       userId: new Types.ObjectId(userId),
     });
 
-    if (!application) {
-      throw new BadRequestException('Application invalid');
-    }
+    if (!application)
+      throw new BadRequestException(
+        'Application does not belong to this user'
+      );
 
-    const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    // ===============================
+    // Prepare Names
+    // ===============================
+    const userName =
+      `${user.firstName || ''} ${user.lastName || ''}`.trim();
+
     const adminName = admin.fullName || admin.email;
 
-    // get/create conversation (role from frontend)
+    // ===============================
+    // Get or Create Conversation
+    // ===============================
     const conversation = await this.getOrCreateConversation(
       userId,
       applicationId,
       adminId,
-      role, // <-- from frontend body
+      role,
       userName,
       adminName,
     );
 
-    // create message object
+    // ===============================
+    // Prepare Message Object
+    // ===============================
     const newMessage = {
-      senderId: new Types.ObjectId(adminId),
-      senderType: 'admin',
-      senderName: adminName,
-      senderRole: role, // <-- saved from frontend
-      message,
+      senderId: new Types.ObjectId(userId),
+      senderType: 'user',
+      senderName: userName,
+      senderRole: 'user',
+      message: message.trim(),
       messageType: 'text',
       time: new Date(),
     };
 
-    // update conversation
+    // ===============================
+    // Update Conversation
+    // ===============================
     conversation.messages.push(newMessage);
-    conversation.lastMessage = message;
+    conversation.lastMessage = message.trim();
+    conversation.lastMessageAt = new Date();
+    conversation.lastMessageBy = 'user';
+    conversation.unreadAdmin = (conversation.unreadAdmin || 0) + 1;
+
+    await conversation.save();
+
+    // ===============================
+    // Send Notification To Admin
+    // ===============================
+    await this.notificationService.sendToAdmin({
+      adminId,
+      message: `${userName} sent you a message`,
+      stage: 'chat_message',
+      type: 'chat',
+      applicationId,
+    });
+
+    // ===============================
+    // Return Response
+    // ===============================
+    return {
+      success: true,
+      message: 'Message sent successfully',
+      conversationId: conversation._id,
+      messageData: newMessage,
+    };
+
+  } catch (error) {
+    if (error instanceof BadRequestException || error instanceof NotFoundException) {
+      throw error;
+    }
+
+    console.error('sendMessageByUser Error:', error);
+    throw new InternalServerErrorException(
+      'Something went wrong while sending message'
+    );
+  }
+}
+
+  // =====================================================
+  // ADMIN SEND MESSAGE
+  // =====================================================
+ async sendMessageByAdmin(data: any) {
+  try {
+    const { userId, adminId, message, applicationId, role } = data;
+
+    const allowedRoles = ['super_admin', 'underwriter', 'operations'];
+
+    // ===============================
+    // Required Field Validation
+    // ===============================
+    if (!userId)
+      throw new BadRequestException('userId is required');
+
+    if (!adminId)
+      throw new BadRequestException('adminId is required');
+
+    if (!applicationId)
+      throw new BadRequestException('applicationId is required');
+
+    if (!message || typeof message !== 'string' || !message.trim())
+      throw new BadRequestException('message must be a non-empty string');
+
+    if (!role)
+      throw new BadRequestException('role is required');
+
+    // ===============================
+    // Role Validation
+    // ===============================
+    if (!allowedRoles.includes(role))
+      throw new BadRequestException(
+        `Invalid role. Allowed roles: ${allowedRoles.join(', ')}`
+      );
+
+    // ===============================
+    // ObjectId Validation
+    // ===============================
+    if (!Types.ObjectId.isValid(userId))
+      throw new BadRequestException('Invalid userId format');
+
+    if (!Types.ObjectId.isValid(applicationId))
+      throw new BadRequestException('Invalid applicationId format');
+
+    if (!Types.ObjectId.isValid(adminId))
+      throw new BadRequestException('Invalid adminId format');
+
+    // ===============================
+    // Fetch Admin
+    // ===============================
+    const admin: any = await this.adminModel
+      .findById(adminId)
+      .select('_id role fullName email')
+      .lean();
+
+    if (!admin)
+      throw new NotFoundException('Admin not found');
+
+    // ===============================
+    // Fetch User
+    // ===============================
+    const user: any = await this.userModel
+      .findById(userId)
+      .select('_id firstName lastName')
+      .lean();
+
+    if (!user)
+      throw new NotFoundException('User not found');
+
+    // ===============================
+    // Validate Application Ownership
+    // ===============================
+    const application = await this.applicationModel.findOne({
+      _id: new Types.ObjectId(applicationId),
+      userId: new Types.ObjectId(userId),
+    });
+
+    if (!application)
+      throw new BadRequestException(
+        'Application does not belong to this user'
+      );
+
+    // ===============================
+    // Prepare Names
+    // ===============================
+    const userName =
+      `${user.firstName || ''} ${user.lastName || ''}`.trim();
+
+    const adminName = admin.fullName || admin.email;
+
+    // ===============================
+    // Get or Create Conversation
+    // ===============================
+    const conversation = await this.getOrCreateConversation(
+      userId,
+      applicationId,
+      adminId,
+      role,
+      userName,
+      adminName,
+    );
+
+    // ===============================
+    // Prepare Message Object
+    // ===============================
+    const trimmedMessage = message.trim();
+
+    const newMessage = {
+      senderId: new Types.ObjectId(adminId),
+      senderType: 'admin',
+      senderName: adminName,
+      senderRole: role,
+      message: trimmedMessage,
+      messageType: 'text',
+      time: new Date(),
+    };
+
+    // ===============================
+    // Update Conversation
+    // ===============================
+    conversation.messages.push(newMessage);
+    conversation.lastMessage = trimmedMessage;
     conversation.lastMessageAt = new Date();
     conversation.lastMessageBy = 'admin';
-    conversation.unreadUser += 1;
+    conversation.unreadUser = (conversation.unreadUser || 0) + 1;
     conversation.unreadAdmin = 0;
 
     await conversation.save();
 
-    // 🔔 Notify User
+    // ===============================
+    // Send Notification To User
+    // ===============================
     await this.notificationService.sendToUser({
       userId,
       message: `${adminName} replied to your message`,
@@ -245,16 +368,23 @@ async sendMessageByUser(data: any) {
       applicationId,
     });
 
+    // ===============================
+    // Return Response
+    // ===============================
     return {
       success: true,
       message: 'Message sent successfully',
-      conversation,
+      conversationId: conversation._id,
       messageData: newMessage,
     };
+
   } catch (error) {
     console.error('sendMessageByAdmin error:', error);
 
-    if (error instanceof BadRequestException) {
+    if (
+      error instanceof BadRequestException ||
+      error instanceof NotFoundException
+    ) {
       throw error;
     }
 
@@ -262,10 +392,11 @@ async sendMessageByUser(data: any) {
       throw new BadRequestException('Invalid ID format');
     }
 
-    throw new InternalServerErrorException('Failed to send message');
+    throw new InternalServerErrorException(
+      'Something went wrong while sending message'
+    );
   }
 }
-
   // =====================================================
   // USER OPEN CHAT
   // =====================================================
