@@ -112,18 +112,21 @@ export class UsersController {
       });
 
       // 🔹 Notify super admin
-      const superAdmin = await this.adminModel
-        .findOne({ role: 'super_admin' })
-        .select('_id')
-        .lean();
+ const superAdmin = await this.adminModel
+  .findOne({ role: 'super_admin' })
+  .select('_id')
+  .lean();
 
-   
-        await this.notificationService.sendToAdmin({
-          adminId: superAdmin._id.toString(),
-          message: `New user registered: ${user.firstName} ${user.lastName || ''}`,
-          stage: 'user_registered',
-          type: 'registration',
-        });
+if (!superAdmin) {
+  console.log('❌ Super admin not found');
+} else {
+  await this.notificationService.sendToAdmin({
+    adminId: superAdmin._id.toString(),
+    message: `New user registered: ${user.firstName} ${user.lastName || ''}`,
+    stage: 'user_registered',
+    type: 'registration',
+  });
+}
     
 
       console.log('✅ Register notifications sent');
