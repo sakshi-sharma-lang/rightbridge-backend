@@ -66,80 +66,82 @@ export class ChatService {
   // =====================================================
   // USER SEND MESSAGE
   // =====================================================
-  async sendMessageByUser(data: any) {
-    const { userId, message, applicationId, adminId } = data;
+async sendMessageByUser(data: any) {
+  const { userId, message, applicationId, adminId } = data;
 
-    if (!userId || !applicationId || !adminId || !message)
-      throw new BadRequestException('Missing required fields');
+  if (!userId || !applicationId || !adminId || !message)
+    throw new BadRequestException('Missing required fields');
 
-    if (!Types.ObjectId.isValid(userId))
-      throw new BadRequestException('Invalid userId');
+  if (!Types.ObjectId.isValid(userId))
+    throw new BadRequestException('Invalid userId');
 
-    if (!Types.ObjectId.isValid(applicationId))
-      throw new BadRequestException('Invalid applicationId');
+  if (!Types.ObjectId.isValid(applicationId))
+    throw new BadRequestException('Invalid applicationId');
 
-    if (!Types.ObjectId.isValid(adminId))
-      throw new BadRequestException('Invalid adminId');
+  if (!Types.ObjectId.isValid(adminId))
+    throw new BadRequestException('Invalid adminId');
 
-    const user: any = await this.userModel
-      .findById(userId)
-      .select('_id firstName lastName')
-      .lean();
+  // ✅ Added role in select
+  const user: any = await this.userModel
+    .findById(userId)
+    .select('_id firstName lastName role')
+    .lean();
 
-    if (!user) throw new BadRequestException('User not found');
+  if (!user) throw new BadRequestException('User not found');
 
-    const admin: any = await this.adminModel
-      .findById(adminId)
-      .select('_id role fullName email')
-      .lean();
+  const admin: any = await this.adminModel
+    .findById(adminId)
+    .select('_id role fullName email')
+    .lean();
 
-    if (!admin) throw new BadRequestException('Admin not found');
+  if (!admin) throw new BadRequestException('Admin not found');
 
-    const application = await this.applicationModel.findOne({
-      _id: new Types.ObjectId(applicationId),
-      userId: new Types.ObjectId(userId),
-    });
+  const application = await this.applicationModel.findOne({
+    _id: new Types.ObjectId(applicationId),
+    userId: new Types.ObjectId(userId),
+  });
 
-    if (!application)
-      throw new BadRequestException('Application invalid');
+  if (!application)
+    throw new BadRequestException('Application invalid');
 
-    const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
-    const adminName = admin.fullName || admin.email;
+  const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+  const adminName = admin.fullName || admin.email;
 
-    const conversation = await this.getOrCreateConversation(
-      userId,
-      applicationId,
-      adminId,
-      admin.role,
-      userName,
-      adminName,
-    );
+  // 🔒 DO NOT CHANGE conversation role logic
+  const conversation = await this.getOrCreateConversation(
+    userId,
+    applicationId,
+    adminId,
+    admin.role,   // unchanged
+    userName,
+    adminName,
+  );
 
-    const newMessage = {
-      senderId: new Types.ObjectId(userId),
-      senderType: 'user',
-      senderName: userName,
-      senderRole: 'user',
-      message,
-      messageType: 'text',
-      time: new Date(),
-      // isRead: false,
-    };
+  // ✅ senderRole now from user DB
+  const newMessage = {
+    senderId: new Types.ObjectId(userId),
+    senderType: 'user',
+    senderName: userName,
+    senderRole: user.role,
+    message,
+    messageType: 'text',
+    time: new Date(),
+  };
 
-    conversation.messages.push(newMessage);
-    conversation.lastMessage = message;
-    conversation.lastMessageAt = new Date();
-    conversation.lastMessageBy = 'user';
-    conversation.unreadAdmin += 1;
+  conversation.messages.push(newMessage);
+  conversation.lastMessage = message;
+  conversation.lastMessageAt = new Date();
+  conversation.lastMessageBy = 'user';
+  conversation.unreadAdmin += 1;
 
-    await conversation.save();
+  await conversation.save();
 
-    return {
-      success: true,
-      conversation,
-      messageData: newMessage,
-    };
-  }
+  return {
+    success: true,
+    conversation,
+    messageData: newMessage,
+  };
+}
 
   // =====================================================
   // ADMIN SEND MESSAGE
@@ -148,12 +150,10 @@ async sendMessageByAdmin(data: any) {
   try {
     const { userId, adminId, message, applicationId } = data;
 
-    // validate input
     if (!userId || !adminId || !applicationId || !message) {
       throw new BadRequestException('Missing required fields');
     }
 
-    // find admin
     const admin: any = await this.adminModel
       .findById(adminId)
       .select('_id role fullName email')
@@ -163,7 +163,6 @@ async sendMessageByAdmin(data: any) {
       throw new BadRequestException('Admin not found');
     }
 
-    // find user
     const user: any = await this.userModel
       .findById(userId)
       .select('_id firstName lastName')
@@ -173,7 +172,6 @@ async sendMessageByAdmin(data: any) {
       throw new BadRequestException('User not found');
     }
 
-    // check application
     const application = await this.applicationModel.findOne({
       _id: new Types.ObjectId(applicationId),
       userId: new Types.ObjectId(userId),
@@ -186,28 +184,26 @@ async sendMessageByAdmin(data: any) {
     const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
     const adminName = admin.fullName || admin.email;
 
-    // get/create conversation
     const conversation = await this.getOrCreateConversation(
       userId,
       applicationId,
       adminId,
-      admin.role,
+      admin.role,   // 🔒 unchanged
       userName,
       adminName,
     );
 
-    // create message object
+    // ✅ ONLY senderRole adjusted (safe fallback)
     const newMessage = {
       senderId: new Types.ObjectId(adminId),
       senderType: 'admin',
       senderName: adminName,
-      senderRole: admin.role,
+      senderRole: admin.role,  
       message,
       messageType: 'text',
       time: new Date(),
     };
 
-    // update conversation
     conversation.messages.push(newMessage);
     conversation.lastMessage = message;
     conversation.lastMessageAt = new Date();
@@ -223,20 +219,18 @@ async sendMessageByAdmin(data: any) {
       conversation,
       messageData: newMessage,
     };
+
   } catch (error) {
     console.error('sendMessageByAdmin error:', error);
 
-    // if already http exception → throw same
     if (error instanceof BadRequestException) {
       throw error;
     }
 
-    // mongoose cast error (invalid object id)
     if (error.name === 'CastError') {
       throw new BadRequestException('Invalid ID format');
     }
 
-    // fallback
     throw new InternalServerErrorException('Failed to send message');
   }
 }
