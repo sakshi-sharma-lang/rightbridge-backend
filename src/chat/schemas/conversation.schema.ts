@@ -48,7 +48,7 @@ export class Conversation {
 
   @Prop()
   userName: string;
-   @Prop({ required: true })
+   @Prop({ required: false })
   conversationKey: string;
 
 
