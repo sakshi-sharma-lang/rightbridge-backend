@@ -61,7 +61,7 @@ export class NotificationService {
       };
 
       // realtime socket
-     // this.chatGateway.sendNotificationToUser(userId, payload);
+     this.chatGateway.sendNotificationToUser(userId, payload);
 
       return {
         success: true,
