@@ -48,6 +48,10 @@ export class Conversation {
 
   @Prop()
   userName: string;
+   @Prop({ required: true })
+  conversationKey: string;
+
+
 
 
   @Prop({

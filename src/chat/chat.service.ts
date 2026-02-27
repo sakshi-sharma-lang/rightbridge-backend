@@ -6,9 +6,6 @@ import { Application } from '../applications/schemas/application.schema';
 import { Admin } from '../admin/schemas/admin.schema';
 import { User } from '../users/schemas/user.schema';
 
-import { NotificationService } from '../notification/notification.service';
-import { Inject, forwardRef } from '@nestjs/common';
-
 type ConversationDocument = Conversation & Document;
 
 @Injectable()
@@ -25,9 +22,6 @@ export class ChatService {
 
     @InjectModel(User.name)
     private userModel: Model<User>,
-
-      @Inject(forwardRef(() => NotificationService))
-  private notificationService: NotificationService,
   ) {}
 
   // =====================================================
@@ -50,14 +44,14 @@ export class ChatService {
 
     if (conversation) return conversation;
 
-   // const conversationKey = `${applicationId}_${adminId}_${userId}`;
+    const conversationKey = `${applicationId}_${adminId}_${userId}`;
 
     conversation = await this.convoModel.create({
       userId: new Types.ObjectId(userId),
       applicationId: new Types.ObjectId(applicationId),
       adminId: new Types.ObjectId(adminId),
       role,
-     // conversationKey,
+      conversationKey,
       userName,
       adminName,
       unreadUser: 0,
@@ -140,15 +134,6 @@ export class ChatService {
 
     await conversation.save();
 
-    // 🔔 Notify Admin
-await this.notificationService.sendToAdmin({
-  adminId,
-  message: `${userName} sent you a message`,
-  stage: 'chat_message',
-  type: 'chat',
-  applicationId,
-});
-
     return {
       success: true,
       conversation,
@@ -159,111 +144,102 @@ await this.notificationService.sendToAdmin({
   // =====================================================
   // ADMIN SEND MESSAGE
   // =====================================================
-  async sendMessageByAdmin(data: any) {
-    try {
-      const { userId, adminId, message, applicationId } = data;
+async sendMessageByAdmin(data: any) {
+  try {
+    const { userId, adminId, message, applicationId } = data;
 
-      // validate input
-      if (!userId || !adminId || !applicationId || !message) {
-        throw new BadRequestException('Missing required fields');
-      }
-
-      // find admin
-      const admin: any = await this.adminModel
-        .findById(adminId)
-        .select('_id role fullName email')
-        .lean();
-
-      if (!admin) {
-        throw new BadRequestException('Admin not found');
-      }
-
-      // find user
-      const user: any = await this.userModel
-        .findById(userId)
-        .select('_id firstName lastName')
-        .lean();
-
-      if (!user) {
-        throw new BadRequestException('User not found');
-      }
-
-      // check application
-      const application = await this.applicationModel.findOne({
-        _id: new Types.ObjectId(applicationId),
-        userId: new Types.ObjectId(userId),
-      });
-
-      if (!application) {
-        throw new BadRequestException('Application invalid');
-      }
-
-      const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
-      const adminName = admin.fullName || admin.email;
-
-      // get/create conversation
-      const conversation = await this.getOrCreateConversation(
-        userId,
-        applicationId,
-        adminId,
-        admin.role,
-        userName,
-        adminName,
-      );
-
-      // create message object
-      const newMessage = {
-        senderId: new Types.ObjectId(adminId),
-        senderType: 'admin',
-        senderName: adminName,
-        senderRole: admin.role,
-        message,
-        messageType: 'text',
-        time: new Date(),
-      };
-
-      // update conversation
-      conversation.messages.push(newMessage);
-      conversation.lastMessage = message;
-      conversation.lastMessageAt = new Date();
-      conversation.lastMessageBy = 'admin';
-      conversation.unreadUser += 1;
-      conversation.unreadAdmin = 0;
-
-      await conversation.save();
-
-      // 🔔 Notify User
-        await this.notificationService.sendToUser({
-          userId,
-          message: `${adminName} replied to your message`,
-          stage: 'chat_message',
-          type: 'chat',
-          applicationId,
-        });
-
-      return {
-        success: true,
-        message: 'Message sent successfully',
-        conversation,
-        messageData: newMessage,
-      };
-    } catch (error) {
-      console.error('sendMessageByAdmin error:', error);
-
-      // if already http exception → throw same
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-
-      // mongoose cast error (invalid object id)
-      if (error.name === 'CastError') {
-        throw new BadRequestException('Invalid ID format');
-      }
-
-      // fallback
-      throw new InternalServerErrorException('Failed to send message');
+    // validate input
+    if (!userId || !adminId || !applicationId || !message) {
+      throw new BadRequestException('Missing required fields');
     }
+
+    // find admin
+    const admin: any = await this.adminModel
+      .findById(adminId)
+      .select('_id role fullName email')
+      .lean();
+
+    if (!admin) {
+      throw new BadRequestException('Admin not found');
+    }
+
+    // find user
+    const user: any = await this.userModel
+      .findById(userId)
+      .select('_id firstName lastName')
+      .lean();
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // check application
+    const application = await this.applicationModel.findOne({
+      _id: new Types.ObjectId(applicationId),
+      userId: new Types.ObjectId(userId),
+    });
+
+    if (!application) {
+      throw new BadRequestException('Application invalid');
+    }
+
+    const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    const adminName = admin.fullName || admin.email;
+
+    // get/create conversation
+    const conversation = await this.getOrCreateConversation(
+      userId,
+      applicationId,
+      adminId,
+      admin.role,
+      userName,
+      adminName,
+    );
+
+    // create message object
+    const newMessage = {
+      senderId: new Types.ObjectId(adminId),
+      senderType: 'admin',
+      senderName: adminName,
+      senderRole: admin.role,
+      message,
+      messageType: 'text',
+      time: new Date(),
+    };
+
+    // update conversation
+    conversation.messages.push(newMessage);
+    conversation.lastMessage = message;
+    conversation.lastMessageAt = new Date();
+    conversation.lastMessageBy = 'admin';
+    conversation.unreadUser += 1;
+    conversation.unreadAdmin = 0;
+
+    await conversation.save();
+
+    return {
+      success: true,
+      message: 'Message sent successfully',
+      conversation,
+      messageData: newMessage,
+    };
+  } catch (error) {
+    console.error('sendMessageByAdmin error:', error);
+
+    // if already http exception → throw same
+    if (error instanceof BadRequestException) {
+      throw error;
+    }
+
+    // mongoose cast error (invalid object id)
+    if (error.name === 'CastError') {
+      throw new BadRequestException('Invalid ID format');
+    }
+
+    // fallback
+    throw new InternalServerErrorException('Failed to send message');
   }
+}
 
   // =====================================================
   // USER OPEN CHAT
@@ -293,6 +269,7 @@ await this.notificationService.sendToAdmin({
       data: conversation,
     };
   }
+
   // =====================================================
   // ADMIN OPEN CHAT
   // =====================================================
@@ -319,6 +296,7 @@ await this.notificationService.sendToAdmin({
       data: conversation,
     };
   }
+
   async getUserConversations(userId: string, applicationId: string) {
 
   if (!Types.ObjectId.isValid(userId))
@@ -370,50 +348,51 @@ await this.notificationService.sendToAdmin({
     roleCounts, // 🔥 THIS YOU WANTED
     roles,
   };
-   }
+}
 
 async getApplicationsByUserId(userId: string) {
 
-      const applications = await this.applicationModel
-        .find({ userId: new Types.ObjectId(userId) })
-        .select('_id appId status applicationStatus createdAt')
-        .sort({ createdAt: -1 })
-        .lean();
-
-      return {
-        success: true,
-        total: applications.length,
-        data: applications,
-      };
-    }
-
-   async getAdminConversations(adminId: string) {
-      if (!Types.ObjectId.isValid(adminId))
-        throw new BadRequestException('Invalid adminId');
-
-      return this.convoModel
-        .find({ adminId: new Types.ObjectId(adminId) })
-        .populate('userId', 'firstName lastName email')
-        .sort({ updatedAt: -1 });
-    }
-    // =====================================================
-  async getAdminTotalUnread(adminId: string) {
-
-    const conversations = await this.convoModel.find({
-      adminId: new Types.ObjectId(adminId),
-    });
-
-    let totalUnread = 0;
-
-    conversations.forEach((conv) => {
-      totalUnread += conv.unreadAdmin || 0;
-    });
+    const applications = await this.applicationModel
+      .find({ userId: new Types.ObjectId(userId) })
+      .select('_id appId status applicationStatus createdAt')
+      .sort({ createdAt: -1 })
+      .lean();
 
     return {
       success: true,
-      totalUnread,
+      total: applications.length,
+      data: applications,
     };
-    }
+  }
+
+  async getAdminConversations(adminId: string) {
+    if (!Types.ObjectId.isValid(adminId))
+      throw new BadRequestException('Invalid adminId');
+
+    return this.convoModel
+      .find({ adminId: new Types.ObjectId(adminId) })
+      .populate('userId', 'firstName lastName email')
+      .sort({ updatedAt: -1 });
+  }
+    // =====================================================
+ async getAdminTotalUnread(adminId: string) {
+
+  const conversations = await this.convoModel.find({
+    adminId: new Types.ObjectId(adminId),
+  });
+
+  let totalUnread = 0;
+
+  conversations.forEach((conv) => {
+    totalUnread += conv.unreadAdmin || 0;
+  });
+
+  return {
+    success: true,
+    totalUnread,
+  };
+}
+
   async getUserTotalUnread(userId: string) {
 
   const conversations = await this.convoModel.find({
@@ -430,5 +409,5 @@ async getApplicationsByUserId(userId: string) {
     success: true,
     totalUnread,
   };
-  }
+}
 }
