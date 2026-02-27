@@ -66,7 +66,7 @@ export class Conversation {
         },
 
         senderName: { type: String, required: true },
-        senderRole: { type: String, required: true },
+        senderRole: { type: String, required: false },
 
         message: { type: String, default: '' },
         messageType: { type: String, default: 'text' },
