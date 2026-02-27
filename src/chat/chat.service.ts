@@ -33,7 +33,7 @@ export class ChatService {
   // =====================================================
   // INTERNAL: GET OR CREATE CONVERSATION (SAFE)
   // =====================================================
-   private async getOrCreateConversation(
+ private async getOrCreateConversation(
   userId: string,
   applicationId: string,
   adminId: string,
@@ -41,32 +41,29 @@ export class ChatService {
   userName: string,
   adminName: string,
 ) {
-  return await this.convoModel.findOneAndUpdate(
-    {
-      userId: new Types.ObjectId(userId),
-      applicationId: new Types.ObjectId(applicationId),
-      adminId: new Types.ObjectId(adminId),
-      role,
-    },
-    {
-      $setOnInsert: {
-        userId: new Types.ObjectId(userId),
-        applicationId: new Types.ObjectId(applicationId),
-        adminId: new Types.ObjectId(adminId),
-        role,
-        userName,
-        adminName,
-        unreadUser: 0,
-        unreadAdmin: 0,
-        status: 'open',
-        messages: [],
-      },
-    },
-    {
-      upsert: true,
-      new: true,
-    }
-  );
+  let conversation = await this.convoModel.findOne({
+    userId: new Types.ObjectId(userId),
+    applicationId: new Types.ObjectId(applicationId),
+    adminId: new Types.ObjectId(adminId),
+    role,
+  });
+
+  if (conversation) return conversation;
+
+  conversation = await this.convoModel.create({
+    userId: new Types.ObjectId(userId),
+    applicationId: new Types.ObjectId(applicationId),
+    adminId: new Types.ObjectId(adminId),
+    role,
+    userName,
+    adminName,
+    unreadUser: 0,
+    unreadAdmin: 0,
+    status: 'open',
+    messages: [],
+  });
+
+  return conversation;
 }
 
   // =====================================================
