@@ -55,7 +55,6 @@ export class ChatGateway implements OnModuleInit {
   // ROUTER
   // =====================================================
   async routeMessage(socket: WebSocket, data: any) {
-
     if (data.type === 'identify')
       this.handleIdentify(socket, data);
 
@@ -66,8 +65,8 @@ export class ChatGateway implements OnModuleInit {
   // =====================================================
   // IDENTIFY USER / ADMIN
   // =====================================================
-  async handleIdentify(socket: WebSocket, data: any){
-  // handleIdentify(socket: WebSocket, data: any) {
+  async handleIdentify(socket: WebSocket, data: any) {
+
     console.log("IDENTIFY:", data);
 
     // USER CONNECT
@@ -105,7 +104,6 @@ export class ChatGateway implements OnModuleInit {
     // SAVE MESSAGE DB
     // ==============================
     try {
-      // 🔥 FIX: senderRole → senderType
       if (data.role === 'admin') {
         savedMessage = await this.chatService.sendMessageByAdmin(data);
       } else {
@@ -116,17 +114,23 @@ export class ChatGateway implements OnModuleInit {
       return;
     }
 
-    const conversation = savedMessage?.conversation;
+    // ==============================
+    // EXTRACT FROM SERVICE RESPONSE
+    // ==============================
+    const conversationId = savedMessage?.conversationId;
     const messageData = savedMessage?.messageData;
 
-    if (!conversation) {
-      console.log("❌ conversation missing after save");
+    if (!conversationId) {
+      console.log("❌ conversationId missing after save");
       return;
     }
 
+    // ==============================
+    // BUILD PAYLOAD (Includes conversationId)
+    // ==============================
     const payload = JSON.stringify({
       type: "receiveMessage",
-      conversationId: conversation._id,
+      conversationId: conversationId,
       data: messageData
     });
 
@@ -135,9 +139,7 @@ export class ChatGateway implements OnModuleInit {
     // =========================================
     // SEND TO USER
     // =========================================
-    const userSocket = this.userSockets.get(
-      conversation.userId?.toString()
-    );
+    const userSocket = this.userSockets.get(String(data.userId));
 
     if (userSocket && userSocket.readyState === WebSocket.OPEN) {
       userSocket.send(payload);
@@ -145,11 +147,9 @@ export class ChatGateway implements OnModuleInit {
     }
 
     // =========================================
-    // SEND ONLY ASSIGNED ADMIN (MULTI TAB SAFE)
+    // SEND TO ASSIGNED ADMIN (MULTI TAB SAFE)
     // =========================================
-    const adminSet = this.adminSockets.get(
-      conversation.adminId?.toString()
-    );
+    const adminSet = this.adminSockets.get(String(data.adminId));
 
     adminSet?.forEach(sock => {
       if (sock.readyState === WebSocket.OPEN) {
@@ -193,29 +193,29 @@ export class ChatGateway implements OnModuleInit {
   // =====================================================
   // SEND NOTIFICATION TO USER
   // =====================================================
- sendNotificationToUser(userId: string, payload: any) {
-  console.log("\n================ WS NOTIFICATION ================");
-  console.log("👤 Sending to user:", userId);
-  console.log("📦 Payload:", JSON.stringify(payload, null, 2));
+  sendNotificationToUser(userId: string, payload: any) {
 
-  const socket = this.userSockets.get(String(userId));
+    console.log("\n================ WS NOTIFICATION ================");
+    console.log("👤 Sending to user:", userId);
+    console.log("📦 Payload:", JSON.stringify(payload, null, 2));
 
-  if (!socket) {
-    console.log("❌ User socket not found (user offline)");
-    console.log("================================================\n");
-    return;
+    const socket = this.userSockets.get(String(userId));
+
+    if (!socket) {
+      console.log("❌ User socket not found (user offline)");
+      console.log("================================================\n");
+      return;
+    }
+
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: "notification",
+        data: payload
+      }));
+
+      console.log("✅ Notification delivered to socket");
+    } else {
+      console.log("❌ Socket not open");
+    }
   }
-
-  if (socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({
-      type: "notification",
-      data: payload
-    }));
-
-    console.log("✅ Notification delivered to socket");
-  } else {
-    console.log("❌ Socket not open");
-  }
-
-}
 }
