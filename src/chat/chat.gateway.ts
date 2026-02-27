@@ -194,40 +194,104 @@ if (!conversationId) {
  // =====================================================
 // REALTIME NOTIFICATION → USER
 // =====================================================
+// =====================================================
+// REALTIME NOTIFICATION → USER (FULL DEBUG)
+// =====================================================
 sendNotificationToUser(userId: string, payload: any) {
+
+  console.log("\n========== 🔔 USER NOTIFICATION DEBUG ==========");
+  console.log("Requested userId:", userId);
+  console.log("Active user socket IDs:", Array.from(this.userSockets.keys()));
+
   const socket = this.userSockets.get(String(userId));
 
-  if (socket && socket.readyState === WebSocket.OPEN) {
+  if (!socket) {
+    console.log("❌ No socket found for this userId");
+    console.log("Possible reasons:");
+    console.log(" - User not connected");
+    console.log(" - identify not sent");
+    console.log(" - userId mismatch");
+    console.log("===============================================\n");
+    return;
+  }
+
+  console.log("✅ Socket found for user");
+  console.log("Socket readyState:", socket.readyState);
+  console.log("OPEN state value:", WebSocket.OPEN);
+
+  if (socket.readyState !== WebSocket.OPEN) {
+    console.log("❌ Socket exists but NOT OPEN");
+    console.log("===============================================\n");
+    return;
+  }
+
+  try {
     socket.send(
       JSON.stringify({
         type: 'notification',
         data: payload,
       }),
     );
-    console.log("🔔 Realtime notification sent to user:", userId);
-  }
-}
 
+    console.log("🚀 Notification SENT successfully to user:", userId);
+  } catch (err) {
+    console.log("❌ Error while sending notification:", err);
+  }
+
+  console.log("================================================\n");
+}
 // =====================================================
 // REALTIME NOTIFICATION → ADMIN (MULTI TAB SAFE)
 // =====================================================
+// =====================================================
+// REALTIME NOTIFICATION → ADMIN (FULL DEBUG)
+// =====================================================
 sendNotificationToAdmin(adminId: string, payload: any) {
+
+  console.log("\n========== 🔔 ADMIN NOTIFICATION DEBUG ==========");
+  console.log("Requested adminId:", adminId);
+  console.log("Active admin IDs:", Array.from(this.adminSockets.keys()));
+
   const adminSet = this.adminSockets.get(String(adminId));
 
-  adminSet?.forEach((socket) => {
+  if (!adminSet || adminSet.size === 0) {
+    console.log("❌ No active sockets found for this admin");
+    console.log("Possible reasons:");
+    console.log(" - Admin not connected");
+    console.log(" - identify not sent");
+    console.log(" - adminId mismatch");
+    console.log("=================================================\n");
+    return;
+  }
+
+  console.log("✅ Admin socket set found");
+  console.log("Total open tabs:", adminSet.size);
+
+  let delivered = 0;
+
+  adminSet.forEach((socket, index) => {
+    console.log(`Checking socket #${index + 1}`);
+    console.log("Socket readyState:", socket.readyState);
+
     if (socket.readyState === WebSocket.OPEN) {
-      socket.send(
-        JSON.stringify({
-          type: 'notification',
-          data: payload,
-        }),
-      );
+      try {
+        socket.send(
+          JSON.stringify({
+            type: 'notification',
+            data: payload,
+          }),
+        );
+        delivered++;
+      } catch (err) {
+        console.log("❌ Error sending to this socket:", err);
+      }
+    } else {
+      console.log("⚠ Socket not OPEN, skipping");
     }
   });
 
-  if (adminSet?.size) {
-    console.log("🔔 Realtime notification sent to admin:", adminId);
-  }
+  console.log("🚀 Delivered to", delivered, "admin sockets");
+  console.log("=================================================\n");
 }
 
 
