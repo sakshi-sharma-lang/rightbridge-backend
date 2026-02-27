@@ -216,16 +216,44 @@ async sendMessageByUser(data: any) {
 
   } catch (error) {
 
-    // 🔥 SHOW REAL ERROR
-    console.error('========== REAL ERROR ==========');
-    console.error(error);
-    console.error('MESSAGE:', error?.message);
-    console.error('STACK:', error?.stack);
-    console.error('================================');
+  console.error('========== ADMIN REAL ERROR ==========');
+  console.error(error);
 
-    // Return actual error instead of hiding it
+  // 1️⃣ Handle Known Nest Errors
+  if (
+    error instanceof BadRequestException ||
+    error instanceof NotFoundException
+  ) {
     throw error;
   }
+
+  // 2️⃣ Handle Mongoose Cast Error
+  if (error.name === 'CastError') {
+    throw new BadRequestException('Invalid ID format');
+  }
+
+  // 3️⃣ Handle Enum Role Validation Error
+  if (
+    error.name === 'ValidationError' &&
+    error.errors?.role?.kind === 'enum'
+  ) {
+    const allowedRoles = error.errors.role.properties.enumValues;
+
+    throw new BadRequestException(
+      `Invalid role. Allowed roles: ${allowedRoles.join(', ')}`
+    );
+  }
+
+  // 4️⃣ Handle Any Other Mongoose Validation Error
+  if (error.name === 'ValidationError') {
+    throw new BadRequestException(error.message);
+  }
+
+  // 5️⃣ Unknown Error
+  throw new InternalServerErrorException(
+    'Something went wrong while sending message'
+  );
+}
 }
 
   // =====================================================
@@ -377,18 +405,48 @@ async sendMessageByAdmin(data: any) {
       messageData: newMessage,
     };
 
-  } catch (error) {
+  } 
 
-    // 🔥 SHOW FULL REAL ERROR
-    console.error('========== ADMIN REAL ERROR ==========');
-    console.error(error);
-    console.error('MESSAGE:', error?.message);
-    console.error('STACK:', error?.stack);
-    console.error('======================================');
+ catch (error) {
 
-    // Do NOT hide real error while debugging
+  console.error('========== ADMIN REAL ERROR ==========');
+  console.error(error);
+
+  // 1️⃣ Handle Known Nest Errors
+  if (
+    error instanceof BadRequestException ||
+    error instanceof NotFoundException
+  ) {
     throw error;
   }
+
+  // 2️⃣ Handle Mongoose Cast Error
+  if (error.name === 'CastError') {
+    throw new BadRequestException('Invalid ID format');
+  }
+
+  // 3️⃣ Handle Enum Role Validation Error
+  if (
+    error.name === 'ValidationError' &&
+    error.errors?.role?.kind === 'enum'
+  ) {
+    const allowedRoles = error.errors.role.properties.enumValues;
+
+    throw new BadRequestException(
+      `Invalid role. Allowed roles: ${allowedRoles.join(', ')}`
+    );
+  }
+
+  // 4️⃣ Handle Any Other Mongoose Validation Error
+  if (error.name === 'ValidationError') {
+    throw new BadRequestException(error.message);
+  }
+
+  // 5️⃣ Unknown Error
+  throw new InternalServerErrorException(
+    'Something went wrong while sending message'
+  );
+}
 }
   // =====================================================
   // USER OPEN CHAT
