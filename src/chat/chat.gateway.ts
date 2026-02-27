@@ -106,7 +106,7 @@ export class ChatGateway implements OnModuleInit {
     // ==============================
     try {
       // 🔥 FIX: senderRole → senderType
-      if (data.senderType === 'admin') {
+      if (data.role === 'admin') {
         savedMessage = await this.chatService.sendMessageByAdmin(data);
       } else {
         savedMessage = await this.chatService.sendMessageByUser(data);
