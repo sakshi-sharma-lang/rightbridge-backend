@@ -117,15 +117,13 @@ export class ChatGateway implements OnModuleInit {
     // ==============================
     // EXTRACT FROM SERVICE RESPONSE
     // ==============================
-    const conversation = savedMessage?.conversation;
+ const conversationId = savedMessage?.conversationId;
 const messageData = savedMessage?.messageData;
 
-if (!conversation) {
-  console.log("❌ conversation missing after save");
+if (!conversationId) {
+  console.log("❌ conversationId missing after save");
   return;
 }
-
-const conversationId = conversation._id;
 
     // ==============================
     // BUILD PAYLOAD (Includes conversationId)
