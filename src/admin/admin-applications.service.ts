@@ -87,58 +87,59 @@ async updateStageManagment(appId: string, stage: string, email: string) {
 
     // =====================================================
     // 🔎 MULTI-APPLICANT KYC VALIDATION (STRICT)
+    // Skip ONLY for dip_approved
     // =====================================================
-    if (!Array.isArray(app.applicants) || app.applicants.length === 0) {
-      return {
-        statusCode: 400,
-        message: "No applicants found in application",
-      };
-    }
+    if (stage !== 'dip_approved') {
 
-    const externalIds = app.applicants
-      .map(a => a.externalUserId)
-      .filter(Boolean);
-
-    if (externalIds.length !== app.applicants.length) {
-      return {
-        statusCode: 400,
-        message: "One or more applicants missing externalUserId",
-      };
-    }
-
-   const kycRecords = await this.kycModel
-  .find(
-    { externalUserId: { $in: externalIds } },
-    { externalUserId: 1, status: 1 }
-  )
-  .lean();
-
-// Get all found externalUserIds from DB
-const foundExternalIds = kycRecords.map(r => r.externalUserId);
-
-// Find which IDs are missing
-const missingExternalIds = externalIds.filter(
-  id => !foundExternalIds.includes(id)
-);
-
-if (missingExternalIds.length > 0) {
-  console.log("❌ Missing KYC records for externalUserIds:");
-  console.log(missingExternalIds);
-
-  return {
-    statusCode: 400,
-    message: `KYC record missing for applicants: ${missingExternalIds.join(', ')}`,
-  };
-}
-
-    // Check each KYC status
-    for (const record of kycRecords) {
-      if (record.status === 'LINK_SENT') {
-        console.log("⛔ KYC already LINK_SENT for:", record.externalUserId);
+      if (!Array.isArray(app.applicants) || app.applicants.length === 0) {
         return {
-          statusCode: 403,
-          message: `KYC already LINK_SENT for applicant ${record.externalUserId}. Stage blocked.`,
+          statusCode: 400,
+          message: "No applicants found in application",
         };
+      }
+
+      const externalIds = app.applicants
+        .map(a => a.externalUserId)
+        .filter(Boolean);
+
+      if (externalIds.length !== app.applicants.length) {
+        return {
+          statusCode: 400,
+          message: "One or more applicants missing externalUserId",
+        };
+      }
+
+      const kycRecords = await this.kycModel
+        .find(
+          { externalUserId: { $in: externalIds } },
+          { externalUserId: 1, status: 1 }
+        )
+        .lean();
+
+      const foundExternalIds = kycRecords.map(r => r.externalUserId);
+
+      const missingExternalIds = externalIds.filter(
+        id => !foundExternalIds.includes(id)
+      );
+
+      if (missingExternalIds.length > 0) {
+        console.log("❌ Missing KYC records for externalUserIds:");
+        console.log(missingExternalIds);
+
+        return {
+          statusCode: 400,
+          message: `KYC record missing for applicants: ${missingExternalIds.join(', ')}`,
+        };
+      }
+
+      for (const record of kycRecords) {
+        if (record.status === 'LINK_SENT') {
+          console.log("⛔ KYC already LINK_SENT for:", record.externalUserId);
+          return {
+            statusCode: 403,
+            message: `KYC already LINK_SENT for applicant ${record.externalUserId}. Stage blocked.`,
+          };
+        }
       }
     }
 
