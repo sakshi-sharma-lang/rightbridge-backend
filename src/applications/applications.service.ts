@@ -1090,18 +1090,6 @@ async getAllApplicationbyAdmin(query: any) {
     isDraft: { $ne: true },
   };
 
-  // ================= STATUS FILTER (DB LEVEL ONLY) =================
-  if (status && status !== 'all') {
-    filter.$or = [
-      { status: status },
-      {
-        application_stage_management: {
-          $elemMatch: { $eq: status },
-        },
-      },
-    ];
-  }
-
   if (priority) filter.priority = priority;
   if (loanType) filter['loanType.applicationType'] = loanType;
 
@@ -1171,32 +1159,27 @@ async getAllApplicationbyAdmin(query: any) {
 
   const skip = (Number(page) - 1) * Number(limit);
 
-  // ================= QUERY =================
-  const [rows, total] = await Promise.all([
-    this.applicationModel
-      .find(filter)
-      .select({
-        _id: 1,
-        appId: 1,
-        status: 1,
-        priority: 1,
-        updatedAt: 1,
-        application_stage_management: 1,
-        'applicants.firstName': 1,
-        'applicants.lastName': 1,
-        'loanRequirements.loanAmount': 1,
-        'loanRequirements.loanPurpose': 1,
-        'property.address': 1,
-      })
-      .sort(sortQuery)
-      .skip(skip)
-      .limit(Number(limit))
-      .lean(),
-    this.applicationModel.countDocuments(filter),
-  ]);
+  // ================= FETCH ALL MATCHING (WITHOUT STATUS FILTER) =================
+  const allRows = await this.applicationModel
+    .find(filter)
+    .select({
+      _id: 1,
+      appId: 1,
+      status: 1,
+      priority: 1,
+      updatedAt: 1,
+      application_stage_management: 1,
+      'applicants.firstName': 1,
+      'applicants.lastName': 1,
+      'loanRequirements.loanAmount': 1,
+      'loanRequirements.loanPurpose': 1,
+      'property.address': 1,
+    })
+    .sort(sortQuery)
+    .lean();
 
   // ================= PAYMENT CHECK =================
-  const applicationIds = rows.map((item: any) => item._id);
+  const applicationIds = allRows.map((item: any) => item._id);
 
   const paidRecords = await this.paymentModel
     .find({
@@ -1210,30 +1193,17 @@ async getAllApplicationbyAdmin(query: any) {
     p.applicationId.toString(),
   );
 
-  // ================= THIS MONTH COUNT =================
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
-
-  const thisMonthApplication =
-    await this.applicationModel.countDocuments({
-      createdAt: { $gte: startOfMonth },
-    });
-
-  // ================= RESPONSE FORMAT =================
-  const data = rows.map((item: any) => {
+  // ================= COMPUTE STATUS + MAP =================
+  let mappedData = allRows.map((item: any) => {
     let rawStatus: string = item.status;
 
     const isPaid = paidApplicationIds.includes(item._id.toString());
-
     const stageArray = item.application_stage_management || [];
 
-    // If dip_stage, show latest stage
     if (rawStatus === 'dip_stage' && stageArray.length > 0) {
       rawStatus = stageArray[stageArray.length - 1];
     }
 
-    // Lock at dip_approved only if NOT declined/completed
     if (
       stageArray.includes('dip_approved') &&
       !isPaid &&
@@ -1271,13 +1241,39 @@ async getAllApplicationbyAdmin(query: any) {
     };
   });
 
+  // ================= STATUS FILTER (AFTER COMPUTE) =================
+  if (status && status !== 'all') {
+    const formattedStatus = STATUS_LABEL_MAP[status] || status
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (c: string) => c.toUpperCase());
+
+    mappedData = mappedData.filter(
+      (item) => item.status === formattedStatus,
+    );
+  }
+
+  const total = mappedData.length;
+
+  // ================= PAGINATION AFTER FILTER =================
+  const paginatedData = mappedData.slice(skip, skip + Number(limit));
+
+  // ================= THIS MONTH COUNT =================
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const thisMonthApplication =
+    await this.applicationModel.countDocuments({
+      createdAt: { $gte: startOfMonth },
+    });
+
   return {
     total,
     page: Number(page),
     limit: Number(limit),
     thisMonthApplication,
     thisMonthChange: thisMonthApplication,
-    data,
+    data: paginatedData,
   };
 }
   async findApplicationByUserId(userId: string) {
