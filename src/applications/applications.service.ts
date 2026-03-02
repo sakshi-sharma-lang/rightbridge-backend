@@ -1073,7 +1073,7 @@ async getAllApplicationbyAdmin(query: any) {
     isDraft: { $ne: true },
   };
 
-  // ================= STATUS FILTER (DB LEVEL - unchanged) =================
+  // ================= STATUS FILTER (DB LEVEL - LIMITED ONLY FOR SPECIAL CASES) =================
   if (status && status !== 'all') {
     if (status === 'completed_stage') {
       filter.$or = [
@@ -1095,9 +1095,8 @@ async getAllApplicationbyAdmin(query: any) {
           },
         },
       ];
-    } else {
-      filter.status = status;
     }
+    // 🚀 DO NOT filter by filter.status = status
   }
 
   if (priority) filter.priority = priority;
