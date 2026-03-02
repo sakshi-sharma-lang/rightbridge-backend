@@ -7,13 +7,15 @@ import { Application, ApplicationSchema } from './schemas/application.schema';
 import { Counter, CounterSchema } from './schemas/counter.schema';
 import { MailModule } from '../mail/mail.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { Payment, PaymentSchema } from '../payments/schemas/payment.schema'; // ✅ ADD
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Application.name, schema: ApplicationSchema },
       { name: Counter.name, schema: CounterSchema },
-      { name: User.name, schema: UserSchema },  
+      { name: User.name, schema: UserSchema },
+      { name: Payment.name, schema: PaymentSchema }, // ✅ ADD THIS LINE
     ]),
     MailModule,
   ],

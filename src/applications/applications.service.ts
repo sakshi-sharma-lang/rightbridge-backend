@@ -14,6 +14,7 @@ import * as fs from 'fs';
 import { S3Helper } from '../common/s3.helper';
 import { MailService } from '../mail/mail.service';
 import { User } from '../users/schemas/user.schema';
+import { Payment, PaymentDocument } from '../payments/schemas/payment.schema';
 
 
 @Injectable()
@@ -29,6 +30,9 @@ export class ApplicationsService {
 
   @InjectModel(User.name)   
   private readonly userModel: Model<User>, 
+
+  @InjectModel(Payment.name)
+  private paymentModel: Model<PaymentDocument>, 
   ) {}
 
   private getFileHash(filePath: string): string {
@@ -482,15 +486,16 @@ async getApplicationsAdmindashboard(query: any) {
     limit = 10,
   } = query;
 
-  const STATUS_LABEL_MAP: Record<string, string> = {
+    const STATUS_LABEL_MAP: Record<string, string> = {
     welcome_stage: 'Draft',
     dip_stage: 'DIP Submitted',
-    dip_submitted: 'Kyc Submitted',
+    dip_submitted: 'Fee Required',
     dip_approved: 'KYC/AML',
     fee_required: 'Fee Required',
     kyc_stage: 'KYC Pending',
     kyc_confirm: 'Valuation',
     valuation_stage: 'Underwriting',
+    valuation_started: 'Valuation',
     underwriting_stage: 'Underwriting',
     underwriting_started: 'Offer Sent',
     offer_issued: 'Offer Issued',
@@ -1044,7 +1049,7 @@ async getAllApplicationbyAdmin(query: any) {
     sort = 'recent',
   } = query;
 
-   const STATUS_LABEL_MAP: Record<string, string> = {
+  const STATUS_LABEL_MAP: Record<string, string> = {
     welcome_stage: 'Draft',
     dip_stage: 'DIP Submitted',
     dip_submitted: 'Fee Required',
@@ -1204,9 +1209,52 @@ async getAllApplicationbyAdmin(query: any) {
     this.applicationModel.countDocuments(filter),
   ]);
 
+  // ================= PAYMENT CHECK FOR dip_submitted =================
+  const dipSubmittedIds = rows
+    .filter((item: any) => item.status === 'dip_submitted')
+    .map((item: any) => item._id);
+
+  let paidApplicationIds: string[] = [];
+
+  if (dipSubmittedIds.length > 0) {
+    const paidRecords = await this.paymentModel
+      .find({
+        applicationId: { $in: dipSubmittedIds },
+        status: 'PAID',
+      })
+      .select('applicationId')
+      .lean();
+
+    paidApplicationIds = paidRecords.map((p: any) =>
+      p.applicationId.toString(),
+    );
+  }
+
+  // ================= THIS MONTH APPLICATION COUNT =================
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const thisMonthApplication = await this.applicationModel.countDocuments({
+    createdAt: { $gte: startOfMonth },
+  });
+
+  const thisMonthChange = Math.max(0, thisMonthApplication);
+
   // ================= RESPONSE FORMAT =================
   const data = rows.map((item: any) => {
     let rawStatus: string = item.status as string;
+
+    // ===== PAYMENT LOGIC (ONLY FOR dip_submitted) =====
+    if (rawStatus === 'dip_submitted') {
+      const isPaid = paidApplicationIds.includes(
+        item._id.toString(),
+      );
+
+      if (!isPaid) {
+        rawStatus = 'fee_required';
+      }
+    }
 
     // Override stage only for display
     if (
@@ -1237,7 +1285,9 @@ async getAllApplicationbyAdmin(query: any) {
       id: item._id,
       appId: item.appId,
       applicantName:
-        `${item?.applicants?.[0]?.firstName ?? ''} ${item?.applicants?.[0]?.lastName ?? ''}`.trim(),
+        `${item?.applicants?.[0]?.firstName ?? ''} ${
+          item?.applicants?.[0]?.lastName ?? ''
+        }`.trim(),
       loanAmount: item.loanRequirements?.loanAmount ?? 0,
       propertyAddress: item.property?.address ?? '',
       status: displayStatus,
@@ -1251,6 +1301,8 @@ async getAllApplicationbyAdmin(query: any) {
     total,
     page: Number(page),
     limit: Number(limit),
+    thisMonthApplication,
+    thisMonthChange,
     data,
   };
 }

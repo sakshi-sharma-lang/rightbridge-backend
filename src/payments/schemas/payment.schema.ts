@@ -1,5 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Types } from 'mongoose';
+import { Types, Document } from 'mongoose';
+
+export type PaymentDocument = Payment & Document; // ✅ ADD THIS
 
 @Schema({ timestamps: true })
 export class Payment {
@@ -15,7 +17,6 @@ export class Payment {
   @Prop({ required: true, unique: true })
   stripePaymentIntentId: string;
 
-  //  simple status field (store anything from Stripe)
   @Prop({ type: String, default: 'requires_payment_method' })
   status: string;
 }
