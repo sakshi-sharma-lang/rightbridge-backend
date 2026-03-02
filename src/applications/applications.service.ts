@@ -511,31 +511,30 @@ async getApplicationsAdmindashboard(query: any) {
 
   const filter: any = { ...baseFilter };
 
-  // 🚀 REMOVE DB-LEVEL NORMAL STATUS FILTER
+  // ================= STATUS FILTER (KEEP YOUR ORIGINAL) =================
   if (status && status !== 'active') {
-    if (status === 'completed_stage') {
-      filter.$or = [
-        { status: 'completed_stage' },
-        {
-          status: 'dip_stage',
-          application_stage_management: {
-            $elemMatch: { $eq: 'completed_stage' },
+    const normalized = status.trim().toLowerCase().replace(/\s+/g, '_');
+
+    filter.$or = [
+      {
+        status: {
+          $regex: `^${normalized}$`,
+          $options: 'i',
+        },
+      },
+      {
+        status: 'dip_stage',
+        application_stage_management: {
+          $elemMatch: {
+            $regex: `^${normalized}$`,
+            $options: 'i',
           },
         },
-      ];
-    } else if (status === 'decline_stage') {
-      filter.$or = [
-        { status: 'decline_stage' },
-        {
-          status: 'dip_stage',
-          application_stage_management: {
-            $elemMatch: { $eq: 'decline_stage' },
-          },
-        },
-      ];
-    }
+      },
+    ];
   }
 
+  // ================= TYPE FILTER =================
   if (loanType && loanType !== 'all') {
     const normalizedType = loanType.trim().toLowerCase();
     filter['loanType.applicationType'] = {
@@ -544,6 +543,7 @@ async getApplicationsAdmindashboard(query: any) {
     };
   }
 
+  // ================= DATE FILTER =================
   if (fromDate || toDate) {
     filter.createdAt = {};
     if (fromDate) {
@@ -558,6 +558,7 @@ async getApplicationsAdmindashboard(query: any) {
     }
   }
 
+  // ================= SEARCH =================
   if (search) {
     const raw = search.trim();
     const parts = raw.split(/\s+/);
@@ -574,13 +575,13 @@ async getApplicationsAdmindashboard(query: any) {
         $and: [
           {
             'applicants.firstName': {
-              $regex: parts.slice(0, -1).join(' '),
+              $regex: parts[0],
               $options: 'i',
             },
           },
           {
             'applicants.lastName': {
-              $regex: parts[parts.length - 1],
+              $regex: parts[1],
               $options: 'i',
             },
           },
@@ -597,6 +598,20 @@ async getApplicationsAdmindashboard(query: any) {
   }
 
   const skip = (Number(page) - 1) * Number(limit);
+
+  // ================= MONTH CALCULATION (ADDED BACK) =================
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const endOfMonth = new Date();
+  endOfMonth.setHours(23, 59, 59, 999);
+
+  const startOfLastMonth = new Date(startOfMonth);
+  startOfLastMonth.setMonth(startOfLastMonth.getMonth() - 1);
+
+  const endOfLastMonth = new Date(startOfMonth);
+  endOfLastMonth.setMilliseconds(-1);
 
   const [
     rows,
@@ -633,7 +648,7 @@ async getApplicationsAdmindashboard(query: any) {
     this.applicationModel.countDocuments(baseFilter),
     this.applicationModel.countDocuments({
       ...baseFilter,
-      status: 'dip_stage',
+      updatedAt: { $gte: startOfMonth },
     }),
     this.applicationModel.countDocuments({ status: 'fee_required' }),
     this.applicationModel.countDocuments({ status: 'kyc_stage' }),
@@ -649,7 +664,7 @@ async getApplicationsAdmindashboard(query: any) {
     }),
   ]);
 
-  // ================= PAYMENT CHECK =================
+  // ================= PAYMENT CHECK (SAME AS OTHER FUNCTION) =================
   const applicationIds = rows.map((item: any) => item._id);
 
   const paidRecords = await this.paymentModel
@@ -676,7 +691,7 @@ async getApplicationsAdmindashboard(query: any) {
       Array.isArray(item.application_stage_management) &&
       item.application_stage_management.includes('dip_submitted');
 
-    // 🔥 LOCK STATUS IF dip_submitted EXISTS & NOT PAID
+    // 🔥 SAME LOCK LOGIC AS getAllApplicationbyAdmin
     if (hasDipSubmitted && !isPaid) {
       rawStatus = 'dip_submitted';
     }
@@ -717,7 +732,7 @@ async getApplicationsAdmindashboard(query: any) {
     };
   });
 
-  // 🔥 DISPLAY LEVEL STATUS FILTER
+  // ================= DISPLAY LEVEL FILTER (SAME AS OTHER FUNCTION) =================
   if (status && status !== 'active') {
     const statusLabel =
       STATUS_LABEL_MAP[status] ||
