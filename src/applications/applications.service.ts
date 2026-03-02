@@ -681,11 +681,11 @@ async getApplicationsAdmindashboard(query: any) {
 
     const hasDipSubmitted =
       Array.isArray(item.application_stage_management) &&
-      item.application_stage_management.includes('dip_submitted');
+      item.application_stage_management.includes('dip_approved');
 
     // 🔥 SAME LOCK LOGIC
     if (hasDipSubmitted && !isPaid) {
-      rawStatus = 'dip_submitted';
+      rawStatus = 'dip_approved';
     }
 
     if (
@@ -738,7 +738,7 @@ async getApplicationsAdmindashboard(query: any) {
     kycInProgress,
     underwritingQueue,
     offersIssued,
-    thisMonthChange: `+${Math.max(0, thisMonthChange)}`,
+    thisMonthChange: `${Math.max(0, thisMonthChange)}`,
     total: data.length,
     page: Number(page),
     limit: Number(limit),
@@ -1246,11 +1246,11 @@ async getAllApplicationbyAdmin(query: any) {
 
     const hasDipSubmitted =
       Array.isArray(item.application_stage_management) &&
-      item.application_stage_management.includes('dip_submitted');
+      item.application_stage_management.includes('dip_approved');
 
     // 🔥 LOCK STATUS IF dip_submitted EXISTS & NOT PAID
     if (hasDipSubmitted && !isPaid) {
-      rawStatus = 'dip_submitted';
+      rawStatus = 'dip_approved';
     }
 
     if (
