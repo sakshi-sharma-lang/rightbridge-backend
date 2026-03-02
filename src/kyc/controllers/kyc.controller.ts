@@ -327,13 +327,10 @@ async getSumsubData(@Query('applicantId') applicantId: string) {
   }
 }
 
-
-
 @Get('sumsub/applicant/data')
 async getApplicant(@Query('applicantId') applicantId: string) {
   return this.sumsubService.getApplicantById(applicantId);
 }
-
 
 @Get('status/details')
 @UseGuards(AdminJwtGuard) 
