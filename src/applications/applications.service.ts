@@ -1080,45 +1080,32 @@ async getAllApplicationbyAdmin(query: any) {
     underwriting_started: 'Offer Sent',
     offer_issued: 'Offer Issued',
     offersent_stage: 'Offer Sent',
-    completed_stage: 'Applicaiton Completed',
+    completed_stage: 'Application Completed',
     decline_stage: 'DIP Declined',
   };
 
   // ================= BASE FILTER =================
   const filter: any = {
-    status: { $nin: ['welcome_stage'] },
+    status: { $ne: 'welcome_stage' },
     isDraft: { $ne: true },
   };
 
-  // ================= STATUS FILTER (DB LEVEL - LIMITED ONLY FOR SPECIAL CASES) =================
+  // ================= STATUS FILTER (DB LEVEL ONLY) =================
   if (status && status !== 'all') {
-    if (status === 'completed_stage') {
-      filter.$or = [
-        { status: 'completed_stage' },
-        {
-          status: 'dip_stage',
-          application_stage_management: {
-            $elemMatch: { $eq: 'completed_stage' },
-          },
+    filter.$or = [
+      { status: status },
+      {
+        application_stage_management: {
+          $elemMatch: { $eq: status },
         },
-      ];
-    } else if (status === 'decline_stage') {
-      filter.$or = [
-        { status: 'decline_stage' },
-        {
-          status: 'dip_stage',
-          application_stage_management: {
-            $elemMatch: { $eq: 'decline_stage' },
-          },
-        },
-      ];
-    }
-    // 🚀 DO NOT filter by filter.status = status
+      },
+    ];
   }
 
   if (priority) filter.priority = priority;
   if (loanType) filter['loanType.applicationType'] = loanType;
 
+  // ================= DATE FILTER =================
   if (fromDate || toDate) {
     filter.createdAt = {};
     if (fromDate) {
@@ -1133,7 +1120,7 @@ async getAllApplicationbyAdmin(query: any) {
     }
   }
 
-  // ================= SEARCH =================
+  // ================= SEARCH FILTER =================
   if (search) {
     const raw = search.trim();
     const parts = raw.split(/\s+/);
@@ -1168,16 +1155,13 @@ async getAllApplicationbyAdmin(query: any) {
       });
     }
 
-    if (filter.$or) {
-      filter.$and = [{ $or: filter.$or }, { $or: searchConditions }];
-      delete filter.$or;
-    } else {
-      filter.$or = searchConditions;
-    }
+    filter.$and = filter.$and || [];
+    filter.$and.push({ $or: searchConditions });
   }
 
   // ================= SORT =================
   let sortQuery: any = { updatedAt: -1 };
+
   if (sort === 'oldest') sortQuery = { updatedAt: 1 };
   if (sort === 'highest_amount')
     sortQuery = { 'loanRequirements.loanAmount': -1 };
@@ -1226,7 +1210,7 @@ async getAllApplicationbyAdmin(query: any) {
     p.applicationId.toString(),
   );
 
-  // ================= THIS MONTH =================
+  // ================= THIS MONTH COUNT =================
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
@@ -1236,32 +1220,27 @@ async getAllApplicationbyAdmin(query: any) {
       createdAt: { $gte: startOfMonth },
     });
 
-  const thisMonthChange = Math.max(0, thisMonthApplication);
-
   // ================= RESPONSE FORMAT =================
   const data = rows.map((item: any) => {
-    let rawStatus: string = item.status as string;
+    let rawStatus: string = item.status;
 
     const isPaid = paidApplicationIds.includes(item._id.toString());
 
-    const hasDipSubmitted =
-      Array.isArray(item.application_stage_management) &&
-      item.application_stage_management.includes('dip_approved');
+    const stageArray = item.application_stage_management || [];
 
-    // 🔥 LOCK STATUS IF dip_submitted EXISTS & NOT PAID
-    if (hasDipSubmitted && !isPaid) {
-      rawStatus = 'dip_approved';
+    // If dip_stage, show latest stage
+    if (rawStatus === 'dip_stage' && stageArray.length > 0) {
+      rawStatus = stageArray[stageArray.length - 1];
     }
 
+    // Lock at dip_approved only if NOT declined/completed
     if (
-      rawStatus === 'dip_stage' &&
-      Array.isArray(item.application_stage_management) &&
-      item.application_stage_management.length > 0
+      stageArray.includes('dip_approved') &&
+      !isPaid &&
+      rawStatus !== 'decline_stage' &&
+      rawStatus !== 'completed_stage'
     ) {
-      rawStatus =
-        item.application_stage_management[
-          item.application_stage_management.length - 1
-        ];
+      rawStatus = 'dip_approved';
     }
 
     let displayStatus =
@@ -1288,29 +1267,17 @@ async getAllApplicationbyAdmin(query: any) {
       propertyAddress: item.property?.address ?? '',
       status: displayStatus,
       priority: item.priority ?? '',
-      underwriter: item.underwriter ?? '',
       updatedAt: item.updatedAt,
     };
   });
 
-  // ================= FINAL STATUS FILTER (DISPLAY LEVEL) =================
-  let finalData = data;
-
-  if (status && status !== 'all') {
-    const statusLabel =
-      STATUS_LABEL_MAP[status] ||
-      status.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
-
-    finalData = data.filter((item: any) => item.status === statusLabel);
-  }
-
   return {
-    total: finalData.length,
+    total,
     page: Number(page),
     limit: Number(limit),
     thisMonthApplication,
-    thisMonthChange,
-    data: finalData,
+    thisMonthChange: thisMonthApplication,
+    data,
   };
 }
   async findApplicationByUserId(userId: string) {
