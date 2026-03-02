@@ -485,6 +485,8 @@ async getApplicationsAdmindashboard(query: any) {
   const STATUS_LABEL_MAP: Record<string, string> = {
     welcome_stage: 'Draft',
     dip_stage: 'DIP Submitted',
+    dip_submitted: 'DIP Submitted',
+    dip_approved: 'DIP Approved',
     kyc_stage: 'KYC Pending',
     valuation_stage: 'Valuation',
     underwriting_stage: 'Underwriting',
@@ -594,10 +596,11 @@ async getApplicationsAdmindashboard(query: any) {
     this.applicationModel
       .find(filter)
       .select({
-        _id: 1, // ⭐ IMPORTANT
+        _id: 1,
         appId: 1,
         status: 1,
         updatedAt: 1,
+        application_stage_management: 1, // ✅ ADDED
         'applicants.firstName': 1,
         'applicants.lastName': 1,
         'loanRequirements.loanAmount': 1,
@@ -632,23 +635,36 @@ async getApplicationsAdmindashboard(query: any) {
   const thisMonthChange = thisMonthCount - lastMonthCount;
 
   // ================= TABLE FORMAT =================
-  const data = rows.map((item) => {
+  const data = rows.map((item: any) => {
+    let rawStatus: string = item.status as unknown as string;
+
+    // ✅ Override with last stage if dip_stage
+    if (
+      rawStatus === 'dip_stage' &&
+      Array.isArray(item.application_stage_management) &&
+      item.application_stage_management.length > 0
+    ) {
+      rawStatus =
+        item.application_stage_management[
+          item.application_stage_management.length - 1
+        ];
+    }
+
     let formattedStatus =
-      STATUS_LABEL_MAP[item.status] ||
-      String(item.status)
+      STATUS_LABEL_MAP[rawStatus] ||
+      rawStatus
         .replace(/_/g, ' ')
-        .replace(/\b\w/g, (c) => c.toUpperCase());
+        .replace(/\b\w/g, (c: string) => c.toUpperCase());
 
     if (
       item?.loanRequirements?.loanPurpose === 'other' &&
-      (String(item?.status) === 'dip_submitted' ||
-        String(item?.status) === 'dip_stage')
+      (rawStatus === 'dip_submitted' || rawStatus === 'dip_stage')
     ) {
       formattedStatus = 'Pending Admin Review';
     }
 
     return {
-      _id: item._id.toString(), // ⭐ RETURN OID HERE
+      _id: item._id.toString(),
       appId: item.appId,
       applicantName:
         `${item?.applicants?.[0]?.firstName ?? ''} ${item?.applicants?.[0]?.lastName ?? ''}`.trim(),
