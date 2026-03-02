@@ -985,7 +985,6 @@ async getAllApplicationbyAdmin(query: any) {
   const {
     status,
     priority,
-    underwriter,
     loanType,
     fromDate,
     toDate,
@@ -1004,35 +1003,49 @@ async getAllApplicationbyAdmin(query: any) {
     valuation_started: 'Valuation Started',
     underwriting_started: 'Underwriting Started',
     offer_issued: 'Offer Issued',
-    completed_stage: 'Complete stage',
+    completed_stage: 'Complete Stage',
     decline_stage: 'DIP Declined',
   };
 
   // ================= BASE FILTER =================
-  const baseFilter: any = {
+  const filter: any = {
     status: { $nin: ['welcome_stage'] },
     isDraft: { $ne: true },
   };
 
-  const filter: any = { ...baseFilter };
-
   // ================= STATUS FILTER =================
   if (status && status !== 'all') {
-    if (status === 'completed') {
-      filter.status = 'completed_stage';
-    } else if (status === 'declined') {
-      filter.status = 'decline_stage';
+    if (status === 'completed_stage') {
+      filter.$or = [
+        { status: 'completed_stage' },
+        {
+          status: 'dip_stage',
+          application_stage_management: {
+            $elemMatch: { $eq: 'completed_stage' },
+          },
+        },
+      ];
+    } else if (status === 'decline_stage') {
+      filter.$or = [
+        { status: 'decline_stage' },
+        {
+          status: 'dip_stage',
+          application_stage_management: {
+            $elemMatch: { $eq: 'decline_stage' },
+          },
+        },
+      ];
     } else {
       filter.status = status;
     }
   }
 
-  // ================= PRIORITY FILTER =================
+  // ================= PRIORITY =================
   if (priority) {
     filter.priority = priority;
   }
 
-  // ================= LOAN TYPE FILTER =================
+  // ================= LOAN TYPE =================
   if (loanType) {
     filter['loanType.applicationType'] = loanType;
   }
@@ -1059,7 +1072,7 @@ async getAllApplicationbyAdmin(query: any) {
     const raw = search.trim();
     const parts = raw.split(/\s+/);
 
-    const orConditions: any[] = [
+    const searchConditions: any[] = [
       { appId: { $regex: raw, $options: 'i' } },
       { 'property.address': { $regex: raw, $options: 'i' } },
       { 'applicants.firstName': { $regex: raw, $options: 'i' } },
@@ -1067,7 +1080,7 @@ async getAllApplicationbyAdmin(query: any) {
     ];
 
     if (parts.length >= 2) {
-      orConditions.push({
+      searchConditions.push({
         applicants: {
           $elemMatch: {
             firstName: {
@@ -1084,17 +1097,24 @@ async getAllApplicationbyAdmin(query: any) {
     }
 
     if (!isNaN(Number(raw))) {
-      orConditions.push({
+      searchConditions.push({
         'loanRequirements.loanAmount': Number(raw),
       });
     }
 
-    filter.$or = orConditions;
+    if (filter.$or) {
+      filter.$and = [
+        { $or: filter.$or },
+        { $or: searchConditions },
+      ];
+      delete filter.$or;
+    } else {
+      filter.$or = searchConditions;
+    }
   }
 
   // ================= SORT =================
   let sortQuery: any = { updatedAt: -1 };
-
   if (sort === 'oldest') sortQuery = { updatedAt: 1 };
   if (sort === 'highest_amount')
     sortQuery = { 'loanRequirements.loanAmount': -1 };
@@ -1104,20 +1124,8 @@ async getAllApplicationbyAdmin(query: any) {
 
   const skip = (Number(page) - 1) * Number(limit);
 
-  // ================= DASHBOARD FILTER =================
-  const dashboardFilter: any = { ...filter };
-  delete dashboardFilter.$or;
-
   // ================= QUERY =================
-  const [
-    rows,
-    total,
-    totalApplications,
-    awaitingFee,
-    kycInProgress,
-    underwritingQueue,
-    offersIssued,
-  ] = await Promise.all([
+  const [rows, total] = await Promise.all([
     this.applicationModel
       .find(filter)
       .select({
@@ -1126,7 +1134,7 @@ async getAllApplicationbyAdmin(query: any) {
         status: 1,
         priority: 1,
         updatedAt: 1,
-        application_stage_management: 1, // REQUIRED
+        application_stage_management: 1,
         'applicants.firstName': 1,
         'applicants.lastName': 1,
         'loanRequirements.loanAmount': 1,
@@ -1139,40 +1147,13 @@ async getAllApplicationbyAdmin(query: any) {
       .lean(),
 
     this.applicationModel.countDocuments(filter),
-    this.applicationModel.countDocuments(dashboardFilter),
-
-    this.applicationModel.countDocuments({
-      ...dashboardFilter,
-      status: 'fee_required',
-    }),
-
-    this.applicationModel.countDocuments({
-      ...dashboardFilter,
-      status: 'kyc_confirm',
-    }),
-
-    this.applicationModel.countDocuments({
-      ...dashboardFilter,
-      status: 'underwriting_started',
-    }),
-
-    this.applicationModel.countDocuments({
-      ...dashboardFilter,
-      status: 'offer_issued',
-    }),
   ]);
 
-  // ================= DASHBOARD CALC =================
-  const inProgress = kycInProgress + underwritingQueue;
-  const pendingAction = awaitingFee;
-  const completed = offersIssued;
-
-  // ================= TABLE FORMAT =================
+  // ================= RESPONSE FORMAT =================
   const data = rows.map((item: any) => {
-    // 🔹 Cast enum to string to avoid TS error
-    let rawStatus: string = item.status as unknown as string;
+    let rawStatus: string = item.status as string;
 
-    // 🔹 Override with last stage if dip_stage
+    // Override stage only for display
     if (
       rawStatus === 'dip_stage' &&
       Array.isArray(item.application_stage_management) &&
@@ -1184,14 +1165,12 @@ async getAllApplicationbyAdmin(query: any) {
         ];
     }
 
-    // 🔹 Format status
     let displayStatus =
       STATUS_LABEL_MAP[rawStatus] ||
       rawStatus
         .replace(/_/g, ' ')
         .replace(/\b\w/g, (c: string) => c.toUpperCase());
 
-    // 🔹 Pending Admin Review logic
     if (
       item?.loanRequirements?.loanPurpose === 'other' &&
       (rawStatus === 'dip_submitted' || rawStatus === 'dip_stage')
@@ -1207,25 +1186,19 @@ async getAllApplicationbyAdmin(query: any) {
       loanAmount: item.loanRequirements?.loanAmount ?? 0,
       propertyAddress: item.property?.address ?? '',
       status: displayStatus,
-      priority: item.priority ?? 'high',
+      priority: item.priority ?? '',
       underwriter: item.underwriter ?? '',
       updatedAt: item.updatedAt,
     };
   });
 
-  // ================= RESPONSE =================
   return {
-    totalApplications,
-    inProgress,
-    pendingAction,
-    completed,
     total,
     page: Number(page),
     limit: Number(limit),
     data,
   };
 }
-
   async findApplicationByUserId(userId: string) {
     return this.applicationModel
       .findOne({ userId: new Types.ObjectId(userId) })
