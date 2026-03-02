@@ -4,8 +4,7 @@ import { Model } from 'mongoose';
 import { Application } from '../applications/schemas/application.schema';
 import { MailService } from '../mail/mail.service'; 
 import { User } from '../users/schemas/user.schema'; 
-
-
+import { Kyc } from '../kyc/schemas/kyc.schema';
 import { ChatGateway } from '../chat/chat.gateway';
 import { NotificationService } from '../notification/notification.service';
 
@@ -22,6 +21,8 @@ constructor(
   private readonly mailService: MailService,
 
   private readonly notificationService: NotificationService,
+@InjectModel(Kyc.name)
+private kycModel: Model<Kyc>,
 ) {}
 
 
@@ -84,6 +85,67 @@ async updateStageManagment(appId: string, stage: string, email: string) {
       };
     }
 
+    // =====================================================
+    // 🔎 MULTI-APPLICANT KYC VALIDATION (STRICT)
+    // =====================================================
+    if (!Array.isArray(app.applicants) || app.applicants.length === 0) {
+      return {
+        statusCode: 400,
+        message: "No applicants found in application",
+      };
+    }
+
+    const externalIds = app.applicants
+      .map(a => a.externalUserId)
+      .filter(Boolean);
+
+    if (externalIds.length !== app.applicants.length) {
+      return {
+        statusCode: 400,
+        message: "One or more applicants missing externalUserId",
+      };
+    }
+
+   const kycRecords = await this.kycModel
+  .find(
+    { externalUserId: { $in: externalIds } },
+    { externalUserId: 1, status: 1 }
+  )
+  .lean();
+
+// Get all found externalUserIds from DB
+const foundExternalIds = kycRecords.map(r => r.externalUserId);
+
+// Find which IDs are missing
+const missingExternalIds = externalIds.filter(
+  id => !foundExternalIds.includes(id)
+);
+
+if (missingExternalIds.length > 0) {
+  console.log("❌ Missing KYC records for externalUserIds:");
+  console.log(missingExternalIds);
+
+  return {
+    statusCode: 400,
+    message: `KYC record missing for applicants: ${missingExternalIds.join(', ')}`,
+  };
+}
+
+    // Check each KYC status
+    for (const record of kycRecords) {
+      if (record.status === 'LINK_SENT') {
+        console.log("⛔ KYC already LINK_SENT for:", record.externalUserId);
+        return {
+          statusCode: 403,
+          message: `KYC already LINK_SENT for applicant ${record.externalUserId}. Stage blocked.`,
+        };
+      }
+    }
+
+    // =====================================================
+    // ✅ SAFE TO UPDATE STAGE
+    // =====================================================
+
     if (!Array.isArray(app.application_stage_management)) {
       app.application_stage_management = [];
     }
@@ -94,34 +156,25 @@ async updateStageManagment(appId: string, stage: string, email: string) {
     console.log("✅ Stage saved in DB:", stage);
 
     // =====================================================
-    // 🔔 SAVE NOTIFICATION + REALTIME
+    // 🔔 NOTIFICATION (NON-BLOCKING FOR SPEED)
     // =====================================================
-   // =====================================================
-// 🔔 NOTIFICATION (CLEAN WAY - USING SERVICE)
-// =====================================================
-if (app.userId) {
-  try {
+    if (app.userId) {
+      const formattedStage = stage
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
 
-    const formattedStage = stage
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase());
+      const finalMessage = `Your application moved to ${formattedStage}`;
 
-    const finalMessage = `Your application moved to ${formattedStage}`;
-
-    await this.notificationService.sendToUser({
-      userId: app.userId.toString(),
-      message: finalMessage,
-      stage: stage,
-      type: 'stage_update',
-      applicationId: app._id.toString(),
-    });
-
-    console.log("✅ Notification handled by NotificationService");
-
-  } catch (notificationError) {
-    console.log("❌ Notification error:", notificationError.message);
-  }
-}
+      this.notificationService.sendToUser({
+        userId: app.userId.toString(),
+        message: finalMessage,
+        stage: stage,
+        type: 'stage_update',
+        applicationId: app._id.toString(),
+      }).catch(err =>
+        console.log("❌ Notification error:", err.message)
+      );
+    }
 
     // =====================================================
     // EMAIL CHECK
@@ -138,17 +191,20 @@ if (app.userId) {
       }
     }
 
-    if (allowEmail) {
-      if (Array.isArray(app.applicants)) {
-        console.log("📧 Sending email to applicants...");
-        for (const applicant of app.applicants) {
-          if (applicant?.email) {
-            console.log("📧 Sending to:", applicant.email);
-            await this.mailService.sendStageEmail(applicant.email, stage, appId);
-          }
+    if (allowEmail && Array.isArray(app.applicants)) {
+      console.log("📧 Sending email to applicants...");
+
+      for (const applicant of app.applicants) {
+        if (applicant?.email) {
+          this.mailService
+            .sendStageEmail(applicant.email, stage, appId)
+            .catch(err =>
+              console.log("❌ Mail error:", err.message)
+            );
         }
       }
-      console.log("✅ Emails sent");
+
+      console.log("✅ Emails triggered");
     }
 
     console.log("🎉 STAGE UPDATE SUCCESS");

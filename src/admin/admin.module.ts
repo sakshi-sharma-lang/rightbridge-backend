@@ -14,6 +14,7 @@ import { Admin, AdminSchema } from './schemas/admin.schema';
 import { Counter, CounterSchema } from '../applications/schemas/counter.schema';
 import { Application, ApplicationSchema } from '../applications/schemas/application.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { Kyc, KycSchema } from '../kyc/schemas/kyc.schema';
 
 import { MailModule } from '../mail/mail.module';
 import { ApplicationsModule } from '../applications/applications.module';
@@ -44,6 +45,7 @@ import { ChatModule } from '../chat/chat.module';
       { name: Counter.name, schema: CounterSchema },
       { name: Application.name, schema: ApplicationSchema },
       { name: User.name, schema: UserSchema },
+      { name: Kyc.name, schema: KycSchema },
     ]),
 
     MailModule,
