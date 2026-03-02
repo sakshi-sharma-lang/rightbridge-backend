@@ -1003,7 +1003,7 @@ async getAllApplicationbyAdmin(query: any) {
     valuation_started: 'Valuation Started',
     underwriting_started: 'Underwriting Started',
     offer_issued: 'Offer Issued',
-    completed_stage: 'Complete Stage',
+    completed_stage: 'Applicaiton Completed',
     decline_stage: 'DIP Declined',
   };
 
@@ -1015,13 +1015,13 @@ async getAllApplicationbyAdmin(query: any) {
 
   // ================= STATUS FILTER =================
   if (status && status !== 'all') {
-    if (status === 'completed') {
+    if (status === 'completed_stage') {
       filter.$or = [
-        { status: 'completed' },
+        { status: 'completed_stage' },
         {
           status: 'dip_stage',
           application_stage_management: {
-            $elemMatch: { $eq: 'completed' },
+            $elemMatch: { $eq: 'completed_stage' },
           },
         },
       ];
