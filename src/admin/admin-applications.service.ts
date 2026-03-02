@@ -128,7 +128,7 @@ async updateStageManagment(appId: string, stage: string, email: string) {
 
         return {
           statusCode: 400,
-          message: `We couldn't find KYC details for one or more applicants.`,
+         message: "KYC record not found for one or more applicants. Stage update blocked.",
         };
       }
 
@@ -137,10 +137,20 @@ async updateStageManagment(appId: string, stage: string, email: string) {
           console.log("⛔ KYC already LINK_SENT for:", record.externalUserId);
           return {
             statusCode: 403,
-            message: `KYC verification is currently in progress. Please wait until it is completed before moving to the next stage.`,
+              message: "KYC is in progress for one or more applicants. Cannot proceed to next stage.",
           };
         }
       }
+      for (const record of kycRecords) {
+    if (record.status !== 'APPROVED') {
+      console.log("⛔ KYC not approved for:", record.externalUserId);
+
+      return {
+        statusCode: 403,
+        message: "All applicants must have KYC APPROVED before proceeding."
+      };
+    }
+}
     }
 
     // =====================================================
