@@ -618,4 +618,5 @@ async getApplicantById(applicantId: string) {
     throw new InternalServerErrorException(err?.message);
   }
 }
+
 }
