@@ -486,7 +486,7 @@ async getApplicationsAdmindashboard(query: any) {
     limit = 10,
   } = query;
 
-    const STATUS_LABEL_MAP: Record<string, string> = {
+  const STATUS_LABEL_MAP: Record<string, string> = {
     welcome_stage: 'Draft',
     dip_stage: 'DIP Submitted',
     dip_submitted: 'Fee Required',
@@ -511,49 +511,46 @@ async getApplicationsAdmindashboard(query: any) {
 
   const filter: any = { ...baseFilter };
 
-  // ================= STATUS FILTER =================
+  // 🚀 REMOVE DB-LEVEL NORMAL STATUS FILTER
   if (status && status !== 'active') {
-    const normalized = status.trim().toLowerCase().replace(/\s+/g, '_');
-
-    filter.$or = [
-      {
-        status: {
-          $regex: `^${normalized}$`,
-          $options: 'i',
-        },
-      },
-      {
-        status: 'dip_stage',
-        application_stage_management: {
-          $elemMatch: {
-            $regex: `^${normalized}$`,
-            $options: 'i',
+    if (status === 'completed_stage') {
+      filter.$or = [
+        { status: 'completed_stage' },
+        {
+          status: 'dip_stage',
+          application_stage_management: {
+            $elemMatch: { $eq: 'completed_stage' },
           },
         },
-      },
-    ];
+      ];
+    } else if (status === 'decline_stage') {
+      filter.$or = [
+        { status: 'decline_stage' },
+        {
+          status: 'dip_stage',
+          application_stage_management: {
+            $elemMatch: { $eq: 'decline_stage' },
+          },
+        },
+      ];
+    }
   }
 
-  // ================= TYPE FILTER =================
   if (loanType && loanType !== 'all') {
     const normalizedType = loanType.trim().toLowerCase();
-
     filter['loanType.applicationType'] = {
       $regex: `^${normalizedType}$`,
       $options: 'i',
     };
   }
 
-  // ================= DATE FILTER =================
   if (fromDate || toDate) {
     filter.createdAt = {};
-
     if (fromDate) {
       const start = new Date(fromDate);
       start.setHours(0, 0, 0, 0);
       filter.createdAt.$gte = start;
     }
-
     if (toDate) {
       const end = new Date(toDate);
       end.setHours(23, 59, 59, 999);
@@ -561,20 +558,6 @@ async getApplicationsAdmindashboard(query: any) {
     }
   }
 
-  const startOfMonth = new Date();
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
-
-  const endOfMonth = new Date();
-  endOfMonth.setHours(23, 59, 59, 999);
-
-  const startOfLastMonth = new Date(startOfMonth);
-  startOfLastMonth.setMonth(startOfLastMonth.getMonth() - 1);
-
-  const endOfLastMonth = new Date(startOfMonth);
-  endOfLastMonth.setMilliseconds(-1);
-
-  // ================= SEARCH =================
   if (search) {
     const raw = search.trim();
     const parts = raw.split(/\s+/);
@@ -615,12 +598,6 @@ async getApplicationsAdmindashboard(query: any) {
 
   const skip = (Number(page) - 1) * Number(limit);
 
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-
-  const endOfToday = new Date();
-  endOfToday.setHours(23, 59, 59, 999);
-
   const [
     rows,
     total,
@@ -656,11 +633,11 @@ async getApplicationsAdmindashboard(query: any) {
     this.applicationModel.countDocuments(baseFilter),
     this.applicationModel.countDocuments({
       ...baseFilter,
-      updatedAt: { $gte: startOfToday, $lte: endOfToday },
+      status: 'dip_stage',
     }),
     this.applicationModel.countDocuments({ status: 'fee_required' }),
-    this.applicationModel.countDocuments({ status: 'kyc_in_progress' }),
-    this.applicationModel.countDocuments({ status: 'underwriting' }),
+    this.applicationModel.countDocuments({ status: 'kyc_stage' }),
+    this.applicationModel.countDocuments({ status: 'underwriting_stage' }),
     this.applicationModel.countDocuments({ status: 'offer_issued' }),
     this.applicationModel.countDocuments({
       ...baseFilter,
@@ -672,11 +649,37 @@ async getApplicationsAdmindashboard(query: any) {
     }),
   ]);
 
+  // ================= PAYMENT CHECK =================
+  const applicationIds = rows.map((item: any) => item._id);
+
+  const paidRecords = await this.paymentModel
+    .find({
+      applicationId: { $in: applicationIds },
+      status: 'PAID',
+    })
+    .select('applicationId')
+    .lean();
+
+  const paidApplicationIds = paidRecords.map((p: any) =>
+    p.applicationId.toString(),
+  );
+
   const thisMonthChange = thisMonthCount - lastMonthCount;
 
   // ================= TABLE FORMAT =================
-  const data = rows.map((item: any) => {
+  let data = rows.map((item: any) => {
     let rawStatus: string = item.status as string;
+
+    const isPaid = paidApplicationIds.includes(item._id.toString());
+
+    const hasDipSubmitted =
+      Array.isArray(item.application_stage_management) &&
+      item.application_stage_management.includes('dip_submitted');
+
+    // 🔥 LOCK STATUS IF dip_submitted EXISTS & NOT PAID
+    if (hasDipSubmitted && !isPaid) {
+      rawStatus = 'dip_submitted';
+    }
 
     if (
       rawStatus === 'dip_stage' &&
@@ -714,6 +717,15 @@ async getApplicationsAdmindashboard(query: any) {
     };
   });
 
+  // 🔥 DISPLAY LEVEL STATUS FILTER
+  if (status && status !== 'active') {
+    const statusLabel =
+      STATUS_LABEL_MAP[status] ||
+      status.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+
+    data = data.filter((item) => item.status === statusLabel);
+  }
+
   return {
     totalApplications,
     dipToday,
@@ -721,8 +733,8 @@ async getApplicationsAdmindashboard(query: any) {
     kycInProgress,
     underwritingQueue,
     offersIssued,
-    thisMonthChange,
-    total,
+    thisMonthChange: `+${Math.max(0, thisMonthChange)}`,
+    total: data.length,
     page: Number(page),
     limit: Number(limit),
     data,
