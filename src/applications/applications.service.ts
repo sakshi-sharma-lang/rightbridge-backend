@@ -1073,7 +1073,7 @@ async getAllApplicationbyAdmin(query: any) {
     isDraft: { $ne: true },
   };
 
-  // ================= STATUS FILTER =================
+  // ================= STATUS FILTER (DB LEVEL - unchanged) =================
   if (status && status !== 'all') {
     if (status === 'completed_stage') {
       filter.$or = [
@@ -1100,26 +1100,16 @@ async getAllApplicationbyAdmin(query: any) {
     }
   }
 
-  // ================= PRIORITY =================
-  if (priority) {
-    filter.priority = priority;
-  }
+  if (priority) filter.priority = priority;
+  if (loanType) filter['loanType.applicationType'] = loanType;
 
-  // ================= LOAN TYPE =================
-  if (loanType) {
-    filter['loanType.applicationType'] = loanType;
-  }
-
-  // ================= DATE FILTER =================
   if (fromDate || toDate) {
     filter.createdAt = {};
-
     if (fromDate) {
       const start = new Date(fromDate);
       start.setHours(0, 0, 0, 0);
       filter.createdAt.$gte = start;
     }
-
     if (toDate) {
       const end = new Date(toDate);
       end.setHours(23, 59, 59, 999);
@@ -1163,10 +1153,7 @@ async getAllApplicationbyAdmin(query: any) {
     }
 
     if (filter.$or) {
-      filter.$and = [
-        { $or: filter.$or },
-        { $or: searchConditions },
-      ];
+      filter.$and = [{ $or: filter.$or }, { $or: searchConditions }];
       delete filter.$or;
     } else {
       filter.$or = searchConditions;
@@ -1205,11 +1192,10 @@ async getAllApplicationbyAdmin(query: any) {
       .skip(skip)
       .limit(Number(limit))
       .lean(),
-
     this.applicationModel.countDocuments(filter),
   ]);
 
-  // ================= FETCH PAID APPLICATION IDS =================
+  // ================= PAYMENT CHECK =================
   const applicationIds = rows.map((item: any) => item._id);
 
   const paidRecords = await this.paymentModel
@@ -1224,7 +1210,7 @@ async getAllApplicationbyAdmin(query: any) {
     p.applicationId.toString(),
   );
 
-  // ================= THIS MONTH COUNT =================
+  // ================= THIS MONTH =================
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
@@ -1240,20 +1226,17 @@ async getAllApplicationbyAdmin(query: any) {
   const data = rows.map((item: any) => {
     let rawStatus: string = item.status as string;
 
-    const isPaid = paidApplicationIds.includes(
-      item._id.toString(),
-    );
+    const isPaid = paidApplicationIds.includes(item._id.toString());
 
     const hasDipSubmitted =
       Array.isArray(item.application_stage_management) &&
       item.application_stage_management.includes('dip_submitted');
 
-    // 🔥 LOCK STAGE IF dip_submitted EXISTS AND PAYMENT NOT DONE
+    // 🔥 LOCK STATUS IF dip_submitted EXISTS & NOT PAID
     if (hasDipSubmitted && !isPaid) {
       rawStatus = 'dip_submitted';
     }
 
-    // Existing stage override logic (unchanged)
     if (
       rawStatus === 'dip_stage' &&
       Array.isArray(item.application_stage_management) &&
@@ -1294,13 +1277,24 @@ async getAllApplicationbyAdmin(query: any) {
     };
   });
 
+  // ================= FINAL STATUS FILTER (DISPLAY LEVEL) =================
+  let finalData = data;
+
+  if (status && status !== 'all') {
+    const statusLabel =
+      STATUS_LABEL_MAP[status] ||
+      status.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+
+    finalData = data.filter((item: any) => item.status === statusLabel);
+  }
+
   return {
-    total,
+    total: finalData.length,
     page: Number(page),
     limit: Number(limit),
     thisMonthApplication,
     thisMonthChange,
-    data,
+    data: finalData,
   };
 }
   async findApplicationByUserId(userId: string) {
