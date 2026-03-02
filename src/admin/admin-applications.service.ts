@@ -128,7 +128,7 @@ async updateStageManagment(appId: string, stage: string, email: string) {
 
         return {
           statusCode: 400,
-          message: `KYC record missing for applicants: ${missingExternalIds.join(', ')}`,
+          message: `We couldn't find KYC details for one or more applicants.`,
         };
       }
 
@@ -137,7 +137,7 @@ async updateStageManagment(appId: string, stage: string, email: string) {
           console.log("⛔ KYC already LINK_SENT for:", record.externalUserId);
           return {
             statusCode: 403,
-            message: `KYC already LINK_SENT for applicant ${record.externalUserId}. Stage blocked.`,
+            message: `KYC verification is currently in progress. Please wait until it is completed before moving to the next stage.`,
           };
         }
       }
