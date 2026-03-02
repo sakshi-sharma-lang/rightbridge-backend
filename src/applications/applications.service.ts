@@ -1016,25 +1016,25 @@ private safeDotToObject(body: any) {
 
     // ================= RESPONSE =================
     return {
-      // 🔹 DASHBOARD CARDS
-      totalApplications,
-      dipToday,
-      awaitingFee,
-      kycInProgress,
-      underwritingQueue,
-      offersIssued,
+  // 🔹 DASHBOARD CARDS
+  totalApplications,
+  dipToday,
+  awaitingFee,
+  kycInProgress,
+  underwritingQueue,
+  offersIssued,
 
-      // 🔹 MONTH CHANGE
-      thisMonthChange,
+  // 🔹 MONTH CHANGE
+  thisMonthChange: `+${thisMonthChange}`,
 
-      // 🔹 TABLE META
-      total,
-      page: Number(page),
-      limit: Number(limit),
+  // 🔹 TABLE META
+  total,
+  page: Number(page),
+  limit: Number(limit),
 
-      // 🔹 TABLE DATA
-      data,
-    };
+  // 🔹 TABLE DATA
+  data,
+};
   }
 async getAllApplicationbyAdmin(query: any) {
   const {
