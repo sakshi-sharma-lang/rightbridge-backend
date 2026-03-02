@@ -511,34 +511,36 @@ async getApplicationsAdmindashboard(query: any) {
 
   const filter: any = { ...baseFilter };
 
-  // ================= STATUS FILTER (KEEP YOUR ORIGINAL) =================
+  // ================= STATUS FILTER (FIXED) =================
   if (status && status !== 'active') {
-    const normalized = status.trim().toLowerCase().replace(/\s+/g, '_');
-
-    filter.$or = [
-      {
-        status: {
-          $regex: `^${normalized}$`,
-          $options: 'i',
-        },
-      },
-      {
-        status: 'dip_stage',
-        application_stage_management: {
-          $elemMatch: {
-            $regex: `^${normalized}$`,
-            $options: 'i',
+    if (status === 'completed_stage') {
+      filter.$or = [
+        { status: 'completed_stage' },
+        {
+          status: 'dip_stage',
+          application_stage_management: {
+            $elemMatch: { $eq: 'completed_stage' },
           },
         },
-      },
-    ];
+      ];
+    } else if (status === 'decline_stage') {
+      filter.$or = [
+        { status: 'decline_stage' },
+        {
+          status: 'dip_stage',
+          application_stage_management: {
+            $elemMatch: { $eq: 'decline_stage' },
+          },
+        },
+      ];
+    }
+    // 🚀 DO NOT filter by status for other cases
   }
 
   // ================= TYPE FILTER =================
   if (loanType && loanType !== 'all') {
-    const normalizedType = loanType.trim().toLowerCase();
     filter['loanType.applicationType'] = {
-      $regex: `^${normalizedType}$`,
+      $regex: `^${loanType.trim().toLowerCase()}$`,
       $options: 'i',
     };
   }
@@ -573,18 +575,8 @@ async getApplicationsAdmindashboard(query: any) {
     if (parts.length >= 2) {
       searchConditions.push({
         $and: [
-          {
-            'applicants.firstName': {
-              $regex: parts[0],
-              $options: 'i',
-            },
-          },
-          {
-            'applicants.lastName': {
-              $regex: parts[1],
-              $options: 'i',
-            },
-          },
+          { 'applicants.firstName': { $regex: parts[0], $options: 'i' } },
+          { 'applicants.lastName': { $regex: parts[1], $options: 'i' } },
         ],
       });
     }
@@ -599,7 +591,7 @@ async getApplicationsAdmindashboard(query: any) {
 
   const skip = (Number(page) - 1) * Number(limit);
 
-  // ================= MONTH CALCULATION (ADDED BACK) =================
+  // ================= MONTH CALCULATION =================
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
@@ -664,7 +656,7 @@ async getApplicationsAdmindashboard(query: any) {
     }),
   ]);
 
-  // ================= PAYMENT CHECK (SAME AS OTHER FUNCTION) =================
+  // ================= PAYMENT CHECK =================
   const applicationIds = rows.map((item: any) => item._id);
 
   const paidRecords = await this.paymentModel
@@ -691,7 +683,7 @@ async getApplicationsAdmindashboard(query: any) {
       Array.isArray(item.application_stage_management) &&
       item.application_stage_management.includes('dip_submitted');
 
-    // 🔥 SAME LOCK LOGIC AS getAllApplicationbyAdmin
+    // 🔥 SAME LOCK LOGIC
     if (hasDipSubmitted && !isPaid) {
       rawStatus = 'dip_submitted';
     }
@@ -709,9 +701,7 @@ async getApplicationsAdmindashboard(query: any) {
 
     let formattedStatus =
       STATUS_LABEL_MAP[rawStatus] ||
-      rawStatus
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, (c: string) => c.toUpperCase());
+      rawStatus.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
 
     if (
       item?.loanRequirements?.loanPurpose === 'other' &&
@@ -732,7 +722,7 @@ async getApplicationsAdmindashboard(query: any) {
     };
   });
 
-  // ================= DISPLAY LEVEL FILTER (SAME AS OTHER FUNCTION) =================
+  // ================= DISPLAY LEVEL STATUS FILTER =================
   if (status && status !== 'active') {
     const statusLabel =
       STATUS_LABEL_MAP[status] ||
