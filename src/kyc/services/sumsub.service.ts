@@ -513,34 +513,79 @@ async getApplicantById(applicantId: string) {
       applicantData?.externalUserId || 'N/A';
 
     // ============================================
-    // 🔎 Get KYC Record (to fetch applicationId)
+    // 🔎 Get KYC Record (fetch applicationId)
     // ============================================
     const kycRecord = await this.kycModel
       .findOne({ applicantId })
       .lean();
 
-    const applicationId = kycRecord?.applicationId || null;
+    if (!kycRecord) {
+      throw new NotFoundException('KYC record not found');
+    }
+
+    const applicationId = kycRecord?.applicationId;
 
     // ============================================
-    // 🔔 Notify Admin ONLY if KYC completed
+    // 🔎 Get Application Record (fetch userId)
     // ============================================
-  
+    const application = await this.applicationModel
+      .findById(applicationId)
+      .select('userId')
+      .lean();
 
-      const superAdmin = await this.adminModel
-        .findOne({ role: 'super_admin' })
-        .select('_id')
-        .lean();
+    if (!application) {
+      throw new NotFoundException('Application not found');
+    }
 
-      if (superAdmin?._id) {
-        await this.notificationService.sendToAdmin({
-          adminId: superAdmin._id.toString(),
-          message: `KYC completed for Application ID: ${applicationId}. Status: ${reviewResult}.`,
-          stage: 'kyc_completed',
-          type: 'kyc',
-          applicationId: applicationId,
-        });
-      }
- 
+    const userId = application.userId;
+
+    // ============================================
+    // 📢 USER FRIENDLY MESSAGE
+    // ============================================
+    let userMessage = '';
+    let adminMessage = '';
+
+    if (reviewResult === 'GREEN') {
+      userMessage = `✅ Your KYC has been successfully approved.`;
+      adminMessage = `KYC APPROVED | Application ID: ${applicationId} | Status: APPROVED`;
+    } 
+    else if (reviewResult === 'RED') {
+      userMessage = `❌ Your KYC has been rejected. Please review and resubmit your documents.`;
+      adminMessage = `KYC REJECTED | Application ID: ${applicationId} | Status: REJECTED`;
+    } 
+    else {
+      userMessage = `⏳ Your KYC is currently under review.`;
+      adminMessage = `KYC PENDING | Application ID: ${applicationId} | Status: PENDING`;
+    }
+
+    // ============================================
+    // 🔔 SEND USER NOTIFICATION
+    // ============================================
+    await this.notificationService.sendToUser({
+      userId: userId.toString(),
+      message: userMessage,
+      stage: 'kyc_status_update',
+      type: 'kyc',
+      applicationId: applicationId,
+    });
+
+    // ============================================
+    // 🔔 SEND ADMIN NOTIFICATION
+    // ============================================
+    const superAdmin = await this.adminModel
+      .findOne({ role: 'super_admin' })
+      .select('_id')
+      .lean();
+
+    if (superAdmin?._id) {
+      await this.notificationService.sendToAdmin({
+        adminId: superAdmin._id.toString(),
+        message: adminMessage,
+        stage: 'kyc_status_update',
+        type: 'kyc',
+        applicationId: applicationId,
+      });
+    }
 
     return applicantData;
 
