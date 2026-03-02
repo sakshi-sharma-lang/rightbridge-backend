@@ -487,9 +487,13 @@ async getApplicationsAdmindashboard(query: any) {
     dip_stage: 'DIP Submitted',
     dip_submitted: 'DIP Submitted',
     dip_approved: 'DIP Approved',
+    fee_required: 'Fee Required',
     kyc_stage: 'KYC Pending',
+    kyc_confirm: 'KYC/AML',
     valuation_stage: 'Valuation',
     underwriting_stage: 'Underwriting',
+    underwriting_started: 'Underwriting',
+    offer_issued: 'Offer Issued',
     offersent_stage: 'Offer Sent',
     completed_stage: 'Offer Accepted',
     decline_stage: 'DIP Declined',
@@ -502,17 +506,40 @@ async getApplicationsAdmindashboard(query: any) {
 
   const filter: any = { ...baseFilter };
 
+  // ================= STATUS FILTER =================
   if (status && status !== 'active') {
-    filter.status = {
-      $regex: `^${status.trim()}$`,
+    const normalized = status.trim().toLowerCase().replace(/\s+/g, '_');
+
+    filter.$or = [
+      {
+        status: {
+          $regex: `^${normalized}$`,
+          $options: 'i',
+        },
+      },
+      {
+        status: 'dip_stage',
+        application_stage_management: {
+          $elemMatch: {
+            $regex: `^${normalized}$`,
+            $options: 'i',
+          },
+        },
+      },
+    ];
+  }
+
+  // ================= TYPE FILTER =================
+  if (loanType && loanType !== 'all') {
+    const normalizedType = loanType.trim().toLowerCase();
+
+    filter['loanType.applicationType'] = {
+      $regex: `^${normalizedType}$`,
       $options: 'i',
     };
   }
 
-  if (loanType) {
-    filter['loanType.applicationType'] = loanType;
-  }
-
+  // ================= DATE FILTER =================
   if (fromDate || toDate) {
     filter.createdAt = {};
 
@@ -542,11 +569,12 @@ async getApplicationsAdmindashboard(query: any) {
   const endOfLastMonth = new Date(startOfMonth);
   endOfLastMonth.setMilliseconds(-1);
 
+  // ================= SEARCH =================
   if (search) {
     const raw = search.trim();
     const parts = raw.split(/\s+/);
 
-    filter.$or = [
+    const searchConditions: any[] = [
       { appId: { $regex: raw, $options: 'i' } },
       { 'property.address': { $regex: raw, $options: 'i' } },
       { 'applicants.firstName': { $regex: raw, $options: 'i' } },
@@ -554,7 +582,7 @@ async getApplicationsAdmindashboard(query: any) {
     ];
 
     if (parts.length >= 2) {
-      filter.$or.push({
+      searchConditions.push({
         $and: [
           {
             'applicants.firstName': {
@@ -570,6 +598,13 @@ async getApplicationsAdmindashboard(query: any) {
           },
         ],
       });
+    }
+
+    if (filter.$or) {
+      filter.$and = [{ $or: filter.$or }, { $or: searchConditions }];
+      delete filter.$or;
+    } else {
+      filter.$or = searchConditions;
     }
   }
 
@@ -600,7 +635,7 @@ async getApplicationsAdmindashboard(query: any) {
         appId: 1,
         status: 1,
         updatedAt: 1,
-        application_stage_management: 1, // ✅ ADDED
+        application_stage_management: 1,
         'applicants.firstName': 1,
         'applicants.lastName': 1,
         'loanRequirements.loanAmount': 1,
@@ -636,9 +671,8 @@ async getApplicationsAdmindashboard(query: any) {
 
   // ================= TABLE FORMAT =================
   const data = rows.map((item: any) => {
-    let rawStatus: string = item.status as unknown as string;
+    let rawStatus: string = item.status as string;
 
-    // ✅ Override with last stage if dip_stage
     if (
       rawStatus === 'dip_stage' &&
       Array.isArray(item.application_stage_management) &&
