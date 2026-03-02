@@ -1053,6 +1053,7 @@ async getAllApplicationbyAdmin(query: any) {
     kyc_stage: 'KYC Pending',
     kyc_confirm: 'Valuation',
     valuation_stage: 'Underwriting',
+    valuation_started: 'Valuation',
     underwriting_stage: 'Underwriting',
     underwriting_started: 'Offer Sent',
     offer_issued: 'Offer Issued',
