@@ -1015,13 +1015,13 @@ async getAllApplicationbyAdmin(query: any) {
 
   // ================= STATUS FILTER =================
   if (status && status !== 'all') {
-    if (status === 'completed_stage') {
+    if (status === 'completed') {
       filter.$or = [
-        { status: 'completed_stage' },
+        { status: 'completed' },
         {
           status: 'dip_stage',
           application_stage_management: {
-            $elemMatch: { $eq: 'completed_stage' },
+            $elemMatch: { $eq: 'completed' },
           },
         },
       ];
