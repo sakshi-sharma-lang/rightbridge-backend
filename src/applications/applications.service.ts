@@ -1209,35 +1209,30 @@ async getAllApplicationbyAdmin(query: any) {
     this.applicationModel.countDocuments(filter),
   ]);
 
-  // ================= PAYMENT CHECK FOR dip_submitted =================
-  const dipSubmittedIds = rows
-    .filter((item: any) => item.status === 'dip_submitted')
-    .map((item: any) => item._id);
+  // ================= FETCH PAID APPLICATION IDS =================
+  const applicationIds = rows.map((item: any) => item._id);
 
-  let paidApplicationIds: string[] = [];
+  const paidRecords = await this.paymentModel
+    .find({
+      applicationId: { $in: applicationIds },
+      status: 'PAID',
+    })
+    .select('applicationId')
+    .lean();
 
-  if (dipSubmittedIds.length > 0) {
-    const paidRecords = await this.paymentModel
-      .find({
-        applicationId: { $in: dipSubmittedIds },
-        status: 'PAID',
-      })
-      .select('applicationId')
-      .lean();
+  const paidApplicationIds = paidRecords.map((p: any) =>
+    p.applicationId.toString(),
+  );
 
-    paidApplicationIds = paidRecords.map((p: any) =>
-      p.applicationId.toString(),
-    );
-  }
-
-  // ================= THIS MONTH APPLICATION COUNT =================
+  // ================= THIS MONTH COUNT =================
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
 
-  const thisMonthApplication = await this.applicationModel.countDocuments({
-    createdAt: { $gte: startOfMonth },
-  });
+  const thisMonthApplication =
+    await this.applicationModel.countDocuments({
+      createdAt: { $gte: startOfMonth },
+    });
 
   const thisMonthChange = Math.max(0, thisMonthApplication);
 
@@ -1245,18 +1240,20 @@ async getAllApplicationbyAdmin(query: any) {
   const data = rows.map((item: any) => {
     let rawStatus: string = item.status as string;
 
-    // ===== PAYMENT LOGIC (ONLY FOR dip_submitted) =====
-    if (rawStatus === 'dip_submitted') {
-      const isPaid = paidApplicationIds.includes(
-        item._id.toString(),
-      );
+    const isPaid = paidApplicationIds.includes(
+      item._id.toString(),
+    );
 
-      if (!isPaid) {
-        rawStatus = 'fee_required';
-      }
+    const hasDipSubmitted =
+      Array.isArray(item.application_stage_management) &&
+      item.application_stage_management.includes('dip_submitted');
+
+    // 🔥 LOCK STAGE IF dip_submitted EXISTS AND PAYMENT NOT DONE
+    if (hasDipSubmitted && !isPaid) {
+      rawStatus = 'dip_submitted';
     }
 
-    // Override stage only for display
+    // Existing stage override logic (unchanged)
     if (
       rawStatus === 'dip_stage' &&
       Array.isArray(item.application_stage_management) &&
