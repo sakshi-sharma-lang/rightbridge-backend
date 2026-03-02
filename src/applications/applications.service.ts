@@ -495,7 +495,7 @@ async getApplicationsAdmindashboard(query: any) {
     underwriting_started: 'Underwriting',
     offer_issued: 'Offer Issued',
     offersent_stage: 'Offer Sent',
-    completed_stage: 'Offer Accepted',
+    completed_stage: 'Applicaiton Completed',
     decline_stage: 'DIP Declined',
   };
 
