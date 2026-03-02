@@ -1047,7 +1047,7 @@ async getAllApplicationbyAdmin(query: any) {
    const STATUS_LABEL_MAP: Record<string, string> = {
     welcome_stage: 'Draft',
     dip_stage: 'DIP Submitted',
-    dip_submitted: 'Kyc Submitted',
+    dip_submitted: 'Fee Required',
     dip_approved: 'KYC/AML',
     fee_required: 'Fee Required',
     kyc_stage: 'KYC Pending',
