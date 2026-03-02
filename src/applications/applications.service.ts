@@ -1004,7 +1004,7 @@ async getAllApplicationbyAdmin(query: any) {
     valuation_started: 'Valuation Started',
     underwriting_started: 'Underwriting Started',
     offer_issued: 'Offer Issued',
-    completed_stage: 'Offer Accepted',
+    completed_stage: 'Complete stage',
     decline_stage: 'DIP Declined',
   };
 
