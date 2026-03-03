@@ -533,23 +533,20 @@ async getAdminConversation(
   userId: string,
 ) {
   try {
-    if (!Types.ObjectId.isValid(adminId)) {
+    if (!Types.ObjectId.isValid(adminId))
       throw new BadRequestException('Invalid adminId');
-    }
 
-    if (!Types.ObjectId.isValid(applicationId)) {
+    if (!Types.ObjectId.isValid(applicationId))
       throw new BadRequestException('Invalid applicationId');
-    }
 
-    if (!userId) {
+    if (!Types.ObjectId.isValid(userId))
       throw new BadRequestException('Invalid userId');
-    }
 
     const conversation = await this.convoModel
       .findOne({
         adminId: new Types.ObjectId(adminId),
         applicationId: new Types.ObjectId(applicationId),
-        userId: userId, // DO NOT convert (stored as string in DB)
+        userId: new Types.ObjectId(userId), // FIXED
       })
       .populate('userId', 'firstName lastName email');
 
@@ -560,10 +557,14 @@ async getAdminConversation(
     }
 
     return conversation;
+
   } catch (error) {
     console.error('Error in getAdminConversation:', error);
 
-    if (error instanceof BadRequestException || error instanceof NotFoundException) {
+    if (
+      error instanceof BadRequestException ||
+      error instanceof NotFoundException
+    ) {
       throw error;
     }
 
