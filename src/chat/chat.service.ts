@@ -526,31 +526,22 @@ async getApplicationsByUserId(userId: string) {
     };
   }
 
- async getAdminConversations(
+async getAdminConversation(
   adminId: string,
-  applicationId?: string,
+  applicationId: string,
 ) {
-  if (!Types.ObjectId.isValid(adminId)) {
+  if (!Types.ObjectId.isValid(adminId))
     throw new BadRequestException('Invalid adminId');
-  }
 
-  const filter: any = {
-    adminId: new Types.ObjectId(adminId),
-  };
-
-  // ONLY apply if provided
-  if (applicationId) {
-    if (!Types.ObjectId.isValid(applicationId)) {
-      throw new BadRequestException('Invalid applicationId');
-    }
-
-    filter.applicationId = new Types.ObjectId(applicationId);
-  }
+  if (!applicationId)
+    throw new BadRequestException('applicationId required');
 
   return this.convoModel
-    .find(filter)
-    .populate('userId', 'firstName lastName email')
-    .sort({ updatedAt: -1 });
+    .findOne({
+      adminId: new Types.ObjectId(adminId),
+      applicationId: applicationId, // keep as string if stored as string
+    })
+    .populate('userId', 'firstName lastName email');
 }
     // =====================================================
  async getAdminTotalUnread(adminId: string) {

@@ -50,15 +50,14 @@ export class ChatController {
   // =====================================================
   // ADMIN SIDEBAR
   // =====================================================
- @UseGuards(AdminJwtGuard)
+@UseGuards(AdminJwtGuard)
 @Get('admin/chat/:adminId')
-async getAdminConversations(
+async getAdminConversation(
   @Param('adminId') adminId: string,
-  @Query('applicationId') applicationId?: string,
+  @Query('applicationId') applicationId: string,
 ) {
-  return this.chatService.getAdminConversations(adminId, applicationId);
+  return this.chatService.getAdminConversation(adminId, applicationId);
 }
-
   // =====================================================
   // USER SIDEBAR
   // =====================================================
