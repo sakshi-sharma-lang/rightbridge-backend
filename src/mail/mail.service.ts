@@ -266,6 +266,24 @@ async sendEquityChangeEmail(data: {
   }
 }
 
+// ================= APPLICATION CREATED =================
+async sendApplicationCreatedEmail(
+  email: string,
+  firstName: string,
+  appId: string,
+) {
+  const html = this.loadTemplate('application-created.html', {
+    FIRST_NAME: firstName,
+    APP_ID: appId,
+    DASHBOARD_URL: this.configService.get('FRONTEND_DASHBOARD_URL') || '',
+  });
 
+  await this.transporter.sendMail({
+    from: `"RightBridge" <${this.configService.get('SMTP_FROM') || this.configService.get('SMTP_USER')}>`,
+    to: email,
+    subject: 'Your application has been created',
+    html,
+  });
+}
 
 }

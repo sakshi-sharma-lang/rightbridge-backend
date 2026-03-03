@@ -276,7 +276,30 @@ export class ApplicationsService {
         userId,
         isDraft: true,
       });
-      const savedApplication = await application.save();
+      // 🔔 Check user email notification preference
+const savedApplication = await application.save();
+
+// 🔔 After save — not before
+const user = await this.userModel
+  .findById(userId)
+  .select('email firstName emailNotifications status');
+
+if (
+  user &&
+  user.emailNotifications === true
+
+) {
+  try {
+    await this.mailService.sendApplicationCreatedEmail(
+      user.email,
+      user.firstName,
+      savedApplication.appId,
+    );
+  } catch (error) {
+    console.error('Application email failed:', error);
+  }
+}
+      
       return {
         success: true,
         message: 'Application created successfully',
@@ -453,8 +476,26 @@ async updateApplicationDetails(
       console.log('LTV check skipped');
     }
 
-    const updated = await application.save();
-    return updated;
+const updated = await application.save();
+
+try {
+  const user = await this.userModel
+    .findById(userId)
+    .select('email emailNotifications');
+
+  if (user?.emailNotifications === true && updated.status) {
+    await this.mailService.sendStageEmail(
+      user.email,
+      updated.status,
+      updated.appId,
+    );
+  }
+} catch (emailError) {
+  console.error('Stage email failed:', emailError);
+  // Do NOT throw — update should not fail because of email
+}
+
+return updated;
 
   } catch (error) {
     console.error(' UPDATE ERROR:', error);
