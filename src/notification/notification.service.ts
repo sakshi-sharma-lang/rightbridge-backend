@@ -223,35 +223,27 @@ export class NotificationService {
     }
   }
 
-async markUserRead(notificationId: string, userId: string) {
+async markUserRead(userId: string) {
   try {
-    if (
-      !Types.ObjectId.isValid(notificationId) ||
-      !Types.ObjectId.isValid(userId)
-    ) {
-      throw new Error('Invalid ID');
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new Error('Invalid userId');
     }
 
-    const updated = await this.notificationModel.findOneAndUpdate(
+    const result = await this.notificationModel.updateMany(
       {
-        _id: new Types.ObjectId(notificationId),
         userId: new Types.ObjectId(userId),
         adminId: { $exists: false }, // 🔒 prevents admin notifications
+        isReadByUser: false, // only unread
       },
       {
-        isReadByUser: true, // ✅ NEW FIELD
+        $set: { isReadByUser: true },
       },
-      { new: true },
     );
-
-    if (!updated) {
-      throw new Error('Notification not found or unauthorized');
-    }
 
     return {
       success: true,
-      message: 'User notification marked as read',
-      data: updated,
+      message: 'All user notifications marked as read',
+      modifiedCount: result.modifiedCount,
     };
   } catch (error) {
     return {
@@ -261,32 +253,26 @@ async markUserRead(notificationId: string, userId: string) {
   }
 }
 
-async markAdminRead(notificationId: string, adminId: string) {
+async markAdminRead(adminId: string) {
   try {
-    if (
-      !Types.ObjectId.isValid(notificationId) ||
-      !Types.ObjectId.isValid(adminId)
-    ) {
-      throw new Error('Invalid ID');
+    if (!Types.ObjectId.isValid(adminId)) {
+      throw new Error('Invalid adminId');
     }
 
-    const updated = await this.notificationModel.findOneAndUpdate(
+    const result = await this.notificationModel.updateMany(
       {
-        _id: new Types.ObjectId(notificationId),  
         adminId: new Types.ObjectId(adminId),
+        isReadByAdmin: false,
       },
-      { isReadByAdmin: true },  
-      { new: true },
+      {
+        $set: { isReadByAdmin: true },
+      },
     );
-
-    if (!updated) {
-      throw new Error('Notification not found or unauthorized');
-    }
 
     return {
       success: true,
-      message: 'Admin notification marked as read',
-      data: updated,
+      message: 'Admin notifications marked as read',
+      modifiedCount: result.modifiedCount,
     };
   } catch (error) {
     return {

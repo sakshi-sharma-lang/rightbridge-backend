@@ -43,31 +43,23 @@ export class NotificationController {
   // USER MARK READ
   // PATCH: /notifications/user/read/:notificationId/:userId
   // ==========================================
-  @UseGuards(JwtAuthGuard)
-  @Patch('user/read/:notificationId/:userId')
-  async markUserRead(
-    @Param('notificationId') notificationId: string,
-    @Param('userId') userId: string,
-  ) {
-    return this.notificationService.markUserRead(
-      notificationId,
-      userId,
-    );
-  }
+@UseGuards(JwtAuthGuard)
+@Patch('user/read/:userId')
+async markUserRead(
+  @Param('userId') userId: string,
+) {
+  return this.notificationService.markUserRead(userId);
+}
 
   // ==========================================
   // ADMIN MARK READ
   // PATCH: /notifications/admin/read/:notificationId/:adminId
   // ==========================================
- @UseGuards(AdminJwtGuard)
-@Patch('admin/read/:notificationId/:adminId')
+@UseGuards(AdminJwtGuard)
+@Patch('admin/read/:adminId')
 async markAdminRead(
-  @Param('notificationId') notificationId: string,
   @Param('adminId') adminId: string,
 ) {
-  return this.notificationService.markAdminRead(
-    notificationId,
-    adminId,
-  );
+  return this.notificationService.markAdminRead(adminId);
 }
 }
