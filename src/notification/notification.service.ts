@@ -15,135 +15,156 @@ export class NotificationService {
   ) {}
 
   // =====================================================
-  // USER NOTIFICATION (SAVE DB + REALTIME)
+  // USER NOTIFICATION
   // =====================================================
- async sendToUser({
-  userId,
-  message,
-  stage,
-  type = 'general',
-  applicationId = null,
-}: {
-  userId: string;
-  message: string;
-  stage: string;
-  type?: string;
-  applicationId?: string | null;
-}) {
-  try {
-    console.log('🔥 sendToUser CALLED:', userId);
+  async sendToUser({
+    userId,
+    message,
+    stage,
+    type = 'general',
+    applicationId = null,
+  }: {
+    userId: string;
+    message: string;
+    stage: string;
+    type?: string;
+    applicationId?: string | null;
+  }) {
+    try {
+      if (!Types.ObjectId.isValid(userId)) {
+        throw new Error('Invalid userId');
+      }
 
-    if (!Types.ObjectId.isValid(userId)) {
-      throw new Error('Invalid userId');
+      const notification = await this.notificationModel.create({
+        userId: new Types.ObjectId(userId),
+        message,
+        stage,
+        type,
+        applicationId: applicationId
+          ? new Types.ObjectId(applicationId)
+          : null,
+        isReadByUser: false,
+        isReadByAdmin: true,
+      });
+
+      const payload = {
+        id: notification._id,
+        message,
+        stage,
+        type,
+        applicationId,
+        isReadByUser: false,
+        createdAt: notification.createdAt,
+      };
+
+      // ✅ correct new method
+      this.chatGateway.sendOtherNotificationToUser(userId, payload);
+
+      return { success: true, data: notification };
+    } catch (error) {
+      return { success: false, message: error.message };
     }
-
-    const notification = await this.notificationModel.create({
-      userId: new Types.ObjectId(userId),
-      message,
-      stage,
-      type,
-      applicationId: applicationId
-        ? new Types.ObjectId(applicationId)
-        : null,
-      isReadByUser: false,   // ✅ user must read
-      isReadByAdmin: true,   // ✅ admin does not need to read
-    });
-
-    console.log('✅ Notification saved:', notification._id);
-
-    const payload = {
-      id: notification._id,
-      message,
-      stage,
-      type,
-      applicationId,
-      isReadByUser: false,
-      createdAt: notification.createdAt,
-    };
-
-    this.chatGateway.sendNotificationToUser(userId, payload);
-
-    return {
-      success: true,
-      message: 'Notification sent to user',
-      data: notification,
-    };
-  } catch (error) {
-    console.error('❌ FULL USER ERROR:', error);
-    return {
-      success: false,
-      message: error.message || 'Failed to send user notification',
-    };
   }
-}
 
   // =====================================================
   // ADMIN NOTIFICATION
   // =====================================================
   async sendToAdmin({
-  adminId,
-  message,
-  stage,
-  type = 'admin',
-  applicationId = null,
-}: {
-  adminId: string;
-  message: string;
-  stage: string;
-  type?: string;
-  applicationId?: string | null;
-}) {
-  try {
-    console.log('🔥 sendToAdmin CALLED:', adminId);
+    adminId,
+    message,
+    stage,
+    type = 'admin',
+    applicationId = null,
+  }: {
+    adminId: string;
+    message: string;
+    stage: string;
+    type?: string;
+    applicationId?: string | null;
+  }) {
+    try {
+      if (!Types.ObjectId.isValid(adminId)) {
+        throw new Error('Invalid adminId');
+      }
 
-    if (!Types.ObjectId.isValid(adminId)) {
-      throw new Error('Invalid adminId');
+      const notification = await this.notificationModel.create({
+        adminId: new Types.ObjectId(adminId),
+        message,
+        stage,
+        type,
+        applicationId: applicationId
+          ? new Types.ObjectId(applicationId)
+          : null,
+        isReadByAdmin: false,
+        isReadByUser: true,
+      });
+
+      const payload = {
+        id: notification._id,
+        message,
+        stage,
+        type,
+        applicationId,
+        isReadByAdmin: false,
+        createdAt: notification.createdAt,
+      };
+
+      // ✅ correct new method
+      this.chatGateway.sendOtherNotificationToAdmin(adminId, payload);
+
+      return { success: true, data: notification };
+    } catch (error) {
+      return { success: false, message: error.message };
     }
-
-    const notification = await this.notificationModel.create({
-      adminId: new Types.ObjectId(adminId),
-      message,
-      stage,
-      type,
-      applicationId: applicationId
-        ? new Types.ObjectId(applicationId)
-        : null,
-      isReadByAdmin: false,   // ✅ correct field
-      isReadByUser: true,     // ✅ important
-    });
-
-    console.log('✅ Admin notification saved:', notification._id);
-
-    const payload = {
-      id: notification._id,
-      message,
-      stage,
-      type,
-      applicationId,
-      isReadByAdmin: false,   // ✅ send correct flag
-      createdAt: notification.createdAt,
-    };
-
-    this.chatGateway.sendNotificationToAdmin(adminId, payload);
-
-    return {
-      success: true,
-      message: 'Notification sent to admin',
-      data: notification,
-    };
-  } catch (error) {
-    console.error('❌ FULL ADMIN ERROR:', error);
-    return {
-      success: false,
-      message: error.message || 'Failed to send admin notification',
-    };
   }
-}
 
   // =====================================================
-  // GET ADMIN NOTIFICATIONS
+  // MARK ALL USER READ
   // =====================================================
-  async getAdminNotifications(adminId: string) {
+  async markAllUserRead(userId: string) {
+    try {
+      if (!Types.ObjectId.isValid(userId)) {
+        throw new Error('Invalid userId');
+      }
+
+      const result = await this.notificationModel.updateMany(
+        {
+          userId: new Types.ObjectId(userId),
+          isReadByUser: false,
+        },
+        { $set: { isReadByUser: true } },
+      );
+
+      return { success: true, modifiedCount: result.modifiedCount };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  // =====================================================
+  // MARK ALL ADMIN READ
+  // =====================================================
+  async markAllAdminRead(adminId: string) {
+    try {
+      if (!Types.ObjectId.isValid(adminId)) {
+        throw new Error('Invalid adminId');
+      }
+
+      const result = await this.notificationModel.updateMany(
+        {
+          adminId: new Types.ObjectId(adminId),
+          isReadByAdmin: false,
+        },
+        { $set: { isReadByAdmin: true } },
+      );
+
+      return { success: true, modifiedCount: result.modifiedCount };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+
+    async getAdminNotifications(adminId: string) {
     try {
       if (!Types.ObjectId.isValid(adminId)) {
         throw new Error('Invalid adminId');
@@ -272,57 +293,10 @@ export class NotificationService {
   // =====================================================
   // MARK ALL USER READ
   // =====================================================
-  async markAllUserRead(userId: string) {
-    try {
-      if (!Types.ObjectId.isValid(userId)) {
-        throw new Error('Invalid userId');
-      }
-
-      const result = await this.notificationModel.updateMany(
-        {
-          userId: new Types.ObjectId(userId),
-          adminId: { $exists: false },
-          isReadByUser: false,
-        },
-        { $set: { isReadByUser: true } },
-      );
-
-      return {
-        success: true,
-        message: 'All user notifications marked as read',
-        modifiedCount: result.modifiedCount,
-      };
-    } catch (error) {
-      return { success: false, message: error.message };
-    }
-  }
+ 
 
   // =====================================================
   // MARK ALL ADMIN READ
   // =====================================================
-  async markAllAdminRead(adminId: string) {
-    try {
-      if (!Types.ObjectId.isValid(adminId)) {
-        throw new Error('Invalid adminId');
-      }
-
-      const result = await this.notificationModel.updateMany(
-        {
-          adminId: new Types.ObjectId(adminId),
-          isReadByAdmin: false,
-        },
-        { $set: { isReadByAdmin: true } },
-      );
-
-      return {
-        success: true,
-        message: 'All admin notifications marked as read',
-        modifiedCount: result.modifiedCount,
-      };
-    } catch (error) {
-      return { success: false, message: error.message };
-    }
-  }
-
-
+ 
 }

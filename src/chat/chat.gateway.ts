@@ -8,11 +8,17 @@ export class ChatGateway implements OnModuleInit {
 
   private wss: WebSocket.Server;
 
-  // single user → single socket
+  // =====================================================
+  // CHAT SOCKET MAPS (UNCHANGED)
+  // =====================================================
   private userSockets = new Map<string, WebSocket>();
-
-  // admin multi tabs
   private adminSockets = new Map<string, Set<WebSocket>>();
+
+  // =====================================================
+  // OTHER NOTIFICATION SOCKET MAPS (NEW - SEPARATE)
+  // =====================================================
+  private otherNotificationUserSockets = new Map<string, WebSocket>();
+  private otherNotificationAdminSockets = new Map<string, Set<WebSocket>>();
 
   // =====================================================
   // START WS SERVER
@@ -39,20 +45,33 @@ export class ChatGateway implements OnModuleInit {
         socket.on('message', async (data: any) => {
           try {
             const msg = JSON.parse(data.toString());
+
+            // ===============================
+            // CHAT ROUTER (UNCHANGED)
+            // ===============================
             await this.routeMessage(socket, msg);
+
+            // ===============================
+            // OTHER NOTIFICATION IDENTIFY (NEW)
+            // ===============================
+            this.handleOtherNotificationIdentify(socket, msg);
+
           } catch (err) {
             console.log("WS PARSE ERROR:", err);
           }
         });
 
-        socket.on('close', () => this.handleDisconnect(socket));
+        socket.on('close', () => {
+          this.handleDisconnect(socket); // chat cleanup
+          this.handleOtherNotificationDisconnect(socket); // new cleanup
+        });
       });
 
     }, 1200);
   }
 
   // =====================================================
-  // ROUTER
+  // CHAT ROUTER (UNCHANGED)
   // =====================================================
   async routeMessage(socket: WebSocket, data: any) {
     if (data.type === 'identify')
@@ -63,20 +82,16 @@ export class ChatGateway implements OnModuleInit {
   }
 
   // =====================================================
-  // IDENTIFY USER / ADMIN
+  // CHAT IDENTIFY (UNCHANGED)
   // =====================================================
   async handleIdentify(socket: WebSocket, data: any) {
 
-    console.log("IDENTIFY:", data);
-
-    // USER CONNECT
     if (data.role === 'user') {
       const userId = String(data.userId);
       this.userSockets.set(userId, socket);
       console.log("👤 User online:", userId);
     }
 
-    // ADMIN CONNECT
     if (data.role === 'admin') {
       const adminId = String(data.adminId);
 
@@ -91,18 +106,12 @@ export class ChatGateway implements OnModuleInit {
   }
 
   // =====================================================
-  // SEND MESSAGE REALTIME
+  // CHAT SEND MESSAGE (UNCHANGED)
   // =====================================================
   async handleSendMessage(data: any) {
 
-    console.log("\n==============================");
-    console.log("📨 NEW MESSAGE Incoming:", data);
-
     let savedMessage;
 
-    // ==============================
-    // SAVE MESSAGE DB
-    // ==============================
     try {
       if (data.role === 'admin') {
         savedMessage = await this.chatService.sendMessageByAdmin(data);
@@ -114,190 +123,145 @@ export class ChatGateway implements OnModuleInit {
       return;
     }
 
-    // ==============================
-    // EXTRACT FROM SERVICE RESPONSE
-    // ==============================
- const conversationId = savedMessage?.conversationId;
-const messageData = savedMessage?.messageData;
+    const conversationId = savedMessage?.conversationId;
+    const messageData = savedMessage?.messageData;
 
-if (!conversationId) {
-  console.log("❌ conversationId missing after save");
-  return;
-}
+    if (!conversationId) return;
 
-    // ==============================
-    // BUILD PAYLOAD (Includes conversationId)
-    // ==============================
-  const payload = JSON.stringify({
-  type: "receiveMessage",
-  conversationId: conversationId,
-  data: messageData
-});
-
-    let delivered = 0;
-
-    // =========================================
-    // SEND TO USER
-    // =========================================
-    const userSocket = this.userSockets.get(String(data.userId));
-
-    if (userSocket && userSocket.readyState === WebSocket.OPEN) {
-      userSocket.send(payload);
-      delivered++;
-    }
-
-    // =========================================
-    // SEND TO ASSIGNED ADMIN (MULTI TAB SAFE)
-    // =========================================
-    const adminSet = this.adminSockets.get(String(data.adminId));
-
-    adminSet?.forEach(sock => {
-      if (sock.readyState === WebSocket.OPEN) {
-        sock.send(payload);
-        delivered++;
-      }
+    const payload = JSON.stringify({
+      type: "receiveMessage",
+      conversationId: conversationId,
+      data: messageData
     });
 
-    console.log("🚀 Delivered sockets:", delivered);
-    console.log("==============================\n");
+    // Send to user
+    const userSocket = this.userSockets.get(String(data.userId));
+    if (userSocket?.readyState === WebSocket.OPEN)
+      userSocket.send(payload);
+
+    // Send to admin (multi-tab safe)
+    const adminSet = this.adminSockets.get(String(data.adminId));
+    adminSet?.forEach(sock => {
+      if (sock.readyState === WebSocket.OPEN)
+        sock.send(payload);
+    });
   }
 
   // =====================================================
-  // DISCONNECT CLEANUP
+  // CHAT DISCONNECT CLEANUP (UNCHANGED)
   // =====================================================
   handleDisconnect(socket: WebSocket) {
 
-    // remove user
     for (const [userId, s] of this.userSockets) {
       if (s === socket) {
         this.userSockets.delete(userId);
-        console.log("❌ User offline:", userId);
       }
     }
 
-    // remove admin
     for (const [adminId, set] of this.adminSockets) {
       if (set.has(socket)) {
         set.delete(socket);
-
         if (set.size === 0)
           this.adminSockets.delete(adminId);
-
-        console.log("❌ Admin offline:", adminId);
       }
     }
-
-    console.log("Client disconnected");
   }
 
- 
- // =====================================================
-// REALTIME NOTIFICATION → USER
-// =====================================================
-// =====================================================
-// REALTIME NOTIFICATION → USER (FULL DEBUG)
-// =====================================================
-sendNotificationToUser(userId: string, payload: any) {
+  // =====================================================
+  // IDENTIFY FOR OTHER NOTIFICATIONS (NEW)
+  // =====================================================
+  handleOtherNotificationIdentify(socket: WebSocket, data: any) {
 
-  console.log("\n========== 🔔 USER NOTIFICATION DEBUG ==========");
-  console.log("Requested userId:", userId);
-  console.log("Active user socket IDs:", Array.from(this.userSockets.keys()));
+    if (data.type !== 'identify_other_notification') return;
 
-  const socket = this.userSockets.get(String(userId));
+    if (data.role === 'user') {
+      const userId = String(data.userId);
+      this.otherNotificationUserSockets.set(userId, socket);
+      console.log("🔔 Other Notification User online:", userId);
+    }
 
-  if (!socket) {
-    console.log("❌ No socket found for this userId");
-    console.log("Possible reasons:");
-    console.log(" - User not connected");
-    console.log(" - identify not sent");
-    console.log(" - userId mismatch");
-    console.log("===============================================\n");
-    return;
+    if (data.role === 'admin') {
+      const adminId = String(data.adminId);
+
+      const adminSet =
+        this.otherNotificationAdminSockets.get(adminId) ??
+        new Set<WebSocket>();
+
+      adminSet.add(socket);
+      this.otherNotificationAdminSockets.set(adminId, adminSet);
+
+      console.log("🔔 Other Notification Admin online:", adminId);
+    }
   }
 
-  console.log("✅ Socket found for user");
-  console.log("Socket readyState:", socket.readyState);
-  console.log("OPEN state value:", WebSocket.OPEN);
+  // =====================================================
+  // SEND OTHER NOTIFICATION → USER (NEW)
+  // =====================================================
+  sendOtherNotificationToUser(userId: string, payload: any) {
 
-  if (socket.readyState !== WebSocket.OPEN) {
-    console.log("❌ Socket exists but NOT OPEN");
-    console.log("===============================================\n");
-    return;
-  }
+    const socket =
+      this.otherNotificationUserSockets.get(String(userId));
 
-  try {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      console.log("❌ No active OTHER notification socket for user");
+      return;
+    }
+
     socket.send(
       JSON.stringify({
-        type: 'notification',
+        type: 'other_notification',
         data: payload,
       }),
     );
 
-    console.log("🚀 Notification SENT successfully to user:", userId);
-  } catch (err) {
-    console.log("❌ Error while sending notification:", err);
+    console.log("🔔 OTHER notification sent to user:", userId);
   }
 
-  console.log("================================================\n");
-}
-// =====================================================
-// REALTIME NOTIFICATION → ADMIN (MULTI TAB SAFE)
-// =====================================================
-// =====================================================
-// REALTIME NOTIFICATION → ADMIN (FULL DEBUG)
-// =====================================================
-sendNotificationToAdmin(adminId: string, payload: any) {
+  // =====================================================
+  // SEND OTHER NOTIFICATION → ADMIN (NEW)
+  // =====================================================
+  sendOtherNotificationToAdmin(adminId: string, payload: any) {
 
-  console.log("\n========== 🔔 ADMIN NOTIFICATION DEBUG ==========");
-  console.log("Requested adminId:", adminId);
-  console.log("Active admin IDs:", Array.from(this.adminSockets.keys()));
+    const adminSet =
+      this.otherNotificationAdminSockets.get(String(adminId));
 
-  const adminSet = this.adminSockets.get(String(adminId));
-  console.log("Active admin IDs:", Array.from(this.adminSockets.keys()));
+    if (!adminSet || adminSet.size === 0) {
+      console.log("❌ No active OTHER notification sockets for admin");
+      return;
+    }
 
-  if (!adminSet || adminSet.size === 0) {
-    console.log("❌ No active sockets found for this admin");
-    console.log("Possible reasons:");
-    console.log(" - Admin not connected");
-    console.log(" - identify not sent");
-    console.log(" - adminId mismatch");
-    console.log("=================================================\n");
-    return;
-  }
-
-  console.log("✅ Admin socket set found");
-  console.log("Total open tabs:", adminSet.size);
-
-  let delivered = 0;
-
-  adminSet.forEach((socket, index) => {
-    console.log(`Checking socket #${index + 1}`);
-    console.log("Socket readyState:", socket.readyState);
-
-    if (socket.readyState === WebSocket.OPEN) {
-      try {
+    adminSet.forEach(socket => {
+      if (socket.readyState === WebSocket.OPEN) {
         socket.send(
           JSON.stringify({
-            type: 'notification',
+            type: 'other_notification',
             data: payload,
           }),
         );
-        delivered++;
-      } catch (err) {
-        console.log("❌ Error sending to this socket:", err);
       }
-    } else {
-      console.log("⚠ Socket not OPEN, skipping");
+    });
+
+    console.log("🔔 OTHER notification delivered to admin:", adminId);
+  }
+
+  // =====================================================
+  // CLEANUP OTHER NOTIFICATION SOCKETS (NEW)
+  // =====================================================
+  handleOtherNotificationDisconnect(socket: WebSocket) {
+
+    for (const [userId, s] of this.otherNotificationUserSockets) {
+      if (s === socket) {
+        this.otherNotificationUserSockets.delete(userId);
+      }
     }
-  });
 
-  console.log("🚀 Delivered to", delivered, "admin sockets");
-  console.log("=================================================\n");
-}
-
-
-
-
-
+    for (const [adminId, set] of this.otherNotificationAdminSockets) {
+      if (set.has(socket)) {
+        set.delete(socket);
+        if (set.size === 0)
+          this.otherNotificationAdminSockets.delete(adminId);
+      }
+    }
+  }
 
 }
