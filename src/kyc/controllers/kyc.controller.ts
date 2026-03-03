@@ -407,4 +407,40 @@ async getKycByApplicationId(
   }
 }
 
+@Get('validate-link')
+async validateKycLink(@Query('user') externalUserId: string) {
+  if (!externalUserId) {
+    throw new BadRequestException('User is required');
+  }
+
+  const kyc = await this.kycModel.findOne({ externalUserId });
+
+  if (!kyc) {
+    throw new NotFoundException('KYC record not found');
+  }
+
+  if (!kyc.linkExpiresAt) {
+    return {
+      success: false,
+      expired: true,
+      message: 'Invalid KYC link',
+    };
+  }
+
+  const isExpired = new Date() > kyc.linkExpiresAt;
+
+  if (isExpired) {
+    await this.kycModel.updateOne(
+      { externalUserId },
+      { status: KycStatus.EXPIRED },
+    );
+  }
+
+  return {
+    success: true,
+    expired: isExpired,
+    expiresAt: kyc.linkExpiresAt,
+  };
+}
+
 }

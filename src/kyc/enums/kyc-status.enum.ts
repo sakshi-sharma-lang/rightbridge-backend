@@ -6,4 +6,5 @@ export enum KycStatus {
   APPROVED = 'APPROVED',
   REJECTED = 'REJECTED',
   MANUAL_REVIEW = 'MANUAL_REVIEW',
+  EXPIRED = 'EXPIRED',   
 }
