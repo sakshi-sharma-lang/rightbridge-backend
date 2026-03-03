@@ -552,17 +552,6 @@ async getApplicationsAdmindashboard(query: any) {
 
   const filter: any = { ...baseFilter };
 
-  // ================= STATUS FILTER (UNIVERSAL) =================
-  if (status && status !== 'active') {
-    filter.$or = [
-      { status },
-      {
-        status: 'dip_stage',
-        application_stage_management: status,
-      },
-    ];
-  }
-
   // ================= TYPE FILTER =================
   if (loanType && loanType !== 'all') {
     filter['loanType.applicationType'] = {
@@ -607,12 +596,7 @@ async getApplicationsAdmindashboard(query: any) {
       });
     }
 
-    if (filter.$or) {
-      filter.$and = [{ $or: filter.$or }, { $or: searchConditions }];
-      delete filter.$or;
-    } else {
-      filter.$or = searchConditions;
-    }
+    filter.$or = searchConditions;
   }
 
   const skip = (Number(page) - 1) * Number(limit);
@@ -633,7 +617,6 @@ async getApplicationsAdmindashboard(query: any) {
 
   const [
     rows,
-    total,
     totalApplications,
     dipToday,
     awaitingFee,
@@ -658,8 +641,6 @@ async getApplicationsAdmindashboard(query: any) {
       .skip(skip)
       .limit(Number(limit))
       .lean(),
-
-    this.applicationModel.countDocuments(filter),
 
     this.applicationModel.countDocuments(baseFilter),
 
@@ -702,30 +683,25 @@ async getApplicationsAdmindashboard(query: any) {
   const thisMonthChange = thisMonthCount - lastMonthCount;
 
   // ================= FORMAT DATA =================
-  const data = rows.map((item: any) => {
+  let data = rows.map((item: any) => {
     let rawStatus: string = item.status;
+    const stageArray = item.application_stage_management || [];
 
     const isPaid = paidApplicationIds.includes(item._id.toString());
 
-    // If dip approved but payment not done → still show KYC/AML stage
-    const hasDipApproved =
-      Array.isArray(item.application_stage_management) &&
-      item.application_stage_management.includes('dip_approved');
-
-    if (hasDipApproved && !isPaid) {
-      rawStatus = 'dip_approved';
+    // If dip_stage → use latest stage
+    if (rawStatus === 'dip_stage' && stageArray.length > 0) {
+      rawStatus = stageArray[stageArray.length - 1];
     }
 
-    // If still dip_stage → get latest stage from history
+    // If dip approved but unpaid → keep KYC/AML
     if (
-      rawStatus === 'dip_stage' &&
-      Array.isArray(item.application_stage_management) &&
-      item.application_stage_management.length > 0
+      stageArray.includes('dip_approved') &&
+      !isPaid &&
+      rawStatus !== 'decline_stage' &&
+      rawStatus !== 'completed_stage'
     ) {
-      rawStatus =
-        item.application_stage_management[
-          item.application_stage_management.length - 1
-        ];
+      rawStatus = 'dip_approved';
     }
 
     let formattedStatus =
@@ -754,18 +730,30 @@ async getApplicationsAdmindashboard(query: any) {
     };
   });
 
+  // ================= STATUS FILTER (DISPLAY LEVEL - SAME AS FIRST API) =================
+  if (status && status !== 'all' && status !== 'active') {
+    const formattedStatus =
+      STATUS_LABEL_MAP[status] ||
+      status
+        ?.replace(/_/g, ' ')
+        ?.replace(/\b\w/g, (c: string) => c.toUpperCase());
+
+    data = data.filter((item) => item.status === formattedStatus);
+  }
+
+  const total = data.length;
+
   return {
     totalApplications,
     dipToday,
     awaitingFee,
     thisMonthChange: `${Math.max(0, thisMonthChange)}`,
-    total, // ✅ Correct total count
+    total,
     page: Number(page),
     limit: Number(limit),
     data,
   };
 }
-
   /* ================= ADMIN GET USER APPLICATION ================= */
   async findUserApplicationByIdForAdmin(id: string): Promise<Application> {
     const application = await this.applicationModel.findById(id);

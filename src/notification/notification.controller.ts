@@ -15,10 +15,10 @@ export class NotificationController {
     private readonly notificationService: NotificationService,
   ) {}
 
-  // ==========================================
+  // =====================================================
   // ADMIN GET NOTIFICATIONS
   // GET: /notifications/admin/:adminId
-  // ==========================================
+  // =====================================================
   @UseGuards(AdminJwtGuard)
   @Get('admin/:adminId')
   async getAdminNotifications(
@@ -27,10 +27,10 @@ export class NotificationController {
     return this.notificationService.getAdminNotifications(adminId);
   }
 
-  // ==========================================
+  // =====================================================
   // USER GET NOTIFICATIONS
   // GET: /notifications/user/:userId
-  // ==========================================
+  // =====================================================
   @UseGuards(JwtAuthGuard)
   @Get('user/:userId')
   async getUserNotifications(
@@ -39,27 +39,59 @@ export class NotificationController {
     return this.notificationService.getUserNotifications(userId);
   }
 
-  // ==========================================
-  // USER MARK READ
+  // =====================================================
+  // USER MARK SINGLE READ
   // PATCH: /notifications/user/read/:notificationId/:userId
-  // ==========================================
-@UseGuards(JwtAuthGuard)
-@Patch('user/read/:userId')
-async markUserRead(
-  @Param('userId') userId: string,
-) {
-  return this.notificationService.markUserRead(userId);
-}
+  // =====================================================
+  @UseGuards(JwtAuthGuard)
+  @Patch('user/read/:notificationId/:userId')
+  async markUserRead(
+    @Param('notificationId') notificationId: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.notificationService.markUserRead(
+      notificationId,
+      userId,
+    );
+  }
 
-  // ==========================================
-  // ADMIN MARK READ
+  // =====================================================
+  // USER MARK ALL READ
+  // PATCH: /notifications/user/read-all/:userId
+  // =====================================================
+  @UseGuards(JwtAuthGuard)
+  @Patch('user/read-all/:userId')
+  async markAllUserRead(
+    @Param('userId') userId: string,
+  ) {
+    return this.notificationService.markAllUserRead(userId);
+  }
+
+  // =====================================================
+  // ADMIN MARK SINGLE READ
   // PATCH: /notifications/admin/read/:notificationId/:adminId
-  // ==========================================
-@UseGuards(AdminJwtGuard)
-@Patch('admin/read/:adminId')
-async markAdminRead(
-  @Param('adminId') adminId: string,
-) {
-  return this.notificationService.markAdminRead(adminId);
-}
+  // =====================================================
+  @UseGuards(AdminJwtGuard)
+  @Patch('admin/read/:notificationId/:adminId')
+  async markAdminRead(
+    @Param('notificationId') notificationId: string,
+    @Param('adminId') adminId: string,
+  ) {
+    return this.notificationService.markAdminRead(
+      notificationId,
+      adminId,
+    );
+  }
+
+  // =====================================================
+  // ADMIN MARK ALL READ
+  // PATCH: /notifications/admin/read-all/:adminId
+  // =====================================================
+  @UseGuards(AdminJwtGuard)
+  @Patch('admin/read-all/:adminId')
+  async markAllAdminRead(
+    @Param('adminId') adminId: string,
+  ) {
+    return this.notificationService.markAllAdminRead(adminId);
+  }
 }

@@ -197,89 +197,132 @@ export class NotificationService {
   // =====================================================
   // MARK READ
   // =====================================================
-  async markRead(notificationId: string) {
+ 
+
+
+  // =====================================================
+  async markUserRead(notificationId: string, userId: string) {
     try {
-      if (!Types.ObjectId.isValid(notificationId)) {
-        throw new Error('Invalid notificationId');
+      if (
+        !Types.ObjectId.isValid(notificationId) ||
+        !Types.ObjectId.isValid(userId)
+      ) {
+        throw new Error('Invalid ID');
       }
 
-      const updated = await this.notificationModel.findByIdAndUpdate(
-        notificationId,
-        { isRead: true },
+      const updated = await this.notificationModel.findOneAndUpdate(
+        {
+          _id: new Types.ObjectId(notificationId),
+          userId: new Types.ObjectId(userId),
+          adminId: { $exists: false },
+        },
+        { isReadByUser: true },
         { new: true },
+      );
+
+      if (!updated) {
+        throw new Error('Notification not found or unauthorized');
+      }
+
+      return {
+        success: true,
+        message: 'User notification marked as read',
+        data: updated,
+      };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  // =====================================================
+  // MARK SINGLE ADMIN READ
+  // =====================================================
+  async markAdminRead(notificationId: string, adminId: string) {
+    try {
+      if (
+        !Types.ObjectId.isValid(notificationId) ||
+        !Types.ObjectId.isValid(adminId)
+      ) {
+        throw new Error('Invalid ID');
+      }
+
+      const updated = await this.notificationModel.findOneAndUpdate(
+        {
+          _id: new Types.ObjectId(notificationId),
+          adminId: new Types.ObjectId(adminId),
+        },
+        { isReadByAdmin: true },
+        { new: true },
+      );
+
+      if (!updated) {
+        throw new Error('Notification not found or unauthorized');
+      }
+
+      return {
+        success: true,
+        message: 'Admin notification marked as read',
+        data: updated,
+      };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  // =====================================================
+  // MARK ALL USER READ
+  // =====================================================
+  async markAllUserRead(userId: string) {
+    try {
+      if (!Types.ObjectId.isValid(userId)) {
+        throw new Error('Invalid userId');
+      }
+
+      const result = await this.notificationModel.updateMany(
+        {
+          userId: new Types.ObjectId(userId),
+          adminId: { $exists: false },
+          isReadByUser: false,
+        },
+        { $set: { isReadByUser: true } },
       );
 
       return {
         success: true,
-        message: 'Notification marked as read',
-        data: updated,
+        message: 'All user notifications marked as read',
+        modifiedCount: result.modifiedCount,
       };
     } catch (error) {
-      console.error('markRead error:', error.message);
+      return { success: false, message: error.message };
+    }
+  }
+
+  // =====================================================
+  // MARK ALL ADMIN READ
+  // =====================================================
+  async markAllAdminRead(adminId: string) {
+    try {
+      if (!Types.ObjectId.isValid(adminId)) {
+        throw new Error('Invalid adminId');
+      }
+
+      const result = await this.notificationModel.updateMany(
+        {
+          adminId: new Types.ObjectId(adminId),
+          isReadByAdmin: false,
+        },
+        { $set: { isReadByAdmin: true } },
+      );
+
       return {
-        success: false,
-        message: error.message || 'Failed to mark notification read',
+        success: true,
+        message: 'All admin notifications marked as read',
+        modifiedCount: result.modifiedCount,
       };
+    } catch (error) {
+      return { success: false, message: error.message };
     }
   }
 
-async markUserRead(userId: string) {
-  try {
-    if (!Types.ObjectId.isValid(userId)) {
-      throw new Error('Invalid userId');
-    }
-
-    const result = await this.notificationModel.updateMany(
-      {
-        userId: new Types.ObjectId(userId),
-        adminId: { $exists: false }, // 🔒 prevents admin notifications
-        isReadByUser: false, // only unread
-      },
-      {
-        $set: { isReadByUser: true },
-      },
-    );
-
-    return {
-      success: true,
-      message: 'All user notifications marked as read',
-      modifiedCount: result.modifiedCount,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.message,
-    };
-  }
-}
-
-async markAdminRead(adminId: string) {
-  try {
-    if (!Types.ObjectId.isValid(adminId)) {
-      throw new Error('Invalid adminId');
-    }
-
-    const result = await this.notificationModel.updateMany(
-      {
-        adminId: new Types.ObjectId(adminId),
-        isReadByAdmin: false,
-      },
-      {
-        $set: { isReadByAdmin: true },
-      },
-    );
-
-    return {
-      success: true,
-      message: 'Admin notifications marked as read',
-      modifiedCount: result.modifiedCount,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error.message,
-    };
-  }
-}
 
 }
