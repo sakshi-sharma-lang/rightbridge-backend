@@ -526,15 +526,32 @@ async getApplicationsByUserId(userId: string) {
     };
   }
 
-  async getAdminConversations(adminId: string) {
-    if (!Types.ObjectId.isValid(adminId))
-      throw new BadRequestException('Invalid adminId');
-
-    return this.convoModel
-      .find({ adminId: new Types.ObjectId(adminId) })
-      .populate('userId', 'firstName lastName email')
-      .sort({ updatedAt: -1 });
+ async getAdminConversations(
+  adminId: string,
+  applicationId?: string,
+) {
+  if (!Types.ObjectId.isValid(adminId)) {
+    throw new BadRequestException('Invalid adminId');
   }
+
+  const filter: any = {
+    adminId: new Types.ObjectId(adminId),
+  };
+
+  // ONLY apply if provided
+  if (applicationId) {
+    if (!Types.ObjectId.isValid(applicationId)) {
+      throw new BadRequestException('Invalid applicationId');
+    }
+
+    filter.applicationId = new Types.ObjectId(applicationId);
+  }
+
+  return this.convoModel
+    .find(filter)
+    .populate('userId', 'firstName lastName email')
+    .sort({ updatedAt: -1 });
+}
     // =====================================================
  async getAdminTotalUnread(adminId: string) {
 
