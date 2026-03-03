@@ -4,6 +4,7 @@ import {
   InternalServerErrorException,
   Inject,
   forwardRef,
+  NotFoundException,
 } from '@nestjs/common';
 
 import { InjectModel } from '@nestjs/mongoose';
@@ -531,20 +532,45 @@ async getAdminConversation(
   applicationId: string,
   userId: string,
 ) {
-  if (!Types.ObjectId.isValid(adminId))
-    throw new BadRequestException('Invalid adminId');
+  try {
+    if (!Types.ObjectId.isValid(adminId)) {
+      throw new BadRequestException('Invalid adminId');
+    }
 
-  if (!Types.ObjectId.isValid(applicationId))
-    throw new BadRequestException('Invalid applicationId');
+    if (!Types.ObjectId.isValid(applicationId)) {
+      throw new BadRequestException('Invalid applicationId');
+    }
 
-  if (!userId)
-    throw new BadRequestException('Invalid userId');
+    if (!userId) {
+      throw new BadRequestException('Invalid userId');
+    }
 
-  return this.convoModel.findOne({
-    adminId: new Types.ObjectId(adminId),
-    applicationId: new Types.ObjectId(applicationId),
-    userId: userId, // DO NOT convert (stored as string in DB)
-  }).populate('userId', 'firstName lastName email');
+    const conversation = await this.convoModel
+      .findOne({
+        adminId: new Types.ObjectId(adminId),
+        applicationId: new Types.ObjectId(applicationId),
+        userId: userId, // DO NOT convert (stored as string in DB)
+      })
+      .populate('userId', 'firstName lastName email');
+
+    if (!conversation) {
+      throw new NotFoundException(
+        'Conversation not found for given adminId, applicationId and userId',
+      );
+    }
+
+    return conversation;
+  } catch (error) {
+    console.error('Error in getAdminConversation:', error);
+
+    if (error instanceof BadRequestException || error instanceof NotFoundException) {
+      throw error;
+    }
+
+    throw new InternalServerErrorException(
+      'Something went wrong while fetching conversation',
+    );
+  }
 }
     // =====================================================
  async getAdminTotalUnread(adminId: string) {
