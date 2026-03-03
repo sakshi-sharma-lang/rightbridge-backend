@@ -222,4 +222,74 @@ export class NotificationService {
       };
     }
   }
+
+  async markUserRead(notificationId: string, userId: string) {
+  try {
+    if (
+      !Types.ObjectId.isValid(notificationId) ||
+      !Types.ObjectId.isValid(userId)
+    ) {
+      throw new Error('Invalid ID');
+    }
+
+    const updated = await this.notificationModel.findOneAndUpdate(
+      {
+        _id: notificationId,
+        userId: new Types.ObjectId(userId),
+      },
+      { isRead: true },
+      { new: true },
+    );
+
+    if (!updated) {
+      throw new Error('Notification not found or unauthorized');
+    }
+
+    return {
+      success: true,
+      message: 'User notification marked as read',
+      data: updated,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message,
+    };
+  }
+}
+
+async markAdminRead(notificationId: string, adminId: string) {
+  try {
+    if (
+      !Types.ObjectId.isValid(notificationId) ||
+      !Types.ObjectId.isValid(adminId)
+    ) {
+      throw new Error('Invalid ID');
+    }
+
+    const updated = await this.notificationModel.findOneAndUpdate(
+      {
+        _id: notificationId,
+        adminId: new Types.ObjectId(adminId),
+      },
+      { isRead: true },
+      { new: true },
+    );
+
+    if (!updated) {
+      throw new Error('Notification not found or unauthorized');
+    }
+
+    return {
+      success: true,
+      message: 'Admin notification marked as read',
+      data: updated,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message,
+    };
+  }
+}
 }
