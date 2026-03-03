@@ -511,7 +511,7 @@ async getApplicationsAdmindashboard(query: any) {
 
   const filter: any = { ...baseFilter };
 
-  // ================= STATUS FILTER (FIXED) =================
+  // ================= STATUS FILTER =================
   if (status && status !== 'active') {
     if (status === 'completed_stage') {
       filter.$or = [
@@ -534,7 +534,6 @@ async getApplicationsAdmindashboard(query: any) {
         },
       ];
     }
-    // 🚀 DO NOT filter by status for other cases
   }
 
   // ================= TYPE FILTER =================
@@ -611,9 +610,6 @@ async getApplicationsAdmindashboard(query: any) {
     totalApplications,
     dipToday,
     awaitingFee,
-    kycInProgress,
-    underwritingQueue,
-    offersIssued,
     thisMonthCount,
     lastMonthCount,
   ] = await Promise.all([
@@ -642,14 +638,15 @@ async getApplicationsAdmindashboard(query: any) {
       ...baseFilter,
       updatedAt: { $gte: startOfMonth },
     }),
+
+    // ✅ KEEP Awaiting Fee
     this.applicationModel.countDocuments({ status: 'fee_required' }),
-    this.applicationModel.countDocuments({ status: 'kyc_stage' }),
-    this.applicationModel.countDocuments({ status: 'underwriting_stage' }),
-    this.applicationModel.countDocuments({ status: 'offer_issued' }),
+
     this.applicationModel.countDocuments({
       ...baseFilter,
       createdAt: { $gte: startOfMonth, $lte: endOfMonth },
     }),
+
     this.applicationModel.countDocuments({
       ...baseFilter,
       createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth },
@@ -683,7 +680,6 @@ async getApplicationsAdmindashboard(query: any) {
       Array.isArray(item.application_stage_management) &&
       item.application_stage_management.includes('dip_approved');
 
-    // 🔥 SAME LOCK LOGIC
     if (hasDipSubmitted && !isPaid) {
       rawStatus = 'dip_approved';
     }
@@ -722,7 +718,6 @@ async getApplicationsAdmindashboard(query: any) {
     };
   });
 
-  // ================= DISPLAY LEVEL STATUS FILTER =================
   if (status && status !== 'active') {
     const statusLabel =
       STATUS_LABEL_MAP[status] ||
@@ -735,9 +730,6 @@ async getApplicationsAdmindashboard(query: any) {
     totalApplications,
     dipToday,
     awaitingFee,
-    kycInProgress,
-    underwritingQueue,
-    offersIssued,
     thisMonthChange: `${Math.max(0, thisMonthChange)}`,
     total: data.length,
     page: Number(page),
@@ -745,7 +737,6 @@ async getApplicationsAdmindashboard(query: any) {
     data,
   };
 }
-
 
   /* ================= ADMIN GET USER APPLICATION ================= */
   async findUserApplicationByIdForAdmin(id: string): Promise<Application> {
@@ -1036,7 +1027,8 @@ async getApplicationDetails(query: any) {
 
     data,
   };
-}async getAllApplicationbyAdmin(query: any) {
+}
+async getAllApplicationbyAdmin(query: any) {
   const {
     status,
     priority,
@@ -1054,7 +1046,6 @@ async getApplicationDetails(query: any) {
     dip_stage: 'DIP Submitted',
     dip_submitted: 'Fee Required',
     dip_approved: 'KYC/AML',
-    fee_required: 'Fee Required',
     kyc_stage: 'KYC Pending',
     kyc_confirm: 'Valuation',
     valuation_stage: 'Underwriting',
@@ -1142,7 +1133,7 @@ async getApplicationDetails(query: any) {
 
   const skip = (Number(page) - 1) * Number(limit);
 
-  // ================= FETCH ALL MATCHING (WITHOUT STATUS FILTER) =================
+  // ================= FETCH ALL MATCHING =================
   const allRows = await this.applicationModel
     .find(filter)
     .select({
@@ -1176,7 +1167,7 @@ async getApplicationDetails(query: any) {
     p.applicationId.toString(),
   );
 
-  // ================= COMPUTE STATUS + MAP =================
+  // ================= COMPUTE STATUS =================
   let mappedData = allRows.map((item: any) => {
     let rawStatus: string = item.status;
 
@@ -1224,11 +1215,11 @@ async getApplicationDetails(query: any) {
     };
   });
 
-  // ================= STATUS FILTER (AFTER COMPUTE) =================
+  // ================= STATUS FILTER =================
   if (status && status !== 'all') {
-    const formattedStatus = STATUS_LABEL_MAP[status] || status
-      .replace(/_/g, ' ')
-      .replace(/\b\w/g, (c: string) => c.toUpperCase());
+    const formattedStatus =
+      STATUS_LABEL_MAP[status] ||
+      status.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
 
     mappedData = mappedData.filter(
       (item) => item.status === formattedStatus,
@@ -1236,11 +1227,8 @@ async getApplicationDetails(query: any) {
   }
 
   const total = mappedData.length;
-
-  // ================= PAGINATION AFTER FILTER =================
   const paginatedData = mappedData.slice(skip, skip + Number(limit));
 
-  // ================= THIS MONTH COUNT =================
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
