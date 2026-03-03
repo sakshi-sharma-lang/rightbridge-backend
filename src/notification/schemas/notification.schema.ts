@@ -23,7 +23,10 @@ userId: Types.ObjectId;
   message: string;
 
   @Prop({ default: false })
-  isRead: boolean;
+  isReadByUser: boolean;
+
+  @Prop({ default: false })
+  isReadByAdmin: boolean;
 
   @Prop({ default: '' })
   type: string;

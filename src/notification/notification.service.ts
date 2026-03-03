@@ -17,128 +17,128 @@ export class NotificationService {
   // =====================================================
   // USER NOTIFICATION (SAVE DB + REALTIME)
   // =====================================================
-  async sendToUser({
-    userId,
-    message,
-    stage,
-    type = 'general',
-    applicationId = null,
-  }: {
-    userId: string;
-    message: string;
-    stage: string;
-    type?: string;
-    applicationId?: string | null;
-  }) {
-    try {
-      console.log("🔥 sendToUser CALLED:", userId);
+ async sendToUser({
+  userId,
+  message,
+  stage,
+  type = 'general',
+  applicationId = null,
+}: {
+  userId: string;
+  message: string;
+  stage: string;
+  type?: string;
+  applicationId?: string | null;
+}) {
+  try {
+    console.log('🔥 sendToUser CALLED:', userId);
 
-      if (!Types.ObjectId.isValid(userId)) {
-        throw new Error('Invalid userId');
-      }
-
-      const notification = await this.notificationModel.create({
-        userId: new Types.ObjectId(userId),
-        message,
-        stage,
-        type,
-        applicationId: applicationId
-          ? new Types.ObjectId(applicationId)
-          : null,
-        isRead: false,
-      });
-
-      console.log("✅ Notification saved:", notification._id);
-
-      const payload = {
-        id: notification._id,
-        message,
-        stage,
-        type,
-        applicationId,
-        isRead: false,
-        createdAt: notification.createdAt,
-      };
-
-      // realtime socket
-     this.chatGateway.sendNotificationToUser(userId, payload);
-
-      return {
-        success: true,
-        message: 'Notification sent to user',
-        data: notification,
-      };
-    } catch (error) {
-      console.error('❌ FULL USER ERROR:', error);
-      return {
-        success: false,
-        message: error.message || 'Failed to send user notification',
-      };
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new Error('Invalid userId');
     }
+
+    const notification = await this.notificationModel.create({
+      userId: new Types.ObjectId(userId),
+      message,
+      stage,
+      type,
+      applicationId: applicationId
+        ? new Types.ObjectId(applicationId)
+        : null,
+      isReadByUser: false,   // ✅ user must read
+      isReadByAdmin: true,   // ✅ admin does not need to read
+    });
+
+    console.log('✅ Notification saved:', notification._id);
+
+    const payload = {
+      id: notification._id,
+      message,
+      stage,
+      type,
+      applicationId,
+      isReadByUser: false,
+      createdAt: notification.createdAt,
+    };
+
+    this.chatGateway.sendNotificationToUser(userId, payload);
+
+    return {
+      success: true,
+      message: 'Notification sent to user',
+      data: notification,
+    };
+  } catch (error) {
+    console.error('❌ FULL USER ERROR:', error);
+    return {
+      success: false,
+      message: error.message || 'Failed to send user notification',
+    };
   }
+}
 
   // =====================================================
   // ADMIN NOTIFICATION
   // =====================================================
   async sendToAdmin({
-    adminId,
-    message,
-    stage,
-    type = 'admin',
-    applicationId = null,
-  }: {
-    adminId: string;
-    message: string;
-    stage: string;
-    type?: string;
-    applicationId?: string | null;
-  }) {
-    try {
-      console.log("🔥 sendToAdmin CALLED:", adminId);
+  adminId,
+  message,
+  stage,
+  type = 'admin',
+  applicationId = null,
+}: {
+  adminId: string;
+  message: string;
+  stage: string;
+  type?: string;
+  applicationId?: string | null;
+}) {
+  try {
+    console.log('🔥 sendToAdmin CALLED:', adminId);
 
-      if (!Types.ObjectId.isValid(adminId)) {
-        throw new Error('Invalid adminId');
-      }
-
-      const notification = await this.notificationModel.create({
-        adminId: new Types.ObjectId(adminId),
-        message,
-        stage,
-        type,
-        applicationId: applicationId
-          ? new Types.ObjectId(applicationId)
-          : null,
-        isRead: false,
-      });
-
-      console.log("✅ Admin notification saved:", notification._id);
-
-      const payload = {
-        id: notification._id,
-        message,
-        stage,
-        type,
-        applicationId,
-        isRead: false,
-        createdAt: notification.createdAt,
-      };
-
-      // realtime socket
-       this.chatGateway.sendNotificationToAdmin(adminId, payload);
-
-      return {
-        success: true,
-        message: 'Notification sent to admin',
-        data: notification,
-      };
-    } catch (error) {
-      console.error('❌ FULL ADMIN ERROR:', error);
-      return {
-        success: false,
-        message: error.message || 'Failed to send admin notification',
-      };
+    if (!Types.ObjectId.isValid(adminId)) {
+      throw new Error('Invalid adminId');
     }
+
+    const notification = await this.notificationModel.create({
+      adminId: new Types.ObjectId(adminId),
+      message,
+      stage,
+      type,
+      applicationId: applicationId
+        ? new Types.ObjectId(applicationId)
+        : null,
+      isReadByAdmin: false,   // ✅ correct field
+      isReadByUser: true,     // ✅ important
+    });
+
+    console.log('✅ Admin notification saved:', notification._id);
+
+    const payload = {
+      id: notification._id,
+      message,
+      stage,
+      type,
+      applicationId,
+      isReadByAdmin: false,   // ✅ send correct flag
+      createdAt: notification.createdAt,
+    };
+
+    this.chatGateway.sendNotificationToAdmin(adminId, payload);
+
+    return {
+      success: true,
+      message: 'Notification sent to admin',
+      data: notification,
+    };
+  } catch (error) {
+    console.error('❌ FULL ADMIN ERROR:', error);
+    return {
+      success: false,
+      message: error.message || 'Failed to send admin notification',
+    };
   }
+}
 
   // =====================================================
   // GET ADMIN NOTIFICATIONS
@@ -223,61 +223,30 @@ export class NotificationService {
     }
   }
 
- async markUserRead(notificationId: string, userId: string) {
+async markUserRead(notificationId: string, userId: string) {
   try {
-    console.log('==============================');
-    console.log('🔹 SERVICE DEBUG START');
-    console.log('notificationId:', notificationId);
-    console.log('userId:', userId);
-
-    console.log(
-      'Is notificationId valid?',
-      Types.ObjectId.isValid(notificationId),
-    );
-    console.log(
-      'Is userId valid?',
-      Types.ObjectId.isValid(userId),
-    );
-
     if (
       !Types.ObjectId.isValid(notificationId) ||
       !Types.ObjectId.isValid(userId)
     ) {
-      console.log('❌ Invalid ObjectId detected');
       throw new Error('Invalid ID');
     }
-
-    const existing = await this.notificationModel.findById(notificationId);
-
-    console.log('Notification Found:', existing);
-
-    if (!existing) {
-      console.log('❌ Notification does not exist');
-      throw new Error('Notification not found');
-    }
-
-    console.log(
-      'Notification.userId:',
-      existing.userId?.toString(),
-    );
-    console.log('JWT userId:', userId);
 
     const updated = await this.notificationModel.findOneAndUpdate(
       {
         _id: new Types.ObjectId(notificationId),
         userId: new Types.ObjectId(userId),
+        adminId: { $exists: false }, // 🔒 prevents admin notifications
       },
-      { isRead: true },
+      {
+        isReadByUser: true, // ✅ NEW FIELD
+      },
       { new: true },
     );
 
     if (!updated) {
-      console.log('❌ Ownership mismatch');
       throw new Error('Notification not found or unauthorized');
     }
-
-    console.log('✅ Successfully marked as read');
-    console.log('==============================');
 
     return {
       success: true,
@@ -285,9 +254,6 @@ export class NotificationService {
       data: updated,
     };
   } catch (error) {
-    console.log('🔥 SERVICE ERROR:', error.message);
-    console.log('==============================');
-
     return {
       success: false,
       message: error.message,
@@ -306,10 +272,10 @@ async markAdminRead(notificationId: string, adminId: string) {
 
     const updated = await this.notificationModel.findOneAndUpdate(
       {
-        _id: new Types.ObjectId(notificationId),  // ✅ FIXED
+        _id: new Types.ObjectId(notificationId),  
         adminId: new Types.ObjectId(adminId),
       },
-      { isReadByAdmin: true },  // ✅ FIXED FIELD
+      { isReadByAdmin: true },  
       { new: true },
     );
 
@@ -329,4 +295,5 @@ async markAdminRead(notificationId: string, adminId: string) {
     };
   }
 }
+
 }
