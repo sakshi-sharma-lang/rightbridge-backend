@@ -227,11 +227,13 @@ sendNotificationToUser(userId: string, payload: any) {
 
   try {
     socket.send(
-      JSON.stringify({
-        type: 'notification',
-        data: payload,
-      }),
-    );
+  JSON.stringify({
+    type: 'notification',              // keep same type
+    notification: payload,             // 🔥 NOT "data"
+    isSystemNotification: true,        // 🔥 isolation flag
+    timestamp: Date.now(),             // optional safety
+  }),
+);
 
     console.log("🚀 Notification SENT successfully to user:", userId);
   } catch (err) {
@@ -276,12 +278,16 @@ sendNotificationToAdmin(adminId: string, payload: any) {
 
     if (socket.readyState === WebSocket.OPEN) {
       try {
-        socket.send(
-          JSON.stringify({
-            type: 'notification',
-            data: payload,
-          }),
-        );
+     
+socket.send(
+  JSON.stringify({
+    type: 'notification',
+    notification: payload,
+    isSystemNotification: true,
+    timestamp: Date.now(),
+  }),
+);
+   
         delivered++;
       } catch (err) {
         console.log("❌ Error sending to this socket:", err);
