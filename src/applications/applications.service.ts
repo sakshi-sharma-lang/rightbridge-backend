@@ -541,46 +541,32 @@ async getApplicationsAdmindashboard(query: any) {
     underwriting_started: 'Offer Sent',
     offer_issued: 'Offer Issued',
     offersent_stage: 'Offer Sent',
-    completed_stage: 'Applicaiton Completed',
+    completed_stage: 'Application Completed',
     decline_stage: 'DIP Declined',
   };
 
-  const baseFilter = {
+  const baseFilter: any = {
     status: { $nin: ['welcome_stage'] },
     isDraft: { $ne: true },
   };
 
   const filter: any = { ...baseFilter };
 
-  // ================= STATUS FILTER =================
+  // ================= STATUS FILTER (UNIVERSAL) =================
   if (status && status !== 'active') {
-    if (status === 'completed_stage') {
-      filter.$or = [
-        { status: 'completed_stage' },
-        {
-          status: 'dip_stage',
-          application_stage_management: {
-            $elemMatch: { $eq: 'completed_stage' },
-          },
-        },
-      ];
-    } else if (status === 'decline_stage') {
-      filter.$or = [
-        { status: 'decline_stage' },
-        {
-          status: 'dip_stage',
-          application_stage_management: {
-            $elemMatch: { $eq: 'decline_stage' },
-          },
-        },
-      ];
-    }
+    filter.$or = [
+      { status },
+      {
+        status: 'dip_stage',
+        application_stage_management: status,
+      },
+    ];
   }
 
   // ================= TYPE FILTER =================
   if (loanType && loanType !== 'all') {
     filter['loanType.applicationType'] = {
-      $regex: `^${loanType.trim().toLowerCase()}$`,
+      $regex: `^${loanType.trim()}$`,
       $options: 'i',
     };
   }
@@ -631,7 +617,7 @@ async getApplicationsAdmindashboard(query: any) {
 
   const skip = (Number(page) - 1) * Number(limit);
 
-  // ================= MONTH CALCULATION =================
+  // ================= MONTH CALCULATIONS =================
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
@@ -674,14 +660,18 @@ async getApplicationsAdmindashboard(query: any) {
       .lean(),
 
     this.applicationModel.countDocuments(filter),
+
     this.applicationModel.countDocuments(baseFilter),
+
     this.applicationModel.countDocuments({
       ...baseFilter,
       updatedAt: { $gte: startOfMonth },
     }),
 
-    // ✅ KEEP Awaiting Fee
-    this.applicationModel.countDocuments({ status: 'fee_required' }),
+    this.applicationModel.countDocuments({
+      ...baseFilter,
+      status: 'fee_required',
+    }),
 
     this.applicationModel.countDocuments({
       ...baseFilter,
@@ -711,20 +701,22 @@ async getApplicationsAdmindashboard(query: any) {
 
   const thisMonthChange = thisMonthCount - lastMonthCount;
 
-  // ================= TABLE FORMAT =================
-  let data = rows.map((item: any) => {
-    let rawStatus: string = item.status as string;
+  // ================= FORMAT DATA =================
+  const data = rows.map((item: any) => {
+    let rawStatus: string = item.status;
 
     const isPaid = paidApplicationIds.includes(item._id.toString());
 
-    const hasDipSubmitted =
+    // If dip approved but payment not done → still show KYC/AML stage
+    const hasDipApproved =
       Array.isArray(item.application_stage_management) &&
       item.application_stage_management.includes('dip_approved');
 
-    if (hasDipSubmitted && !isPaid) {
+    if (hasDipApproved && !isPaid) {
       rawStatus = 'dip_approved';
     }
 
+    // If still dip_stage → get latest stage from history
     if (
       rawStatus === 'dip_stage' &&
       Array.isArray(item.application_stage_management) &&
@@ -738,8 +730,11 @@ async getApplicationsAdmindashboard(query: any) {
 
     let formattedStatus =
       STATUS_LABEL_MAP[rawStatus] ||
-      rawStatus.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+      rawStatus
+        ?.replace(/_/g, ' ')
+        ?.replace(/\b\w/g, (c: string) => c.toUpperCase());
 
+    // Special case
     if (
       item?.loanRequirements?.loanPurpose === 'other' &&
       (rawStatus === 'dip_submitted' || rawStatus === 'dip_stage')
@@ -759,20 +754,12 @@ async getApplicationsAdmindashboard(query: any) {
     };
   });
 
-  if (status && status !== 'active') {
-    const statusLabel =
-      STATUS_LABEL_MAP[status] ||
-      status.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
-
-    data = data.filter((item) => item.status === statusLabel);
-  }
-
   return {
     totalApplications,
     dipToday,
     awaitingFee,
     thisMonthChange: `${Math.max(0, thisMonthChange)}`,
-    total: data.length,
+    total, // ✅ Correct total count
     page: Number(page),
     limit: Number(limit),
     data,
