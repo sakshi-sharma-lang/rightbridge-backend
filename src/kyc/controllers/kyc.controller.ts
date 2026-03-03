@@ -164,13 +164,16 @@ export class KycController {
             throw new Error('SDK token generation failed');
           }
 
-          await this.kycModel.updateOne(
-            { externalUserId },
-            {
-              status: KycStatus.LINK_SENT,
-              lastLinkSentAt: new Date(),
-            },
-          );
+      const expiresAt = new Date(Date.now() + 1 * 60 * 1000); // 5 minutes
+
+await this.kycModel.updateOne(
+  { externalUserId },
+  {
+    status: KycStatus.LINK_SENT,
+    lastLinkSentAt: new Date(),
+    linkExpiresAt: expiresAt, 
+  },
+);
 
           const link = `${process.env.FRONTEND_URL}kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}&applicantId=${applicantId}`;
             //const link = `http://localhost:3093/kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}&applicantId=${applicantId}`;

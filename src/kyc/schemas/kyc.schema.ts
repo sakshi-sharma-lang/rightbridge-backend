@@ -60,6 +60,8 @@ amlStatus?: string;
 
   @Prop()
   complianceNotes: string;
+@Prop({ type: Date, default: null })
+linkExpiresAt?: Date;
 
   // ===== RAW DATA =====
   @Prop({ type: Object })

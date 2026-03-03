@@ -485,7 +485,32 @@ async getApplicantById(applicantId: string) {
     if (!applicantId) {
       throw new BadRequestException('applicantId is required');
     }
+// ============================================
+// 🔎 FETCH KYC RECORD (for expiry validation)
+// ============================================
+const kycRecordForExpiry = await this.kycModel
+  .findOne({ applicantId })
+  .lean();
 
+if (!kycRecordForExpiry) {
+  throw new NotFoundException('KYC record not found');
+}
+
+// ============================================
+// ✅ LINK EXPIRY VALIDATION (5 min + 1 min grace)
+// ============================================
+if (!kycRecordForExpiry.linkExpiresAt) {
+  throw new BadRequestException('KYC link is invalid');
+}
+
+// 1 minute grace period
+const expiryWithGrace = new Date(
+  new Date(kycRecordForExpiry.linkExpiresAt).getTime() + 60 * 1000
+);
+
+if (new Date() > expiryWithGrace) {
+  throw new BadRequestException('KYC link expired');
+}
     // ============================================
     // 🔐 Create Sumsub Signature
     // ============================================
