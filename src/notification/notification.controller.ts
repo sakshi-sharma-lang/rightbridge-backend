@@ -3,7 +3,6 @@ import {
   Get,
   Patch,
   Param,
-  Req,
   UseGuards,
 } from '@nestjs/common';
 import { NotificationService } from './notification.service';
@@ -12,31 +11,63 @@ import { AdminJwtGuard } from '../auth/admin-jwt.guard';
 
 @Controller('notifications')
 export class NotificationController {
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(
+    private readonly notificationService: NotificationService,
+  ) {}
 
-  // ================= ADMIN =================
+  // ==========================================
+  // ADMIN GET NOTIFICATIONS
+  // GET: /notifications/admin/:adminId
+  // ==========================================
   @UseGuards(AdminJwtGuard)
-  @Get('admin')
-  getAdmin(@Req() req: any) {
-    return this.notificationService.getAdminNotifications(req.user.id);
+  @Get('admin/:adminId')
+  async getAdminNotifications(
+    @Param('adminId') adminId: string,
+  ) {
+    return this.notificationService.getAdminNotifications(adminId);
   }
 
-  @UseGuards(AdminJwtGuard)
-  @Patch('admin/read/:notificationId')
-  markAdminRead(@Param('notificationId') id: string, @Req() req: any) {
-    return this.notificationService.markAdminRead(id, req.user.id);
-  }
-
-  // ================= USER =================
+  // ==========================================
+  // USER GET NOTIFICATIONS
+  // GET: /notifications/user/:userId
+  // ==========================================
   @UseGuards(JwtAuthGuard)
-  @Get('user')
-  getUser(@Req() req: any) {
-    return this.notificationService.getUserNotifications(req.user.id);
+  @Get('user/:userId')
+  async getUserNotifications(
+    @Param('userId') userId: string,
+  ) {
+    return this.notificationService.getUserNotifications(userId);
   }
 
+  // ==========================================
+  // USER MARK READ
+  // PATCH: /notifications/user/read/:notificationId/:userId
+  // ==========================================
   @UseGuards(JwtAuthGuard)
-  @Patch('user/read/:notificationId')
-  markUserRead(@Param('notificationId') id: string, @Req() req: any) {
-    return this.notificationService.markUserRead(id, req.user.id);
+  @Patch('user/read/:notificationId/:userId')
+  async markUserRead(
+    @Param('notificationId') notificationId: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.notificationService.markUserRead(
+      notificationId,
+      userId,
+    );
   }
+
+  // ==========================================
+  // ADMIN MARK READ
+  // PATCH: /notifications/admin/read/:notificationId/:adminId
+  // ==========================================
+ @UseGuards(AdminJwtGuard)
+@Patch('admin/read/:notificationId/:adminId')
+async markAdminRead(
+  @Param('notificationId') notificationId: string,
+  @Param('adminId') adminId: string,
+) {
+  return this.notificationService.markAdminRead(
+    notificationId,
+    adminId,
+  );
+}
 }

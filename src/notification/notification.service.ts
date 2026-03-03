@@ -223,18 +223,48 @@ export class NotificationService {
     }
   }
 
-  async markUserRead(notificationId: string, userId: string) {
+ async markUserRead(notificationId: string, userId: string) {
   try {
+    console.log('==============================');
+    console.log('🔹 SERVICE DEBUG START');
+    console.log('notificationId:', notificationId);
+    console.log('userId:', userId);
+
+    console.log(
+      'Is notificationId valid?',
+      Types.ObjectId.isValid(notificationId),
+    );
+    console.log(
+      'Is userId valid?',
+      Types.ObjectId.isValid(userId),
+    );
+
     if (
       !Types.ObjectId.isValid(notificationId) ||
       !Types.ObjectId.isValid(userId)
     ) {
+      console.log('❌ Invalid ObjectId detected');
       throw new Error('Invalid ID');
     }
 
+    const existing = await this.notificationModel.findById(notificationId);
+
+    console.log('Notification Found:', existing);
+
+    if (!existing) {
+      console.log('❌ Notification does not exist');
+      throw new Error('Notification not found');
+    }
+
+    console.log(
+      'Notification.userId:',
+      existing.userId?.toString(),
+    );
+    console.log('JWT userId:', userId);
+
     const updated = await this.notificationModel.findOneAndUpdate(
       {
-        _id: notificationId,
+        _id: new Types.ObjectId(notificationId),
         userId: new Types.ObjectId(userId),
       },
       { isRead: true },
@@ -242,8 +272,12 @@ export class NotificationService {
     );
 
     if (!updated) {
+      console.log('❌ Ownership mismatch');
       throw new Error('Notification not found or unauthorized');
     }
+
+    console.log('✅ Successfully marked as read');
+    console.log('==============================');
 
     return {
       success: true,
@@ -251,6 +285,9 @@ export class NotificationService {
       data: updated,
     };
   } catch (error) {
+    console.log('🔥 SERVICE ERROR:', error.message);
+    console.log('==============================');
+
     return {
       success: false,
       message: error.message,
@@ -269,10 +306,10 @@ async markAdminRead(notificationId: string, adminId: string) {
 
     const updated = await this.notificationModel.findOneAndUpdate(
       {
-        _id: notificationId,
+        _id: new Types.ObjectId(notificationId),  // ✅ FIXED
         adminId: new Types.ObjectId(adminId),
       },
-      { isRead: true },
+      { isReadByAdmin: true },  // ✅ FIXED FIELD
       { new: true },
     );
 
