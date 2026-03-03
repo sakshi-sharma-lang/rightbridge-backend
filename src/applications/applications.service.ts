@@ -855,205 +855,188 @@ private safeDotToObject(body: any) {
   return result;
 }
 
-  async getApplicationDetails(query: any) {
-    const {
-      status,
-      loanType,
-      fromDate,
-      toDate,
-      search,
-      page = 1,
-      limit = 10,
-    } = query;
-    //  BASE FILTER: ACTIVE applications are treated as NON-EXISTENT
-    const baseFilter = { status: { $ne: 'active' } };
-    //  MAIN FILTER (used for list + filtered total)
-    const filter: any = { ...baseFilter };
-    // ================= STATUS FILTER =================
-    // NOTE: status=active is intentionally ignored
-    if (status && status !== 'active') {
-      filter.status = {
-        $regex: `^${status.trim()}$`,
-        $options: 'i',
-      };
+async getApplicationDetails(query: any) {
+  const {
+    status,
+    loanType,
+    fromDate,
+    toDate,
+    search,
+    page = 1,
+    limit = 10,
+  } = query;
+
+  // BASE FILTER: ACTIVE applications are treated as NON-EXISTENT
+  const baseFilter = { status: { $ne: 'active' } };
+
+  // MAIN FILTER (used for list + filtered total)
+  const filter: any = { ...baseFilter };
+
+  // ================= STATUS FILTER =================
+  if (status && status !== 'active') {
+    filter.status = {
+      $regex: `^${status.trim()}$`,
+      $options: 'i',
+    };
+  }
+
+  // ================= LOAN TYPE FILTER =================
+  if (loanType) {
+    filter['loanType.applicationType'] = loanType;
+  }
+
+  // ================= DATE FILTER =================
+  if (fromDate || toDate) {
+    filter.createdAt = {};
+
+    if (fromDate) {
+      const start = new Date(fromDate);
+      start.setHours(0, 0, 0, 0);
+      filter.createdAt.$gte = start;
     }
 
-    // ================= LOAN TYPE FILTER =================
-    if (loanType) {
-      filter['loanType.applicationType'] = loanType;
+    if (toDate) {
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59, 999);
+      filter.createdAt.$lte = end;
     }
+  }
 
-    // ================= DATE FILTER (CREATED AT - LIST) =================
-    if (fromDate || toDate) {
-      filter.createdAt = {};
+  // ================= CURRENT MONTH RANGE =================
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
 
-      if (fromDate) {
-        const start = new Date(fromDate);
-        start.setHours(0, 0, 0, 0);
-        filter.createdAt.$gte = start;
-      }
+  const endOfMonth = new Date();
+  endOfMonth.setHours(23, 59, 59, 999);
 
-      if (toDate) {
-        const end = new Date(toDate);
-        end.setHours(23, 59, 59, 999);
-        filter.createdAt.$lte = end;
-      }
-    }
+  // ================= LAST MONTH RANGE =================
+  const startOfLastMonth = new Date(startOfMonth);
+  startOfLastMonth.setMonth(startOfLastMonth.getMonth() - 1);
 
-    // ================= CURRENT MONTH RANGE =================
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
+  const endOfLastMonth = new Date(startOfMonth);
+  endOfLastMonth.setMilliseconds(-1);
 
-    const endOfMonth = new Date();
-    endOfMonth.setHours(23, 59, 59, 999);
+  // ================= SEARCH =================
+  if (search) {
+    const raw = search.trim();
+    const parts = raw.split(/\s+/);
 
-    // ================= LAST MONTH RANGE =================
-    const startOfLastMonth = new Date(startOfMonth);
-    startOfLastMonth.setMonth(startOfLastMonth.getMonth() - 1);
+    filter.$or = [
+      { appId: { $regex: raw, $options: 'i' } },
+      { 'property.address': { $regex: raw, $options: 'i' } },
+      { 'applicants.firstName': { $regex: raw, $options: 'i' } },
+      { 'applicants.lastName': { $regex: raw, $options: 'i' } },
+    ];
 
-    const endOfLastMonth = new Date(startOfMonth);
-    endOfLastMonth.setMilliseconds(-1);
-
-    // ================= SEARCH =================
-    // ================= SEARCH =================
-    if (search) {
-      const raw = search.trim();
-      const parts = raw.split(/\s+/);
-
-      filter.$or = [
-        { appId: { $regex: raw, $options: 'i' } },
-        { 'property.address': { $regex: raw, $options: 'i' } },
-        { 'applicants.firstName': { $regex: raw, $options: 'i' } },
-        { 'applicants.lastName': { $regex: raw, $options: 'i' } },
-      ];
-
-      //  Full name search (same applicant)
-      if (parts.length >= 2) {
-        filter.$or.push({
-          applicants: {
-            $elemMatch: {
-              firstName: {
-                $regex: parts.slice(0, -1).join(' '),
-                $options: 'i',
-              },
-              lastName: {
-                $regex: parts[parts.length - 1],
-                $options: 'i',
-              },
+    if (parts.length >= 2) {
+      filter.$or.push({
+        applicants: {
+          $elemMatch: {
+            firstName: {
+              $regex: parts.slice(0, -1).join(' '),
+              $options: 'i',
+            },
+            lastName: {
+              $regex: parts[parts.length - 1],
+              $options: 'i',
             },
           },
-        });
-      }
+        },
+      });
     }
-    const skip = (Number(page) - 1) * Number(limit);
-    // ================= TODAY RANGE =================
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-
-    const endOfToday = new Date();
-    endOfToday.setHours(23, 59, 59, 999);
-
-    // ================= QUERY =================
-    const [
-      rows,
-      total,
-      totalApplications,
-      dipToday,
-      awaitingFee,
-      kycInProgress,
-      underwritingQueue,
-      offersIssued,
-      thisMonthCount,
-      lastMonthCount,
-    ] = await Promise.all([
-      // 🔹 LIST DATA (active excluded)
-      this.applicationModel
-        .find(filter)
-        .select({
-          appId: 1,
-          status: 1,
-          updatedAt: 1,
-          'applicants.firstName': 1,
-          'applicants.lastName': 1,
-          'loanRequirements.loanAmount': 1,
-          'property.address': 1,
-        })
-        .sort({ updatedAt: -1 })
-        .skip(skip)
-        .limit(Number(limit))
-        .lean(),
-
-      // 🔹 FILTERED TOTAL (active excluded)
-      this.applicationModel.countDocuments(filter),
-
-      // 🔹 TOTAL APPLICATIONS (active excluded)
-      this.applicationModel.countDocuments(baseFilter),
-
-      // 🔹 DIP TODAY (active excluded)
-      this.applicationModel.countDocuments({
-        ...baseFilter,
-        updatedAt: { $gte: startOfToday, $lte: endOfToday },
-      }),
-
-      // 🔹 STATUS COUNTS (already non-active)
-      this.applicationModel.countDocuments({ status: 'fee_required' }),
-      this.applicationModel.countDocuments({ status: 'kyc_in_progress' }),
-      this.applicationModel.countDocuments({ status: 'underwriting' }),
-      this.applicationModel.countDocuments({ status: 'offer_issued' }),
-
-      // 🔹 THIS MONTH COUNT (active excluded)
-      this.applicationModel.countDocuments({
-        ...baseFilter,
-        createdAt: { $gte: startOfMonth, $lte: endOfMonth },
-      }),
-
-      // 🔹 LAST MONTH COUNT (active excluded)
-      this.applicationModel.countDocuments({
-        ...baseFilter,
-        createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth },
-      }),
-    ]);
-
-    // ================= FINAL CALCULATION =================
-    const thisMonthChange = thisMonthCount - lastMonthCount;
-
-    // ================= FORMAT TABLE =================
-    const data = rows.map((item) => ({
-      appId: item.appId,
-      //  applicantName: `${item.applicant?.firstName ?? ''} ${item.applicant?.lastName ?? ''}`.trim(),
-      applicantName:
-        `${item?.applicants?.[0]?.firstName ?? ''} ${item?.applicants?.[0]?.lastName ?? ''}`.trim(),
-
-      loanAmount: item.loanRequirements?.loanAmount ?? 0,
-      propertyAddress: item.property?.address ?? '',
-      status: item.status,
-      updatedAt: item.updatedAt,
-    }));
-
-    // ================= RESPONSE =================
-    return {
-  // 🔹 DASHBOARD CARDS
-  totalApplications,
-  dipToday,
-  awaitingFee,
-  kycInProgress,
-  underwritingQueue,
-  offersIssued,
-
-  // 🔹 MONTH CHANGE
-  thisMonthChange: `+${thisMonthChange}`,
-
-  // 🔹 TABLE META
-  total,
-  page: Number(page),
-  limit: Number(limit),
-
-  // 🔹 TABLE DATA
-  data,
-};
   }
-async getAllApplicationbyAdmin(query: any) {
+
+  const skip = (Number(page) - 1) * Number(limit);
+
+  // ================= TODAY RANGE =================
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
+
+  // ================= QUERY =================
+  const [
+    rows,
+    total,
+    totalApplications,
+    dipToday,
+    kycInProgress,
+    underwritingQueue,
+    offersIssued,
+    thisMonthCount,
+    lastMonthCount,
+  ] = await Promise.all([
+    this.applicationModel
+      .find(filter)
+      .select({
+        appId: 1,
+        status: 1,
+        updatedAt: 1,
+        'applicants.firstName': 1,
+        'applicants.lastName': 1,
+        'loanRequirements.loanAmount': 1,
+        'property.address': 1,
+      })
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(Number(limit))
+      .lean(),
+
+    this.applicationModel.countDocuments(filter),
+
+    this.applicationModel.countDocuments(baseFilter),
+
+    this.applicationModel.countDocuments({
+      ...baseFilter,
+      updatedAt: { $gte: startOfToday, $lte: endOfToday },
+    }),
+
+    // ❌ Removed fee_required
+    this.applicationModel.countDocuments({ status: 'kyc_in_progress' }),
+    this.applicationModel.countDocuments({ status: 'underwriting' }),
+    this.applicationModel.countDocuments({ status: 'offer_issued' }),
+
+    this.applicationModel.countDocuments({
+      ...baseFilter,
+      createdAt: { $gte: startOfMonth, $lte: endOfMonth },
+    }),
+
+    this.applicationModel.countDocuments({
+      ...baseFilter,
+      createdAt: { $gte: startOfLastMonth, $lte: endOfLastMonth },
+    }),
+  ]);
+
+  const thisMonthChange = thisMonthCount - lastMonthCount;
+
+  const data = rows.map((item) => ({
+    appId: item.appId,
+    applicantName:
+      `${item?.applicants?.[0]?.firstName ?? ''} ${item?.applicants?.[0]?.lastName ?? ''}`.trim(),
+    loanAmount: item.loanRequirements?.loanAmount ?? 0,
+    propertyAddress: item.property?.address ?? '',
+    status: item.status,
+    updatedAt: item.updatedAt,
+  }));
+
+  return {
+    totalApplications,
+    dipToday,
+    kycInProgress,
+    underwritingQueue,
+    offersIssued,
+
+    thisMonthChange: `+${thisMonthChange}`,
+
+    total,
+    page: Number(page),
+    limit: Number(limit),
+
+    data,
+  };
+}async getAllApplicationbyAdmin(query: any) {
   const {
     status,
     priority,
