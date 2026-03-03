@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Body, UseGuards ,Query} from '@nestjs/common';
+import { Controller, Get, Param, Post, Body, UseGuards  ,Query} from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { AdminService } from '../admin/admin.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -50,14 +50,20 @@ export class ChatController {
   // =====================================================
   // ADMIN SIDEBAR
   // =====================================================
-@UseGuards(AdminJwtGuard)
-@Get('admin/chat/:adminId')
+ @UseGuards(AdminJwtGuard)
+@Get('admin/chat')
 async getAdminConversation(
-  @Param('adminId') adminId: string,
+  @Query('adminId') adminId: string,
   @Query('applicationId') applicationId: string,
+  @Query('userId') userId: string,
 ) {
-  return this.chatService.getAdminConversation(adminId, applicationId);
+  return this.chatService.getAdminConversation(
+    adminId,
+    applicationId,
+    userId,
+  );
 }
+
   // =====================================================
   // USER SIDEBAR
   // =====================================================

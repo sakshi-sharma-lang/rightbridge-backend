@@ -529,10 +529,21 @@ async getApplicationsByUserId(userId: string) {
 async getAdminConversation(
   adminId: string,
   applicationId: string,
+  userId: string,
 ) {
+  if (!Types.ObjectId.isValid(adminId))
+    throw new BadRequestException('Invalid adminId');
+
+  if (!Types.ObjectId.isValid(applicationId))
+    throw new BadRequestException('Invalid applicationId');
+
+  if (!userId)
+    throw new BadRequestException('Invalid userId');
+
   return this.convoModel.findOne({
     adminId: new Types.ObjectId(adminId),
     applicationId: new Types.ObjectId(applicationId),
+    userId: userId, // DO NOT convert (stored as string in DB)
   }).populate('userId', 'firstName lastName email');
 }
     // =====================================================
