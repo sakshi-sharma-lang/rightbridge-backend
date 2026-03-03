@@ -530,18 +530,10 @@ async getAdminConversation(
   adminId: string,
   applicationId: string,
 ) {
-  if (!Types.ObjectId.isValid(adminId))
-    throw new BadRequestException('Invalid adminId');
-
-  if (!applicationId)
-    throw new BadRequestException('applicationId required');
-
-  return this.convoModel
-    .findOne({
-      adminId: new Types.ObjectId(adminId),
-      applicationId: applicationId, // keep as string if stored as string
-    })
-    .populate('userId', 'firstName lastName email');
+  return this.convoModel.findOne({
+    adminId: new Types.ObjectId(adminId),
+    applicationId: new Types.ObjectId(applicationId),
+  }).populate('userId', 'firstName lastName email');
 }
     // =====================================================
  async getAdminTotalUnread(adminId: string) {
