@@ -533,37 +533,52 @@ async getAdminConversation(
   userId: string,
 ) {
   try {
-    if (!Types.ObjectId.isValid(adminId))
-      throw new BadRequestException('Invalid adminId');
 
-    if (!Types.ObjectId.isValid(applicationId))
-      throw new BadRequestException('Invalid applicationId');
+    if (
+      !Types.ObjectId.isValid(adminId) ||
+      !Types.ObjectId.isValid(applicationId) ||
+      !Types.ObjectId.isValid(userId)
+    ) {
+      throw new BadRequestException(
+        'Invalid adminId, applicationId or userId',
+      );
+    }
 
-    if (!Types.ObjectId.isValid(userId))
-      throw new BadRequestException('Invalid userId');
+    const adminObjectId = new Types.ObjectId(adminId);
+    const applicationObjectId = new Types.ObjectId(applicationId);
+    const userObjectId = new Types.ObjectId(userId);
+
+    console.log('Searching conversation with:');
+    console.log('adminId:', adminObjectId);
+    console.log('applicationId:', applicationObjectId);
+    console.log('userId:', userObjectId);
 
     const conversation = await this.convoModel
       .findOne({
-        adminId: new Types.ObjectId(adminId),
-        applicationId: new Types.ObjectId(applicationId),
-        userId: new Types.ObjectId(userId), // FIXED
+        adminId: adminObjectId,
+        applicationId: applicationObjectId,
+        userId: userObjectId,
       })
-      .populate('userId', 'firstName lastName email');
+      .lean();
 
     if (!conversation) {
+      console.log('Conversation not found in DB');
       throw new NotFoundException(
         'Conversation not found for given adminId, applicationId and userId',
       );
     }
 
+    console.log('Conversation found:', conversation._id);
+
     return conversation;
 
   } catch (error) {
-    console.error('Error in getAdminConversation:', error);
+
+    console.error('Error fetching admin conversation:', error);
 
     if (
-      error instanceof BadRequestException ||
-      error instanceof NotFoundException
+      error instanceof NotFoundException ||
+      error instanceof BadRequestException
     ) {
       throw error;
     }
