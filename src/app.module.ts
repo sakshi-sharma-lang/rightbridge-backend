@@ -18,6 +18,7 @@ import { NotificationModule } from './notification/notification.module';
 
 
 import { ScheduleModule } from '@nestjs/schedule';
+import { ValuationModule } from './valuation/valuation.module';
 
 
 @Module({
@@ -61,6 +62,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     UserSettingsModule,   
     ChatModule,
     NotificationModule,
+    ValuationModule,
   ],
 })
 export class AppModule {}

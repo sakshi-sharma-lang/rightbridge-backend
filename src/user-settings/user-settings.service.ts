@@ -126,52 +126,58 @@ async updateNotifications(userId: string, body: any) {
     };
   }
 
-async deleteAccount(userId: string) {
-  try {
-    console.log('\n========== DELETE ACCOUNT START ==========');
-    console.log('UserId =>', userId);
-
-    if (!userId) {
-      throw new BadRequestException('User ID is required to delete the account.');
-    }
-
-    //  Check if user has any application
-    const userApps = await this.applicationModel.find({ userId });
-
-    if (userApps.length === 0) {
-      throw new BadRequestException(
-        'Account deletion is not allowed because no completed application was found.',
-      );
-    }
-
-    //  Check if any application is not completed
-    const activeApp = userApps.find(
-      (app) =>
-        !app.application_stage_management?.includes('completed_stage'),
-    );
-
-    if (activeApp) {
-      throw new BadRequestException(
-        'Account deletion is not allowed while an application is still in progress. Please complete the application first.',
-      );
-    }
-
-    //  Delete user account
-    await this.userModel.findByIdAndDelete(userId);
-
-    return {
-      success: true,
-      message: 'Your account has been deleted successfully.',
-    };
-  } catch (error) {
-    console.log(' DELETE ACCOUNT ERROR =>', error.message);
-    throw error;
-  }
-}
 
 
 
 
+// async userdeleteAccountConf(userId: string) {
+//   try {
+//     console.log('\n========== DELETE ACCOUNT START ==========');
+//     console.log('UserId =>', userId);
 
+//     if (!userId) {
+//       throw new BadRequestException('User ID is required.');
+//     }
+
+//     const userApps = await this.applicationModel.find({ userId });
+
+//     console.log('Total Applications Found =>', userApps.length);
+
+//     if (userApps.length === 0) {
+//       throw new BadRequestException(
+//         'Account deletion is not allowed because no completed application was found.',
+//       );
+//     }
+
+//     const activeApp = userApps.find(
+//       (app) => !app.application_stage_management?.includes('completed_stage'),
+//     );
+
+//     if (activeApp) {
+//       console.log('Active Application Found');
+//       console.log('ApplicationId =>', activeApp._id);
+
+//       throw new BadRequestException(
+//         'Account deletion is not allowed while an application is still in progress.',
+//       );
+//     }
+
+//     await this.userModel.findByIdAndUpdate(
+//       userId,
+//       { danderzone: true },
+//       { new: true },
+//     );
+
+//     console.log('Flag danderzone set to TRUE for user =>', userId);
+
+//     return {
+//       success: true,
+//       message: 'Flag updated successfully.',
+//     };
+//   } catch (error) {
+//     console.log('DELETE ACCOUNT ERROR =>', error.message);
+//     throw error;
+//   }
+// }
 
 }

@@ -40,6 +40,9 @@ export class User extends Document {
   @Prop({ default: null })
   otpExpiresAt?: Date;
 
+  @Prop({ type: Boolean, default: false })
+  danderzone?: boolean;
+
   @Prop({ default: false })
   isOtpVerified?: boolean;
 

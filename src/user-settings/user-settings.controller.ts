@@ -24,8 +24,13 @@ export class UserSettingsController {
     return this.service.changePassword(req.user.userId || req.user._id, body);
   }
 
-  @Delete('delete-account')
-  deleteAccount(@Req() req) {
-    return this.service.deleteAccount(req.user.userId || req.user._id);
-  }
+  // @Delete('admin/delete-account')
+  // deleteAccount(@Req() req) {
+  //   return this.service.deleteAccount(req.user.userId || req.user._id);
+  // }
+
+  //  @Delete('delete-account/request')
+  // deleteAccountRequestUser(@Req() req) {
+  //   return this.service.deleteAccountRequestUser(req.user.userId || req.user._id);
+  // }
 }

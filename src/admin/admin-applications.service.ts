@@ -59,31 +59,31 @@ async updateStageManagment(appId: string, stage: string, email: string) {
       };
     }
 
-    const ALLOWED_STAGES = [
-      'dip_approved',
-      'kyc_confirm',
-      'valuation_started',
-      'underwriting_started',
-      'offer_issued',
-      'completed_stage',
-    ];
+    // const ALLOWED_STAGES = [
+    //   'dip_approved',
+    //   'kyc_confirm',
+    //   'valuation_started',
+    //   'underwriting_started',
+    //   'offer_issued',
+    //   'completed_stage',
+    // ];
 
-    if (!ALLOWED_STAGES.includes(stage)) {
-      console.log("❌ Invalid stage:", stage);
-      return {
-        statusCode: 400,
-        message: 'Invalid application stage status',
-        allowedStages: ALLOWED_STAGES,
-      };
-    }
+    // if (!ALLOWED_STAGES.includes(stage)) {
+    //   console.log("❌ Invalid stage:", stage);
+    //   return {
+    //     statusCode: 400,
+    //     message: 'Invalid application stage status',
+    //     allowedStages: ALLOWED_STAGES,
+    //   };
+    // }
 
-    if (app.application_stage_management?.includes(stage)) {
-      console.log("⚠️ Stage already exists:", stage);
-      return {
-        statusCode: 400,
-        message: 'This stage is already applied',
-      };
-    }
+    // if (app.application_stage_management?.includes(stage)) {
+    //   console.log("⚠️ Stage already exists:", stage);
+    //   return {
+    //     statusCode: 400,
+    //     message: 'This stage is already applied',
+    //   };
+    // }
 
     // =====================================================
     // 🔎 MULTI-APPLICANT KYC VALIDATION (STRICT)
@@ -122,25 +122,25 @@ async updateStageManagment(appId: string, stage: string, email: string) {
         id => !foundExternalIds.includes(id)
       );
 
-      if (missingExternalIds.length > 0) {
-        console.log("❌ Missing KYC records for externalUserIds:");
-        console.log(missingExternalIds);
+      // if (missingExternalIds.length > 0) {
+      //   console.log("❌ Missing KYC records for externalUserIds:");
+      //   console.log(missingExternalIds);
 
-        return {
-          statusCode: 400,
-         message: "KYC record not found for one or more applicants. Stage update blocked.",
-        };
-      }
+      //   return {
+      //     statusCode: 400,
+      //    message: "KYC record not found for one or more applicants. Stage update blocked.",
+      //   };
+      // }
 
-      for (const record of kycRecords) {
-        if (record.status === 'LINK_SENT') {
-          console.log("⛔ KYC already LINK_SENT for:", record.externalUserId);
-          return {
-            statusCode: 403,
-              message: "KYC is in progress for one or more applicants. Cannot proceed to next stage.",
-          };
-        }
-      }
+      // for (const record of kycRecords) {
+      //   if (record.status === 'LINK_SENT') {
+      //     console.log("⛔ KYC already LINK_SENT for:", record.externalUserId);
+      //     return {
+      //       statusCode: 403,
+      //         message: "KYC is in progress for one or more applicants. Cannot proceed to next stage.",
+      //     };
+      //   }
+      // }
       for (const record of kycRecords) {
     if (record.status !== 'APPROVED') {
       console.log("⛔ KYC not approved for:", record.externalUserId);
