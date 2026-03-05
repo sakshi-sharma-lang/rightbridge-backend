@@ -141,16 +141,16 @@ async updateStageManagment(appId: string, stage: string, email: string) {
       //     };
       //   }
       // }
-      for (const record of kycRecords) {
-    if (record.status !== 'APPROVED') {
-      console.log("⛔ KYC not approved for:", record.externalUserId);
+//       for (const record of kycRecords) {
+//     if (record.status !== 'APPROVED') {
+//       console.log("⛔ KYC not approved for:", record.externalUserId);
 
-      return {
-        statusCode: 403,
-        message: "All applicants must have KYC APPROVED before proceeding."
-      };
-    }
-}
+//       return {
+//         statusCode: 403,
+//         message: "All applicants must have KYC APPROVED before proceeding."
+//       };
+//     }
+// }
     }
 
     // =====================================================

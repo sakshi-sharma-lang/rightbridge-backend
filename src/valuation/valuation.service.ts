@@ -4,7 +4,6 @@ import { Model } from 'mongoose';
 import Stripe from 'stripe';
 
 import { Valuation, ValuationDocument } from './schemas/valuation.schema';
-import { SelectSurveyorDto } from './dto/select-surveyor.dto';
 
 @Injectable()
 export class ValuationService {
@@ -19,11 +18,18 @@ export class ValuationService {
   }
 
   // ================= SELECT SURVEYOR =================
-  async selectSurveyor(dto: SelectSurveyorDto) {
+  async selectSurveyor(data: any, userId: string) {
+
+    if (!data.applicationId) {
+      throw new BadRequestException('applicationId is required');
+    }
 
     const valuation = await this.valuationModel.findOneAndUpdate(
-      { applicationId: dto.applicationId },
-      dto,
+      { applicationId: data.applicationId },
+      {
+        ...data,
+        userId,
+      },
       { new: true, upsert: true },
     );
 
@@ -39,14 +45,12 @@ export class ValuationService {
       throw new NotFoundException('Valuation not found');
     }
 
-    // return structured response for frontend
     return {
       applicationId: valuation.applicationId,
       surveyorName: valuation.surveyorName,
       companyType: valuation.companyType,
       turnaroundTime: valuation.turnaroundTime,
       accreditation: valuation.accreditation,
-
       valuationFee: valuation.price,
       paymentStatus: valuation.paymentStatus || 'NOT_PAID',
       paymentIntentId: valuation.stripePaymentIntentId || null,
@@ -55,10 +59,10 @@ export class ValuationService {
 
   // ================= CREATE VALUATION PAYMENT =================
   async createPayment(
-  applicationId: string,
-  surveyorId: string,
-  currency: string,
-){
+    applicationId: string,
+    surveyorId: string,
+    currency: string,
+  ) {
 
     const valuation = await this.valuationModel.findOne({ applicationId });
 
@@ -72,8 +76,11 @@ export class ValuationService {
       throw new BadRequestException('Valuation price not set');
     }
 
-    // If payment already created
-    if (valuation.stripePaymentIntentId) {
+    // If payment already exists
+    if (
+      valuation.stripePaymentIntentId &&
+      valuation.paymentStatus !== 'FAILED'
+    ) {
 
       const intent = await this.stripe.paymentIntents.retrieve(
         valuation.stripePaymentIntentId,
@@ -88,17 +95,17 @@ export class ValuationService {
       };
     }
 
-    // Create stripe payment
+    // Create Stripe payment intent
     const intent = await this.stripe.paymentIntents.create({
-      amount: amount * 100,
+      amount: Math.round(amount * 100),
       currency,
       metadata: {
         applicationId: valuation.applicationId.toString(),
+        surveyorId,
         type: 'VALUATION',
       },
     });
 
-    // Save payment data
     valuation.stripePaymentIntentId = intent.id;
     valuation.paymentAmount = amount;
     valuation.paymentStatus = intent.status;
@@ -128,97 +135,98 @@ export class ValuationService {
     );
   }
 
-async handleStripeWebhook(req: any, signature: string, res: any) {
+  // ================= STRIPE WEBHOOK =================
+  async handleStripeWebhook(req: any, signature: string, res: any) {
 
-  let event: Stripe.Event;
+    let event: Stripe.Event;
 
-  try {
-    event = this.stripe.webhooks.constructEvent(
-      req.body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET as string,
-    );
-  } catch (err: any) {
-    console.error('Webhook signature verification failed:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  const intent = event.data.object as Stripe.PaymentIntent;
-
-  try {
-
-    switch (event.type) {
-
-      case 'payment_intent.created':
-        console.log('PaymentIntent created');
-        break;
-
-      case 'payment_intent.processing':
-
-        await this.valuationModel.updateOne(
-          { stripePaymentIntentId: intent.id },
-          {
-            $set: {
-              paymentStatus: 'PROCESSING',
-            },
-          },
-        );
-
-        console.log('Payment processing');
-        break;
-
-      case 'payment_intent.succeeded':
-
-        await this.valuationModel.updateOne(
-          { stripePaymentIntentId: intent.id },
-          {
-            $set: {
-              paymentStatus: 'PAID',
-              paymentCompleted: true,
-            },
-          },
-        );
-
-        console.log('Payment succeeded');
-        break;
-
-      case 'payment_intent.payment_failed':
-
-        await this.valuationModel.updateOne(
-          { stripePaymentIntentId: intent.id },
-          {
-            $set: {
-              paymentStatus: 'FAILED',
-            },
-          },
-        );
-
-        console.log('Payment failed');
-        break;
-
-      case 'payment_intent.canceled':
-
-        await this.valuationModel.updateOne(
-          { stripePaymentIntentId: intent.id },
-          {
-            $set: {
-              paymentStatus: 'CANCELED',
-            },
-          },
-        );
-
-        console.log('Payment canceled');
-        break;
-
-      default:
-        console.log(`Unhandled event type: ${event.type}`);
+    try {
+      event = this.stripe.webhooks.constructEvent(
+        req.body,
+        signature,
+        process.env.STRIPE_WEBHOOK_SECRET as string,
+      );
+    } catch (err: any) {
+      console.error('Webhook signature verification failed:', err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-  } catch (error) {
-    console.error('Webhook processing error:', error);
-    return res.status(500).json({ message: 'Webhook processing failed' });
-  }
+    const intent = event.data.object as Stripe.PaymentIntent;
 
-  return res.json({ received: true });
-}
+    try {
+
+      switch (event.type) {
+
+        case 'payment_intent.created':
+          console.log('PaymentIntent created');
+          break;
+
+        case 'payment_intent.processing':
+
+          await this.valuationModel.updateOne(
+            { stripePaymentIntentId: intent.id },
+            {
+              $set: {
+                paymentStatus: 'PROCESSING',
+              },
+            },
+          );
+
+          console.log('Payment processing');
+          break;
+
+        case 'payment_intent.succeeded':
+
+          await this.valuationModel.updateOne(
+            { stripePaymentIntentId: intent.id },
+            {
+              $set: {
+                paymentStatus: 'PAID',
+                paymentCompleted: true,
+              },
+            },
+          );
+
+          console.log('Payment succeeded');
+          break;
+
+        case 'payment_intent.payment_failed':
+
+          await this.valuationModel.updateOne(
+            { stripePaymentIntentId: intent.id },
+            {
+              $set: {
+                paymentStatus: 'FAILED',
+              },
+            },
+          );
+
+          console.log('Payment failed');
+          break;
+
+        case 'payment_intent.canceled':
+
+          await this.valuationModel.updateOne(
+            { stripePaymentIntentId: intent.id },
+            {
+              $set: {
+                paymentStatus: 'CANCELED',
+              },
+            },
+          );
+
+          console.log('Payment canceled');
+          break;
+
+        default:
+          console.log(`Unhandled event type: ${event.type}`);
+      }
+
+    } catch (error) {
+      console.error('Webhook processing error:', error);
+      return res.status(500).json({ message: 'Webhook processing failed' });
+    }
+
+    return res.json({ received: true });
+  }
 }

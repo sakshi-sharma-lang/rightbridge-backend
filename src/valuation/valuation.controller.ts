@@ -7,27 +7,32 @@ import {
   Req,
   Res,
   Headers,
+  UseGuards,
 } from '@nestjs/common';
 
 import { ValuationService } from './valuation.service';
 import { SelectSurveyorDto } from './dto/select-surveyor.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('valuation')
 export class ValuationController {
-
   constructor(
     private readonly valuationService: ValuationService,
   ) {}
 
   // ================= SELECT SURVEYOR =================
+  @UseGuards(JwtAuthGuard)
+ @UseGuards(JwtAuthGuard)
   @Post('select-surveyor')
   async selectSurveyor(
-    @Body() dto: SelectSurveyorDto,
+    @Req() req,
+    @Body() body: any,
   ) {
-    return this.valuationService.selectSurveyor(dto);
-  }
+    const userId = req.user.userId;
 
-  // ================= STRIPE WEBHOOK =================
+    return this.valuationService.selectSurveyor(body, userId);
+  }
+  // ================= STRIPE WEBHOOK (NO AUTH) =================
   @Post('webhook')
   async stripeWebhook(
     @Req() req: any,
@@ -38,6 +43,7 @@ export class ValuationController {
   }
 
   // ================= GET VALUATION =================
+  @UseGuards(JwtAuthGuard)
   @Get('application/:applicationId')
   async getByApplication(
     @Param('applicationId') applicationId: string,
@@ -46,6 +52,7 @@ export class ValuationController {
   }
 
   // ================= CREATE VALUATION PAYMENT =================
+  @UseGuards(JwtAuthGuard)
   @Post(':applicationId/surveyor/:surveyorId/payment')
   createPayment(
     @Param('applicationId') applicationId: string,
