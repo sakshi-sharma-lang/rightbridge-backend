@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Post, Delete, Body, Req, UseGuards ,Param } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Delete, Body, Req, UseGuards ,Param  ,Query} from '@nestjs/common';
 import { UserSettingsService } from './user-settings.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminJwtGuard } from '../auth/admin-jwt.guard';
@@ -34,5 +34,11 @@ export class UserSettingsController {
    @Delete('delete-account/request')
   deleteAccountRequestUser(@Req() req) {
     return this.service.deleteAccountRequestUser(req.user.userId || req.user._id);
+  }
+
+  @UseGuards(AdminJwtGuard)
+  @Get('dangerzone-status')
+  async getDangerzoneStatus(@Query('userId') userId: string) {
+    return this.service.getDangerzoneStatus(userId);
   }
 }

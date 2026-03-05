@@ -70,11 +70,11 @@ async updateNotifications(userId: string, body: any) {
   if (body.marketingEmails !== undefined)
     updateData.marketingEmails = body.marketingEmails;
 
-  const updatedUser = await this.userModel.findByIdAndUpdate(
-    userId,
-    { $set: updateData },
-    { new: true }
-  );
+ const updatedUser = await this.userModel.findByIdAndUpdate(
+  userId,
+  { $set: { dangerzone: true } },
+  { new: true },
+);
 
   if (!updatedUser) throw new NotFoundException('User not found');
 
@@ -131,8 +131,8 @@ async updateNotifications(userId: string, body: any) {
 
 
 
-async deleteAccountRequestUser(userId: string) {
-  try {
+ async deleteAccountRequestUser(userId: string) {
+
     console.log('\n========== DELETE ACCOUNT REQUEST START ==========');
     console.log('UserId =>', userId);
 
@@ -140,6 +140,7 @@ async deleteAccountRequestUser(userId: string) {
       throw new BadRequestException('User ID is required.');
     }
 
+    // 🔷 Check Applications
     const userApps = await this.applicationModel.find({ userId });
 
     console.log('Total Applications Found =>', userApps.length);
@@ -150,8 +151,10 @@ async deleteAccountRequestUser(userId: string) {
       );
     }
 
+    // 🔷 Check if any application still active
     const activeApp = userApps.find(
-      (app) => !app.application_stage_management?.includes('completed_stage'),
+      (app) =>
+        !app.application_stage_management?.includes('completed_stage'),
     );
 
     if (activeApp) {
@@ -162,33 +165,28 @@ async deleteAccountRequestUser(userId: string) {
       );
     }
 
-    const updatedUser = await this.userModel.findByIdAndUpdate(
-      userId,
-      { danderzone: true },
-      { new: true },
-    );
+    // 🔷 Find user
+    const user = await this.userModel.findById(userId);
 
-    if (!updatedUser) {
+    if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    console.log('Flag danderzone set to TRUE for user =>', userId);
+    // 🔷 Update dangerzone flag
+    user.dangerzone = true;
+
+    await user.save();
+
+    console.log('Flag dangerzone set to TRUE for user =>', userId);
 
     return {
       success: true,
-      message: 'Flag updated successfully.',
+      message: 'Delete account request submitted successfully.',
+      data: {
+        dangerzone: user.dangerzone,
+      },
     };
-  } catch (error) {
-    console.error('DELETE ACCOUNT REQUEST ERROR =>', error);
-
-    if (error instanceof BadRequestException || error instanceof NotFoundException) {
-      throw error;
-    }
-
-    throw new BadRequestException('Failed to process delete account request');
   }
-}
-
 
 
 
@@ -247,5 +245,27 @@ async deleteAccount(userId: string) {
 
     throw new BadRequestException('Failed to delete account');
   }
+}
+
+async getDangerzoneStatus(userId: string) {
+
+  if (!userId) {
+    throw new BadRequestException('User ID is required');
+  }
+
+  const user = await this.userModel
+    .findById(userId)
+    .select('dangerzone');
+
+  if (!user) {
+    throw new NotFoundException('User not found');
+  }
+
+  return {
+    success: true,
+    data: {
+      dangerzone: user.dangerzone ?? false
+    }
+  };
 }
 }
