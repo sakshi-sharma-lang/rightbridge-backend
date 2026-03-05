@@ -286,4 +286,26 @@ async sendApplicationCreatedEmail(
   });
 }
 
+async sendDocumentReminderEmail(
+  email: string,
+  firstName: string,
+  applicationId: string,
+  missingDocs: string[],
+) {
+  const docList = missingDocs.map((doc) => `<li>${doc}</li>`).join('');
+
+  const html = this.loadTemplate('document-reminder.html', {
+    FIRST_NAME: firstName,
+    APP_ID: applicationId,
+    MISSING_DOCS: docList,
+  });
+
+  await this.transporter.sendMail({
+    from: `"RightBridge" <${this.configService.get('SMTP_FROM') || this.configService.get('SMTP_USER')}>`,
+    to: email,
+    subject: 'Missing Documents for Your Application',
+    html,
+  });
+}
+
 }

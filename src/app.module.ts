@@ -17,13 +17,17 @@ import { ChatModule } from './chat/chat.module';
 import { NotificationModule } from './notification/notification.module';
 
 
+import { ScheduleModule } from '@nestjs/schedule';
+
+
 @Module({
   imports: [
     // 🔹 Global config
     ConfigModule.forRoot({
       isGlobal: true,
     }),
- 
+     ScheduleModule.forRoot(),
+
     // 🔹 MongoDB connection
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
