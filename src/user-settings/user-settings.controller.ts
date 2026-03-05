@@ -1,36 +1,38 @@
-import { Controller, Get, Patch, Post, Delete, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Delete, Body, Req, UseGuards ,Param } from '@nestjs/common';
 import { UserSettingsService } from './user-settings.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AdminJwtGuard } from '../auth/admin-jwt.guard';
 
-@UseGuards(JwtAuthGuard)
 @Controller('user-settings')
 export class UserSettingsController {
   constructor(private readonly service: UserSettingsService) {}
-
+@UseGuards(JwtAuthGuard)
   @Get()
   getSettings(@Req() req) {
     console.log('JWT USER =>', req.user);
     return this.service.getSettings(req.user.userId || req.user._id);
   }
-
+@UseGuards(JwtAuthGuard)
   @Patch('notifications')
   updateNotifications(@Req() req, @Body() body) {
     return this.service.updateNotifications(req.user.userId || req.user._id, body);
   }
-
+@UseGuards(JwtAuthGuard)
   @Post('change-password')
   changePassword(@Req() req, @Body() body) {
     console.log('JWT USER =>', req.user);
     return this.service.changePassword(req.user.userId || req.user._id, body);
   }
 
-  // @Delete('admin/delete-account')
-  // deleteAccount(@Req() req) {
-  //   return this.service.deleteAccount(req.user.userId || req.user._id);
-  // }
-
-  //  @Delete('delete-account/request')
-  // deleteAccountRequestUser(@Req() req) {
-  //   return this.service.deleteAccountRequestUser(req.user.userId || req.user._id);
-  // }
+  @Delete('admin/delete-account/:userId')
+  @UseGuards(AdminJwtGuard)
+  deleteAccount(@Param('userId') userId: string) {
+    console.log('PARAM USERID =>', userId);
+    return this.service.deleteAccount(userId);
+  }
+@UseGuards(JwtAuthGuard)
+   @Delete('delete-account/request')
+  deleteAccountRequestUser(@Req() req) {
+    return this.service.deleteAccountRequestUser(req.user.userId || req.user._id);
+  }
 }

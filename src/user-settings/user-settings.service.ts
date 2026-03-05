@@ -10,6 +10,7 @@ import * as bcrypt from 'bcrypt';
 import { User } from '../users/schemas/user.schema';
 import { Application } from '../applications/schemas/application.schema';
 
+
 @Injectable()
 export class UserSettingsService {
   constructor(
@@ -130,54 +131,121 @@ async updateNotifications(userId: string, body: any) {
 
 
 
-// async userdeleteAccountConf(userId: string) {
-//   try {
-//     console.log('\n========== DELETE ACCOUNT START ==========');
-//     console.log('UserId =>', userId);
+async deleteAccountRequestUser(userId: string) {
+  try {
+    console.log('\n========== DELETE ACCOUNT REQUEST START ==========');
+    console.log('UserId =>', userId);
 
-//     if (!userId) {
-//       throw new BadRequestException('User ID is required.');
-//     }
+    if (!userId) {
+      throw new BadRequestException('User ID is required.');
+    }
 
-//     const userApps = await this.applicationModel.find({ userId });
+    const userApps = await this.applicationModel.find({ userId });
 
-//     console.log('Total Applications Found =>', userApps.length);
+    console.log('Total Applications Found =>', userApps.length);
 
-//     if (userApps.length === 0) {
-//       throw new BadRequestException(
-//         'Account deletion is not allowed because no completed application was found.',
-//       );
-//     }
+    if (!userApps || userApps.length === 0) {
+      throw new BadRequestException(
+        'Account deletion is not allowed because no completed application was found.',
+      );
+    }
 
-//     const activeApp = userApps.find(
-//       (app) => !app.application_stage_management?.includes('completed_stage'),
-//     );
+    const activeApp = userApps.find(
+      (app) => !app.application_stage_management?.includes('completed_stage'),
+    );
 
-//     if (activeApp) {
-//       console.log('Active Application Found');
-//       console.log('ApplicationId =>', activeApp._id);
+    if (activeApp) {
+      console.log('Active Application Found =>', activeApp._id);
 
-//       throw new BadRequestException(
-//         'Account deletion is not allowed while an application is still in progress.',
-//       );
-//     }
+      throw new BadRequestException(
+        'Account deletion is not allowed while an application is still in progress.',
+      );
+    }
 
-//     await this.userModel.findByIdAndUpdate(
-//       userId,
-//       { danderzone: true },
-//       { new: true },
-//     );
+    const updatedUser = await this.userModel.findByIdAndUpdate(
+      userId,
+      { danderzone: true },
+      { new: true },
+    );
 
-//     console.log('Flag danderzone set to TRUE for user =>', userId);
+    if (!updatedUser) {
+      throw new NotFoundException('User not found');
+    }
 
-//     return {
-//       success: true,
-//       message: 'Flag updated successfully.',
-//     };
-//   } catch (error) {
-//     console.log('DELETE ACCOUNT ERROR =>', error.message);
-//     throw error;
-//   }
-// }
+    console.log('Flag danderzone set to TRUE for user =>', userId);
 
+    return {
+      success: true,
+      message: 'Flag updated successfully.',
+    };
+  } catch (error) {
+    console.error('DELETE ACCOUNT REQUEST ERROR =>', error);
+
+    if (error instanceof BadRequestException || error instanceof NotFoundException) {
+      throw error;
+    }
+
+    throw new BadRequestException('Failed to process delete account request');
+  }
+}
+
+
+
+
+async deleteAccount(userId: string) {
+  try {
+    console.log('\n========== ADMIN DELETE ACCOUNT START ==========');
+    console.log('UserId =>', userId);
+
+    if (!userId) {
+      throw new BadRequestException(
+        'User ID is required to delete the account.',
+      );
+    }
+
+    const userApps = await this.applicationModel.find({ userId });
+
+    console.log('Total Applications Found =>', userApps.length);
+
+    if (!userApps || userApps.length === 0) {
+      throw new BadRequestException(
+        'Account deletion is not allowed because no completed application was found.',
+      );
+    }
+
+    const activeApp = userApps.find(
+      (app) =>
+        !app.application_stage_management?.includes('completed_stage'),
+    );
+
+    if (activeApp) {
+      console.log('Active Application Found =>', activeApp._id);
+
+      throw new BadRequestException(
+        'Account deletion is not allowed while an application is still in progress. Please complete the application first.',
+      );
+    }
+
+    const deletedUser = await this.userModel.findByIdAndDelete(userId);
+
+    if (!deletedUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    console.log('User account deleted successfully =>', userId);
+
+    return {
+      success: true,
+      message: 'Your account has been deleted successfully.',
+    };
+  } catch (error) {
+    console.error('ADMIN DELETE ACCOUNT ERROR =>', error);
+
+    if (error instanceof BadRequestException || error instanceof NotFoundException) {
+      throw error;
+    }
+
+    throw new BadRequestException('Failed to delete account');
+  }
+}
 }
