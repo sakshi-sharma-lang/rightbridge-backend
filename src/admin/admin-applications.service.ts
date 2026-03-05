@@ -91,36 +91,36 @@ async updateStageManagment(appId: string, stage: string, email: string) {
     // =====================================================
     if (stage !== 'dip_approved') {
 
-      if (!Array.isArray(app.applicants) || app.applicants.length === 0) {
-        return {
-          statusCode: 400,
-          message: "No applicants found in application",
-        };
-      }
+      // if (!Array.isArray(app.applicants) || app.applicants.length === 0) {
+      //   return {
+      //     statusCode: 400,
+      //     message: "No applicants found in application",
+      //   };
+      // }
 
-      const externalIds = app.applicants
-        .map(a => a.externalUserId)
-        .filter(Boolean);
+      // const externalIds = app.applicants
+      //   .map(a => a.externalUserId)
+      //   .filter(Boolean);
 
-      if (externalIds.length !== app.applicants.length) {
-        return {
-          statusCode: 400,
-          message: "One or more applicants missing externalUserId",
-        };
-      }
+      // if (externalIds.length !== app.applicants.length) {
+      //   return {
+      //     statusCode: 400,
+      //     message: "One or more applicants missing externalUserId",
+      //   };
+      // }
 
-      const kycRecords = await this.kycModel
-        .find(
-          { externalUserId: { $in: externalIds } },
-          { externalUserId: 1, status: 1 }
-        )
-        .lean();
+      // const kycRecords = await this.kycModel
+      //   .find(
+      //     { externalUserId: { $in: externalIds } },
+      //     { externalUserId: 1, status: 1 }
+      //   )
+      //   .lean();
 
-      const foundExternalIds = kycRecords.map(r => r.externalUserId);
+      // const foundExternalIds = kycRecords.map(r => r.externalUserId);
 
-      const missingExternalIds = externalIds.filter(
-        id => !foundExternalIds.includes(id)
-      );
+      // const missingExternalIds = externalIds.filter(
+      //   id => !foundExternalIds.includes(id)
+      // );
 
       // if (missingExternalIds.length > 0) {
       //   console.log("❌ Missing KYC records for externalUserIds:");
@@ -157,14 +157,14 @@ async updateStageManagment(appId: string, stage: string, email: string) {
     // ✅ SAFE TO UPDATE STAGE
     // =====================================================
 
-    if (!Array.isArray(app.application_stage_management)) {
-      app.application_stage_management = [];
-    }
+    // if (!Array.isArray(app.application_stage_management)) {
+    //   app.application_stage_management = [];
+    // }
 
-    app.application_stage_management.push(stage);
-    await app.save();
+    // app.application_stage_management.push(stage);
+    // await app.save();
 
-    console.log("✅ Stage saved in DB:", stage);
+    // console.log("✅ Stage saved in DB:", stage);
 
     // =====================================================
     // 🔔 NOTIFICATION (NON-BLOCKING FOR SPEED)
