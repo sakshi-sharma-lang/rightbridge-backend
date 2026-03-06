@@ -137,14 +137,14 @@ for (const record of kycRecords) {
   const webhookResponse = record?.rawWebhookPayload?.webresponse;
 
   // KYC not finished yet
-  if (!webhookResponse || Object.keys(webhookResponse).length === 0) {
-    console.log("⛔ KYC not completed for:", record.externalUserId);
+  // if (!webhookResponse || Object.keys(webhookResponse).length === 0) {
+  //   console.log("⛔ KYC not completed for:", record.externalUserId);
 
-    return {
-      statusCode: 403,
-      message: "KYC verification is still in progress for one or more applicants. Please complete KYC before moving to the next stage.",
-    };
-  }
+  //   return {
+  //     statusCode: 403,
+  //     message: "KYC verification is still in progress for one or more applicants. Please complete KYC before moving to the next stage.",
+  //   };
+  // }
 
   // KYC completed but not approved
   // if (webhookResponse?.reviewAnswer !== "GREEN") {
