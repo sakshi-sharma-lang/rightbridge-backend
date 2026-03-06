@@ -33,14 +33,6 @@ export class ValuationController {
     return this.valuationService.selectSurveyor(body, userId);
   }
   // ================= STRIPE WEBHOOK (NO AUTH) =================
-  @Post('webhook')
-  async stripeWebhook(
-    @Req() req: any,
-    @Headers('stripe-signature') signature: string,
-    @Res() res: any,
-  ) {
-    return this.valuationService.handleStripeWebhook(req, signature, res);
-  }
 
   // ================= GET VALUATION =================
   @UseGuards(JwtAuthGuard)
@@ -53,16 +45,18 @@ export class ValuationController {
 
   // ================= CREATE VALUATION PAYMENT =================
   @UseGuards(JwtAuthGuard)
-  @Post(':applicationId/surveyor/:surveyorId/payment')
-  createPayment(
-    @Param('applicationId') applicationId: string,
-    @Param('surveyorId') surveyorId: string,
-    @Body('currency') currency: string,
-  ) {
-    return this.valuationService.createPayment(
-      applicationId,
-      surveyorId,
-      currency,
-    );
-  }
+@Post(':applicationId/surveyor/:surveyorId/payment')
+createPayment(
+  @Param('applicationId') applicationId: string,
+  @Param('surveyorId') surveyorId: string,
+  @Body('currency') currency: string,
+  @Body('type') type: string,
+) {
+  return this.valuationService.createPayment(
+    applicationId,
+    surveyorId,
+    currency,
+    type,
+  );
+}
 }

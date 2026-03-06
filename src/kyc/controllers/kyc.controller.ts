@@ -175,8 +175,8 @@ await this.kycModel.updateOne(
   },
 );
 
-          const link = `${process.env.FRONTEND_URL}kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}&applicantId=${applicantId}`;
-            //const link = `http://localhost:3093/kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}&applicantId=${applicantId}`;
+         // const link = `${process.env.FRONTEND_URL}kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}&applicantId=${applicantId}`;
+          const link = `http://localhost:3093/kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}&applicantId=${applicantId}`;
           // console.log('🔗 KYC LINK:', link);
           // console.log('📧 Sending email to:', email);
 
