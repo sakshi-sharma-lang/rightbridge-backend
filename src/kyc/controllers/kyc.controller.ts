@@ -181,14 +181,14 @@ export class KycController {
 
       const expiresAt = new Date(Date.now() + 60000); // 1 minute
 
-await this.kycModel.updateOne(
-  { externalUserId },
-  {
-    status: KycStatus.LINK_SENT,
-    lastLinkSentAt: new Date(),
-    linkExpiresAt: expiresAt, 
-  },
-);
+        await this.kycModel.updateOne(
+          { externalUserId },
+          {
+            status: KycStatus.LINK_SENT,
+            lastLinkSentAt: new Date(),
+            linkExpiresAt: expiresAt, 
+          },
+        );
 
          // const link = `${process.env.FRONTEND_URL}kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}&applicantId=${applicantId}`;
            const link = `http://localhost:3093/kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}&applicantId=${applicantId}`;
@@ -451,17 +451,21 @@ async validateKycLink(@Query('user') externalUserId: string) {
     );
   }
 
-  // 👉 Add 2 minutes to expiry
-  const expiryAfter2Days = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000);
+  // read expiry days from .env
+  const expiryDays = Number(process.env.KYC_LINK_EXPIRY_DAYS || 1);
+
+  // same key name, only duration comes from env
+  const expiryAfter2Days = new Date(
+    Date.now() + expiryDays * 24 * 60 * 60 * 1000
+  );
 
   return {
     success: true,
     expired: isExpired,
     expiresAt: kyc.linkExpiresAt,
-    expireslinktime: expiryAfter2Days, 
+    expireslinktime: expiryAfter2Days,
   };
 }
-
 @Get('application/kyc-status')
 @UseGuards(JwtAuthGuard)
 async getApplicationKycStatus(

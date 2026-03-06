@@ -664,7 +664,9 @@ async checkApplicationKycStatus(applicationId: string) {
     throw new BadRequestException('No applicants found');
   }
 
-  const externalIds = applicants.map((a: any) => a.externalUserId).filter(Boolean);
+  const externalIds = applicants
+    .map((a: any) => a.externalUserId)
+    .filter(Boolean);
 
   const kycs = await this.kycModel
     .find({ externalUserId: { $in: externalIds } })
@@ -696,6 +698,16 @@ async checkApplicationKycStatus(applicationId: string) {
     };
   });
 
+  /* ========================================
+     GET EXPIRY TIME FROM ENV
+  ======================================== */
+
+  const expiryDays = Number(process.env.KYC_LINK_EXPIRY_DAYS || 2);
+
+  const expireslinktime = new Date(
+    Date.now() + expiryDays * 24 * 60 * 60 * 1000
+  );
+
   return {
     success: true,
     applicationId,
@@ -705,6 +717,11 @@ async checkApplicationKycStatus(applicationId: string) {
       ? 'All applicants KYC completed'
       : 'KYC pending for one or more applicants',
     applicants: results,
+
+    // same keys used in validate-link API
+    expired: false,
+    expiresAt: null,
+    expireslinktime: expireslinktime
   };
 }
 
