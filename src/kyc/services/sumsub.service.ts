@@ -722,8 +722,8 @@ async checkApplicationKycStatus(applicationId: string) {
     applicants: results,
 
     expired: false,
-    expiresAt: expiresAt,
-    expireslinktime: expireslinktime
+    endTime: expiresAt,
+    startTime: expireslinktime
   };
 }
 }
