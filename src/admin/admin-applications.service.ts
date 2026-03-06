@@ -132,24 +132,29 @@ async updateStageManagment(appId: string, stage: string, email: string) {
         };
       }
 
-      for (const record of kycRecords) {
-        if (record.status === 'LINK_SENT') {
-          console.log("⛔ KYC already LINK_SENT for:", record.externalUserId);
-          return {
-            statusCode: 403,
-              message: "KYC is in progress for one or more applicants. Cannot proceed to next stage.",
-          };
-        }
-      }
-      for (const record of kycRecords) {
-    if (record.status !== 'APPROVED') {
-      console.log("⛔ KYC not approved for:", record.externalUserId);
+for (const record of kycRecords) {
 
-      return {
-        statusCode: 403,
-        message: "All applicants must have KYC APPROVED before proceeding."
-      };
-    }
+  const webhookResponse = record?.rawWebhookPayload?.webresponse;
+
+  // KYC not finished yet
+  if (!webhookResponse || Object.keys(webhookResponse).length === 0) {
+    console.log("⛔ KYC not completed for:", record.externalUserId);
+
+    return {
+      statusCode: 403,
+      message: "KYC verification is still in progress for one or more applicants. Please complete KYC before moving to the next stage.",
+    };
+  }
+
+  // KYC completed but not approved
+  if (webhookResponse?.reviewAnswer !== "GREEN") {
+    console.log("⛔ KYC not approved for:", record.externalUserId);
+
+    return {
+      statusCode: 403,
+      message: "KYC verification for one or more applicants was not approved. Please review the KYC results before proceeding.",
+    };
+  }
 }
     }
 

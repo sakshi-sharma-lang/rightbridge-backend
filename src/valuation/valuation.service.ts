@@ -58,68 +58,69 @@ export class ValuationService {
   }
 
   // ================= CREATE VALUATION PAYMENT =================
-  async createPayment(
-    applicationId: string,
-    surveyorId: string,
-    currency: string,
+ async createPayment(
+  applicationId: string,
+  surveyorId: string,
+  currency: string,
+  type: string,
+) {
+
+  const valuation = await this.valuationModel.findOne({ applicationId });
+
+  if (!valuation) {
+    throw new NotFoundException('Valuation not found');
+  }
+
+  const amount = valuation.price;
+
+  if (!amount) {
+    throw new BadRequestException('Valuation price not set');
+  }
+
+  // If payment already exists
+  if (
+    valuation.stripePaymentIntentId &&
+    valuation.paymentStatus !== 'FAILED'
   ) {
 
-    const valuation = await this.valuationModel.findOne({ applicationId });
-
-    if (!valuation) {
-      throw new NotFoundException('Valuation not found');
-    }
-
-    const amount = valuation.price;
-
-    if (!amount) {
-      throw new BadRequestException('Valuation price not set');
-    }
-
-    // If payment already exists
-    if (
-      valuation.stripePaymentIntentId &&
-      valuation.paymentStatus !== 'FAILED'
-    ) {
-
-      const intent = await this.stripe.paymentIntents.retrieve(
-        valuation.stripePaymentIntentId,
-      );
-
-      return {
-        clientSecret: intent.client_secret,
-        paymentIntentId: intent.id,
-        amount: intent.amount / 100,
-        currency: intent.currency,
-        status: intent.status,
-      };
-    }
-
-    // Create Stripe payment intent
-    const intent = await this.stripe.paymentIntents.create({
-      amount: Math.round(amount * 100),
-      currency,
-      metadata: {
-        applicationId: valuation.applicationId.toString(),
-        surveyorId,
-        type: 'VALUATION',
-      },
-    });
-
-    valuation.stripePaymentIntentId = intent.id;
-    valuation.paymentAmount = amount;
-    valuation.paymentStatus = intent.status;
-
-    await valuation.save();
+    const intent = await this.stripe.paymentIntents.retrieve(
+      valuation.stripePaymentIntentId,
+    );
 
     return {
       clientSecret: intent.client_secret,
       paymentIntentId: intent.id,
-      amount,
-      currency,
+      amount: intent.amount / 100,
+      currency: intent.currency,
       status: intent.status,
     };
   }
+
+  // Create Stripe payment intent
+  const intent = await this.stripe.paymentIntents.create({
+    amount: Math.round(amount * 100),
+    currency,
+    metadata: {
+      applicationId: valuation.applicationId.toString(),
+      surveyorId,
+      type,
+    },
+  });
+
+  valuation.stripePaymentIntentId = intent.id;
+  valuation.paymentAmount = amount;
+  valuation.paymentStatus = intent.status;
+
+  await valuation.save();
+
+  return {
+    clientSecret: intent.client_secret,
+    paymentIntentId: intent.id,
+    amount,
+    currency,
+    status: intent.status,
+  };
+}
 
   // ================= UPDATE PAYMENT STATUS =================
   async updatePayment(applicationId: string, paymentId: string) {
@@ -136,97 +137,5 @@ export class ValuationService {
   }
 
   // ================= STRIPE WEBHOOK =================
-  async handleStripeWebhook(req: any, signature: string, res: any) {
 
-    let event: Stripe.Event;
-
-    try {
-      event = this.stripe.webhooks.constructEvent(
-        req.body,
-        signature,
-        process.env.STRIPE_WEBHOOK_SECRET as string,
-      );
-    } catch (err: any) {
-      console.error('Webhook signature verification failed:', err.message);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    const intent = event.data.object as Stripe.PaymentIntent;
-
-    try {
-
-      switch (event.type) {
-
-        case 'payment_intent.created':
-          console.log('PaymentIntent created');
-          break;
-
-        case 'payment_intent.processing':
-
-          await this.valuationModel.updateOne(
-            { stripePaymentIntentId: intent.id },
-            {
-              $set: {
-                paymentStatus: 'PROCESSING',
-              },
-            },
-          );
-
-          console.log('Payment processing');
-          break;
-
-        case 'payment_intent.succeeded':
-
-          await this.valuationModel.updateOne(
-            { stripePaymentIntentId: intent.id },
-            {
-              $set: {
-                paymentStatus: 'PAID',
-                paymentCompleted: true,
-              },
-            },
-          );
-
-          console.log('Payment succeeded');
-          break;
-
-        case 'payment_intent.payment_failed':
-
-          await this.valuationModel.updateOne(
-            { stripePaymentIntentId: intent.id },
-            {
-              $set: {
-                paymentStatus: 'FAILED',
-              },
-            },
-          );
-
-          console.log('Payment failed');
-          break;
-
-        case 'payment_intent.canceled':
-
-          await this.valuationModel.updateOne(
-            { stripePaymentIntentId: intent.id },
-            {
-              $set: {
-                paymentStatus: 'CANCELED',
-              },
-            },
-          );
-
-          console.log('Payment canceled');
-          break;
-
-        default:
-          console.log(`Unhandled event type: ${event.type}`);
-      }
-
-    } catch (error) {
-      console.error('Webhook processing error:', error);
-      return res.status(500).json({ message: 'Webhook processing failed' });
-    }
-
-    return res.json({ received: true });
-  }
 }
