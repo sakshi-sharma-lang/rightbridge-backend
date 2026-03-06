@@ -9,9 +9,8 @@ export class Valuation {
   @Prop({ type: Types.ObjectId, ref: 'Application', required: true })
   applicationId: Types.ObjectId;
 
-  // ADD THIS
-  @Prop({ type: Types.ObjectId, ref: 'Surveyor', required: true })
-  surveyorId: Types.ObjectId;
+  @Prop({ required: true })
+  surveyorId: string;
 
   @Prop({ required: true })
   surveyorName: string;
@@ -28,7 +27,9 @@ export class Valuation {
   @Prop({ required: true })
   accreditation: string;
 
-  // payment fields
+  @Prop()
+  type: string;   // ✅ add this
+
   @Prop({ default: '' })
   paymentStatus: string;
 

@@ -164,7 +164,7 @@ export class KycController {
             throw new Error('SDK token generation failed');
           }
 
-      const expiresAt = new Date(Date.now() + 1 * 60 * 1000); // 5 minutes
+      const expiresAt = new Date(Date.now() + 60000); // 1 minute
 
 await this.kycModel.updateOne(
   { externalUserId },

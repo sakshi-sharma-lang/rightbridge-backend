@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model , Types } from 'mongoose';
 import Stripe from 'stripe';
 
 import { Valuation, ValuationDocument } from './schemas/valuation.schema';
@@ -57,13 +57,22 @@ export class ValuationService {
     };
   }
 
-  // ================= CREATE VALUATION PAYMENT =================
- async createPayment(
+
+
+async createPayment(
   applicationId: string,
   surveyorId: string,
   currency: string,
   type: string,
 ) {
+
+  if (!applicationId) {
+    throw new BadRequestException('applicationId is required');
+  }
+
+  if (!surveyorId) {
+    throw new BadRequestException('surveyorId is required');
+  }
 
   const valuation = await this.valuationModel.findOne({ applicationId });
 
@@ -77,36 +86,37 @@ export class ValuationService {
     throw new BadRequestException('Valuation price not set');
   }
 
-  // If payment already exists
-  if (
-    valuation.stripePaymentIntentId &&
-    valuation.paymentStatus !== 'FAILED'
-  ) {
+  // Prevent duplicate PaymentIntent
+  if (valuation.stripePaymentIntentId) {
 
     const intent = await this.stripe.paymentIntents.retrieve(
       valuation.stripePaymentIntentId,
     );
 
     return {
+      success: true,
       clientSecret: intent.client_secret,
       paymentIntentId: intent.id,
+      surveyorId: valuation.surveyorId,
+      type: valuation.type,
       amount: intent.amount / 100,
       currency: intent.currency,
       status: intent.status,
     };
   }
 
-  // Create Stripe payment intent
   const intent = await this.stripe.paymentIntents.create({
     amount: Math.round(amount * 100),
     currency,
     metadata: {
-      applicationId: valuation.applicationId.toString(),
+      applicationId,
       surveyorId,
       type,
     },
   });
 
+  valuation.surveyorId = surveyorId;
+  valuation.type = type;
   valuation.stripePaymentIntentId = intent.id;
   valuation.paymentAmount = amount;
   valuation.paymentStatus = intent.status;
@@ -114,28 +124,14 @@ export class ValuationService {
   await valuation.save();
 
   return {
+    success: true,
     clientSecret: intent.client_secret,
     paymentIntentId: intent.id,
+    surveyorId,
+    type,
     amount,
     currency,
     status: intent.status,
   };
 }
-
-  // ================= UPDATE PAYMENT STATUS =================
-  async updatePayment(applicationId: string, paymentId: string) {
-
-    return this.valuationModel.findOneAndUpdate(
-      { applicationId },
-      {
-        paymentCompleted: true,
-        paymentId,
-        paymentStatus: 'PAID',
-      },
-      { new: true },
-    );
-  }
-
-  // ================= STRIPE WEBHOOK =================
-
 }
