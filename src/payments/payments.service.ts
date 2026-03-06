@@ -54,7 +54,7 @@ export class PaymentsService {
       throw new ForbiddenException('Not allowed');
     }
 
-    const commitmentFee = Number(application.commitment_fee) || 500;
+    const commitmentFee = Number(application.commitment_fee) ;
 
     // 🔎 check existing payment
     const existingPayment = await this.paymentModel.findOne({
@@ -141,7 +141,7 @@ export class PaymentsService {
     }
 
     // Use default commitment fee of 500 if not set
-    const commitmentFee = Number(application.commitment_fee) || 500;
+    const commitmentFee = Number(application.commitment_fee) ;
 
     return {
       statusCode: 200,
