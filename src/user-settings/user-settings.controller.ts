@@ -2,7 +2,7 @@ import { Controller, Get, Patch, Post, Delete, Body, Req, UseGuards ,Param  ,Que
 import { UserSettingsService } from './user-settings.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminJwtGuard } from '../auth/admin-jwt.guard';
-
+import { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
 @Controller('user-settings')
 export class UserSettingsController {
   constructor(private readonly service: UserSettingsService) {}
@@ -14,9 +14,13 @@ export class UserSettingsController {
   }
 @UseGuards(JwtAuthGuard)
   @Patch('notifications')
-  updateNotifications(@Req() req, @Body() body) {
-    return this.service.updateNotifications(req.user.userId || req.user._id, body);
-  }
+ updateNotifications(
+  @Req() req,
+  @Body() dto: UpdateNotificationSettingsDto,
+) {
+  const userId = req.user.userId || req.user._id;
+  return this.service.updateNotifications(userId, dto);
+}
 @UseGuards(JwtAuthGuard)
   @Post('change-password')
   changePassword(@Req() req, @Body() body) {

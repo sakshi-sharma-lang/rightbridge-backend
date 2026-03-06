@@ -70,13 +70,15 @@ async updateNotifications(userId: string, body: any) {
   if (body.marketingEmails !== undefined)
     updateData.marketingEmails = body.marketingEmails;
 
- const updatedUser = await this.userModel.findByIdAndUpdate(
-  userId,
-  { $set: { dangerzone: true } },
-  { new: true },
-);
+  const updatedUser = await this.userModel.findByIdAndUpdate(
+    userId,
+    { $set: updateData },   // ✅ FIXED
+    { new: true }
+  );
 
-  if (!updatedUser) throw new NotFoundException('User not found');
+  if (!updatedUser) {
+    throw new NotFoundException('User not found');
+  }
 
   console.log('UPDATED USER =>', updatedUser);
 

@@ -56,17 +56,18 @@ export class User extends Document {
   forgotPasswordLastRequest?: Date;
 
   // 🔷 SETTINGS
-  @Prop()
-  emailNotifications?: boolean;
+// SETTINGS
+@Prop({ type: Boolean, default: true })
+emailNotifications: boolean;
 
-  @Prop()
-  smsNotifications?: boolean;
+@Prop({ type: Boolean, default: true })
+smsNotifications: boolean;
 
-  @Prop()
-  documentReminders?: boolean;
+@Prop({ type: Boolean, default: true })
+documentReminders: boolean;
 
-  @Prop()
-  marketingEmails?: boolean;
+@Prop({ type: Boolean, default: false })
+marketingEmails: boolean;
 
   // 🔷 ADD THIS FOR TIMESTAMPS FIX
   @Prop()

@@ -9,6 +9,10 @@ export class Valuation {
   @Prop({ type: Types.ObjectId, ref: 'Application', required: true })
   applicationId: Types.ObjectId;
 
+  // ADD THIS
+  @Prop({ type: Types.ObjectId, ref: 'Surveyor', required: true })
+  surveyorId: Types.ObjectId;
+
   @Prop({ required: true })
   surveyorName: string;
 
@@ -33,7 +37,6 @@ export class Valuation {
 
   @Prop()
   paymentAmount: number;
-
 }
 
 export const ValuationSchema = SchemaFactory.createForClass(Valuation);
