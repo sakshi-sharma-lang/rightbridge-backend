@@ -422,50 +422,82 @@ async getKycByApplicationId(
   }
 }
 
+
+
 @Get('validate-link')
-async validateKycLink(@Query('user') externalUserId: string) {
-  if (!externalUserId) {
-    throw new BadRequestException('User is required');
-  }
+  async validateKycLink(@Query('user') externalUserId: string) {
 
-  const kyc = await this.kycModel.findOne({ externalUserId });
+    // 1️⃣ Validate query param
+    if (!externalUserId) {
+      throw new BadRequestException('User is required');
+    }
 
-  if (!kyc) {
-    throw new NotFoundException('KYC record not found');
-  }
+    // 2️⃣ Find KYC record
+    const kyc = await this.kycModel.findOne({ externalUserId });
 
-  if (!kyc.linkExpiresAt) {
+    if (!kyc) {
+      throw new NotFoundException('KYC record not found');
+    }
+
+    // 3️⃣ Check if expiry exists
+    if (!kyc.linkExpiresAt) {
+      return {
+        success: false,
+        expired: true,
+        message: 'Invalid KYC link',
+      };
+    }
+
+    // 4️⃣ Check expiry
+    const now = new Date();
+    const isExpired = now > kyc.linkExpiresAt;
+
+    // 5️⃣ Update DB status if expired
+    if (isExpired) {
+      await this.kycModel.updateOne(
+        { externalUserId },
+        { status: KycStatus.EXPIRED },
+      );
+    }
+
+    // -----------------------------
+    // 6️⃣ Dynamic expiry calculation
+    // -----------------------------
+
+    const expiry = process.env.KYC_LINK_EXPIRY || '10m';
+
+    const value = parseInt(expiry);
+    const unit = expiry.slice(-1);
+
+    let duration = 0;
+
+    if (unit === 'm') {
+      duration = value * 60 * 1000;
+    } 
+    else if (unit === 'h') {
+      duration = value * 60 * 60 * 1000;
+    } 
+    else if (unit === 'd') {
+      duration = value * 24 * 60 * 60 * 1000;
+    } 
+    else {
+      duration = value * 60 * 1000;
+    }
+
+    // calculate new expiry based on existing link expiry
+    const expireslinktime = new Date(kyc.linkExpiresAt.getTime() + duration);
+
+    // 7️⃣ Return response
     return {
-      success: false,
-      expired: true,
-      message: 'Invalid KYC link',
+      success: true,
+      expired: isExpired,
+      expiresAt: kyc.linkExpiresAt,
+      expireslinktime,
     };
   }
 
-  const isExpired = new Date() > kyc.linkExpiresAt;
 
-  if (isExpired) {
-    await this.kycModel.updateOne(
-      { externalUserId },
-      { status: KycStatus.EXPIRED },
-    );
-  }
 
-  // read expiry days from .env
-  const expiryDays = Number(process.env.KYC_LINK_EXPIRY_DAYS || 1);
-
-  // same key name, only duration comes from env
-  const expiryAfter2Days = new Date(
-    Date.now() + expiryDays * 24 * 60 * 60 * 1000
-  );
-
-  return {
-    success: true,
-    expired: isExpired,
-    expiresAt: kyc.linkExpiresAt,
-    expireslinktime: expiryAfter2Days,
-  };
-}
 @Get('application/kyc-status')
 @UseGuards(JwtAuthGuard)
 async getApplicationKycStatus(

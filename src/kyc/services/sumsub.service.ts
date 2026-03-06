@@ -651,7 +651,9 @@ async checkApplicationKycStatus(applicationId: string) {
     throw new BadRequestException('applicationId is required');
   }
 
-  const application = await this.applicationModel.findById(applicationId).lean();
+  const application = await this.applicationModel
+    .findById(applicationId)
+    .lean();
 
   if (!application) {
     throw new NotFoundException('Application not found');
@@ -697,19 +699,37 @@ async checkApplicationKycStatus(applicationId: string) {
   });
 
   /* ===============================
-     EXPIRY LOGIC
+     DYNAMIC EXPIRY LOGIC
   =============================== */
 
-  const expiryDays = Number(process.env.KYC_LINK_EXPIRY_DAYS || 2);
+  const expiry = process.env.KYC_LINK_EXPIRY || '10m';
 
-  // current time + env days
-  const expiresAt = new Date(
-    Date.now() + expiryDays * 24 * 60 * 60 * 1000
-  );
+  const value = parseInt(expiry);
+  const unit = expiry.slice(-1);
 
-  // get DB expiry time (if exists)
-  const expireslinktime =
+  let duration = 0;
+
+  if (unit === 'm') {
+    duration = value * 60 * 1000;
+  }
+  else if (unit === 'h') {
+    duration = value * 60 * 60 * 1000;
+  }
+  else if (unit === 'd') {
+    duration = value * 24 * 60 * 60 * 1000;
+  }
+  else {
+    duration = value * 60 * 1000;
+  }
+
+  // get expiry from DB
+  const startTime =
     kycs.find(k => k.linkExpiresAt)?.linkExpiresAt || null;
+
+  // calculate endTime
+  const endTime = startTime
+    ? new Date(new Date(startTime).getTime() + duration)
+    : null;
 
   return {
     success: true,
@@ -722,8 +742,8 @@ async checkApplicationKycStatus(applicationId: string) {
     applicants: results,
 
     expired: false,
-    endTime: expiresAt,
-    startTime: expireslinktime
+    startTime,
+    endTime
   };
 }
 }
