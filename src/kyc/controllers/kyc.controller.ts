@@ -436,10 +436,14 @@ async validateKycLink(@Query('user') externalUserId: string) {
     );
   }
 
+  // 👉 Add 2 minutes to expiry
+  const exprirytimelink = new Date(kyc.linkExpiresAt.getTime() + 2 * 60 * 1000);
+
   return {
     success: true,
     expired: isExpired,
     expiresAt: kyc.linkExpiresAt,
+    exprirytimelink: expiryAfter2Min, // 👈 new field
   };
 }
 
