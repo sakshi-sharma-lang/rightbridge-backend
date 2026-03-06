@@ -45,18 +45,16 @@ export class ValuationController {
 
   // ================= CREATE VALUATION PAYMENT =================
   @UseGuards(JwtAuthGuard)
-@Post(':applicationId/surveyor/:surveyorId/payment')
-createPayment(
-  @Param('applicationId') applicationId: string,
-  @Param('surveyorId') surveyorId: string,
-  @Body('currency') currency: string,
-  @Body('type') type: string,
-) {
-  return this.valuationService.createPayment(
-    applicationId,
-    surveyorId,
-    currency,
-    type,
-  );
-}
+  @Post(':applicationId/surveyor/:surveyorId/payment')
+  createPayment(
+    @Param('applicationId') applicationId: string,
+    @Param('surveyorId') surveyorId: string,
+    @Body('currency') currency: string,
+  ) {
+    return this.valuationService.createPayment(
+      applicationId,
+      surveyorId,
+      currency,
+    );
+  }
 }
