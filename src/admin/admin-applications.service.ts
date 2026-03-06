@@ -147,14 +147,14 @@ for (const record of kycRecords) {
   }
 
   // KYC completed but not approved
-  if (webhookResponse?.reviewAnswer !== "GREEN") {
-    console.log("⛔ KYC not approved for:", record.externalUserId);
+  // if (webhookResponse?.reviewAnswer !== "GREEN") {
+  //   console.log("⛔ KYC not approved for:", record.externalUserId);
 
-    return {
-      statusCode: 403,
-      message: "KYC verification for one or more applicants was not approved. Please review the KYC results before proceeding.",
-    };
-  }
+  //   return {
+  //     statusCode: 403,
+  //     message: "KYC verification for one or more applicants was not approved. Please review the KYC results before proceeding.",
+  //   };
+  // }
 }
     }
 
