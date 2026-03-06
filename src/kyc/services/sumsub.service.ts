@@ -645,7 +645,6 @@ const kycRecordForExpiry = await this.kycModel
   }
 }
 
-
 async checkApplicationKycStatus(applicationId: string) {
 
   if (!applicationId) {
@@ -668,7 +667,7 @@ async checkApplicationKycStatus(applicationId: string) {
     .map((a: any) => a.externalUserId)
     .filter(Boolean);
 
-  const kycs = await this.kycModel
+  const kycs: any[] = await this.kycModel
     .find({ externalUserId: { $in: externalIds } })
     .lean();
 
@@ -692,21 +691,25 @@ async checkApplicationKycStatus(applicationId: string) {
     }
 
     return {
-      externalUserId: applicant.externalUserId,
       applicantId: kyc?.applicantId || null,
       kycCompleted: !!completed,
     };
   });
 
-  /* ========================================
-     GET EXPIRY TIME FROM ENV
-  ======================================== */
+  /* ===============================
+     EXPIRY LOGIC
+  =============================== */
 
   const expiryDays = Number(process.env.KYC_LINK_EXPIRY_DAYS || 2);
 
-  const expireslinktime = new Date(
+  // current time + env days
+  const expiresAt = new Date(
     Date.now() + expiryDays * 24 * 60 * 60 * 1000
   );
+
+  // get DB expiry time (if exists)
+  const expireslinktime =
+    kycs.find(k => k.linkExpiresAt)?.linkExpiresAt || null;
 
   return {
     success: true,
@@ -718,13 +721,11 @@ async checkApplicationKycStatus(applicationId: string) {
       : 'KYC pending for one or more applicants',
     applicants: results,
 
-    // same keys used in validate-link API
     expired: false,
-    expiresAt: null,
+    expiresAt: expiresAt,
     expireslinktime: expireslinktime
   };
 }
-
 }
 
 
