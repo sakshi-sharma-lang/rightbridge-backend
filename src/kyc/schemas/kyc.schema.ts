@@ -23,6 +23,9 @@ export class Kyc extends Document {
 status: string;
 
 
+@Prop({ type: Object })
+webresponse?: Record<string, any>;
+
   // ===== KYC =====
   @Prop() reviewAnswer: string;
   @Prop() reviewRejectType: string;

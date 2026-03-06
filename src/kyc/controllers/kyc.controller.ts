@@ -103,6 +103,21 @@ export class KycController {
           let kyc: HydratedDocument<Kyc> | null = null;
 
           kyc = await this.kycModel.findOne({ externalUserId });
+            if (
+          kyc &&
+          kyc.webresponse &&
+          Object.keys(kyc.webresponse).length > 0
+        ) {
+          results.push({
+            externalUserId,
+            email,
+            applicantId: kyc?.applicantId || '',
+            link: '',
+            status: 'KYC_ALREADY_COMPLETED'
+          });
+
+          continue;
+        }
 
           let applicantId: string = '';
 
