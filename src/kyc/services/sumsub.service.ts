@@ -25,6 +25,7 @@ export class SumsubService {
     private readonly kycModel: Model<Kyc>,
      @InjectModel(Admin.name)
   private adminModel: Model<Admin>,
+
     private notificationService: NotificationService, 
 
   ) {}
@@ -644,4 +645,70 @@ const kycRecordForExpiry = await this.kycModel
   }
 }
 
+
+async checkApplicationKycStatus(applicationId: string) {
+
+  if (!applicationId) {
+    throw new BadRequestException('applicationId is required');
+  }
+
+  const application = await this.applicationModel.findById(applicationId).lean();
+
+  if (!application) {
+    throw new NotFoundException('Application not found');
+  }
+
+  const applicants = application.applicants || [];
+
+  if (applicants.length === 0) {
+    throw new BadRequestException('No applicants found');
+  }
+
+  const externalIds = applicants.map((a: any) => a.externalUserId).filter(Boolean);
+
+  const kycs = await this.kycModel
+    .find({ externalUserId: { $in: externalIds } })
+    .lean();
+
+  let allKycCompleted = true;
+
+  const results = applicants.map((applicant: any) => {
+
+    const kyc: any = kycs.find(
+      (k: any) => k.externalUserId === applicant.externalUserId
+    );
+
+    const completed =
+      kyc &&
+      kyc.webresponse &&
+      Object.keys(kyc.webresponse || {}).length > 0 &&
+      kyc.rawWebhookPayload &&
+      Object.keys(kyc.rawWebhookPayload || {}).length > 0;
+
+    if (!completed) {
+      allKycCompleted = false;
+    }
+
+    return {
+      externalUserId: applicant.externalUserId,
+      applicantId: kyc?.applicantId || null,
+      kycCompleted: !!completed,
+    };
+  });
+
+  return {
+    success: true,
+    applicationId,
+    allApplicantsKycCompleted: allKycCompleted,
+    showKycLink: !allKycCompleted,
+    message: allKycCompleted
+      ? 'All applicants KYC completed'
+      : 'KYC pending for one or more applicants',
+    applicants: results,
+  };
 }
+
+}
+
+
+

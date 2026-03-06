@@ -175,8 +175,8 @@ await this.kycModel.updateOne(
   },
 );
 
-          const link = `${process.env.FRONTEND_URL}kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}&applicantId=${applicantId}`;
-            //const link = `http://localhost:3093/kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}&applicantId=${applicantId}`;
+         // const link = `${process.env.FRONTEND_URL}kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}&applicantId=${applicantId}`;
+           const link = `http://localhost:3093/kyc?token=${token}&user=${externalUserId}&applicationId=${applicationIdFromDb}&applicantId=${applicantId}`;
           // console.log('🔗 KYC LINK:', link);
           // console.log('📧 Sending email to:', email);
 
@@ -445,6 +445,20 @@ async validateKycLink(@Query('user') externalUserId: string) {
     expiresAt: kyc.linkExpiresAt,
     expireslinktime: expiryAfter2Min, // 👈 new field
   };
+}
+
+@Get('application/kyc-status')
+@UseGuards(JwtAuthGuard)
+async getApplicationKycStatus(
+  @Query('applicationId') applicationId: string,
+  @Req() req: any,
+) {
+
+  if (!applicationId) {
+    throw new BadRequestException('applicationId is required');
+  }
+
+  return this.sumsubService.checkApplicationKycStatus(applicationId);
 }
 
 }
