@@ -1675,7 +1675,7 @@ async exportApplicationPdf(applicationId: string, user: any) {
       decisionBy: 'N/A'
     },
 
-    /* ================= 2 BORROWERS ================= */
+    /* ================= 2 BORROWER / APPLICANTS ================= */
 
     borrowers:
       application?.applicants?.map((a: any, index: number) => ({
@@ -1743,18 +1743,18 @@ async exportApplicationPdf(applicationId: string, user: any) {
       }))
     ],
 
-    /* ================= 7 KYC ================= */
+    /* ================= 7 KYC INFORMATION ================= */
 
     kycInformation:
       kycs?.map((k: any) => ({
         kycProvider: 'Sumsub',
-        kycStatus: k?.status || 'N/A',
+        kycStatus: k?.finalDecision || 'N/A',   // ✅ using finalDecision
         kycCompletionDate: k?.kycCompletedAt || 'N/A',
-        kycReferenceId: k?.rawWebhookPayload?.inspectionId || 'N/A',
+        kycReferenceId: k?.inspectionId || 'N/A',
         scopeOfKyc: k?.rawWebhookPayload?.applicantType || 'N/A'
       })) || [],
 
-    /* ================= 8 ACTIVITY LOG ================= */
+    /* ================= 8 APPLICATION ACTIVITY LOG ================= */
 
     applicationActivityLog: 'N/A',
 
