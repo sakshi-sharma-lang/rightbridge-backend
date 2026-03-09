@@ -1633,10 +1633,7 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
 }
 
 async exportApplicationPdf(applicationId: string, user: any) {
-
-  const application = await this.applicationModel
-    .findById(applicationId)
-    .lean();
+  const application = await this.applicationModel.findById(applicationId).lean();
 
   if (!application) {
     throw new BadRequestException('Application not found');
@@ -1656,9 +1653,7 @@ async exportApplicationPdf(applicationId: string, user: any) {
   const primaryApplicant = application?.applicants?.[0];
 
   return {
-
-    /* ================= 1 APPLICATION SUMMARY ================= */
-
+    /* ================= 1. APPLICATION SUMMARY ================= */
     applicationSummary: {
       applicationId: application?.appId || 'N/A',
       applicantName: `${primaryApplicant?.firstName || ''} ${primaryApplicant?.lastName || ''}`.trim(),
@@ -1668,52 +1663,79 @@ async exportApplicationPdf(applicationId: string, user: any) {
       dipDecision: application?.dipconditional ? 'Approved' : 'Declined',
       offerIssuanceStatus: 'N/A',
       lastStatusChangeDate: application?.updatedAt || 'N/A',
-      decisionBy: 'N/A'
+      decisionBy: 'N/A',
     },
 
+    /* ================= 2. BORROWER / APPLICANT INFORMATION ================= */
+    borrowers:
+      application?.applicants?.map((a: any, index: number) => ({
+        applicantType: a.applyingAs || 'N/A',
+        applicantCategory: a.applyingAs || 'N/A',
+        primaryApplicant: index === 0 ? 'Yes' : 'No',
+        fullName: `${a.firstName || ''} ${a.lastName || ''}`.trim(),
+        email: a.email || 'N/A',
+        phoneNumber: a.phoneNumber || 'N/A',
+        address: a.address || 'N/A',
+        companyName: a.companyAddress || 'N/A',
+        companyNumber: a.companyRegistrationNumber || 'N/A',
+        registeredAddress: a.companyAddress || 'N/A',
+      })) || [],
 
-    /* ================= 2 BORROWER / APPLICANTS ================= */
+    /* ================= 3. PROPERTY DETAILS ================= */
+    propertyDetails: {
+      propertyAddress: application?.property?.address || 'N/A',
+      propertyType: application?.property?.propertyType || 'N/A',
+      estimatedPropertyValue: application?.property?.estimatedValue || 'N/A',
+      rentalIncome: application?.property?.rentalIncome || 'N/A',
+    },
 
-    borrowers: application?.applicants || [],
+    /* ================= 4. LOAN DETAILS ================= */
+    loanDetails: {
+      requestedLoanAmount: application?.loanRequirements?.loanAmount || 'N/A',
+      purchasePrice: application?.property?.purchasePrice || 'N/A',
+      loanToValue: 'N/A',
+      loanTerm: application?.loanRequirements?.loanTerm || 'N/A',
+      interestType: application?.loanRequirements?.interestPaymentType || 'N/A',
+      interestRateValue: 'N/A',
+    },
 
+    /* ================= 5. FINANCIAL SUMMARY ================= */
+    financialSummary: {
+      grossLoanAmount: 'N/A',
+      netLoanAmount: 'N/A',
+      interestRateValue: 'N/A',
+      arrangementFee: 'N/A',
+      exitFee: 'N/A',
+      dipFees: application?.commitment_fee || 'N/A',
+    },
 
-    /* ================= 3 PROPERTY DETAILS ================= */
+    /* ================= 6. UPLOADED DOCUMENTS ================= */
+    uploadedDocuments:
+      documents?.documents?.map((doc: any) => ({
+        documentName: doc.originalName || 'N/A',
+        documentType: doc.type || 'N/A',
+        uploadDate: doc.createdAt || 'N/A',
+        uploadedBy: doc.uploadedBy || 'N/A',
+      })) || [],
 
-    propertyDetails: application?.property || {},
+    /* ================= 7. KYC INFORMATION ================= */
+    kycInformation:
+      kycs?.map((k: any) => ({
+        kycProvider: 'Sumsub',
+        kycStatus: k.status || 'N/A',
+        kycCompletionDate: k.kycCompletedAt || 'N/A',
+        kycReferenceId: k?.rawWebhookPayload?.inspectionId || 'N/A',
+        scopeOfKyc: k?.rawWebhookPayload?.applicantType || 'N/A',
+      })) || [],
 
-
-    /* ================= 4 LOAN DETAILS ================= */
-
-    loanDetails: application?.loanRequirements || {},
-
-
-    /* ================= 5 FINANCIAL INFO ================= */
-
-    financialInfo: application?.financialInfo || {},
-
-
-    /* ================= 6 DOCUMENTS ================= */
-
-    uploadedDocuments: documents || {},
-
-
-    /* ================= 7 KYC ================= */
-
-    kycInformation: kycs || [],
-
-
-    /* ================= 8 ACTIVITY LOG ================= */
-
+    /* ================= 8. APPLICATION ACTIVITY LOG ================= */
     applicationActivityLog: 'N/A',
 
-
-    /* ================= 9 EXPORT METADATA ================= */
-
+    /* ================= 9. EXPORT METADATA ================= */
     exportMetadata: {
       exportDateTime: new Date(),
-      exportedBy: user?.email || 'system'
-    }
-
+      exportedBy: user?.email || 'system',
+    },
   };
 }
 
