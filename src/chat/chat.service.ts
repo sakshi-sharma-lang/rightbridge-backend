@@ -514,19 +514,18 @@ try {
 
 async getApplicationsByUserId(userId: string) {
 
-    const applications = await this.applicationModel
-      .find({ userId: new Types.ObjectId(userId) })
-      .select('_id appId status applicationStatus createdAt')
-      .sort({ createdAt: -1 })
-      .lean();
+  const applications = await this.applicationModel
+    .find({ userId: new Types.ObjectId(userId) })
+    .select('_id appId status applicationStatus createdAt loanRequirements.loanAmount')
+    .sort({ createdAt: -1 })
+    .lean();
 
-    return {
-      success: true,
-      total: applications.length,
-      data: applications,
-    };
-  }
-
+  return {
+    success: true,
+    total: applications.length,
+    data: applications,
+  };
+}
 async getAdminConversation(
   adminId: string,
   applicationId: string,
