@@ -8,6 +8,7 @@ import {
   Res,
   Headers,
   UseGuards,
+  BadRequestException
 } from '@nestjs/common';
 
 import { ValuationService } from './valuation.service';
@@ -46,17 +47,33 @@ export class ValuationController {
   // ================= CREATE VALUATION PAYMENT =================
 @UseGuards(JwtAuthGuard)
 @Post(':applicationId/surveyor/:surveyorId/payment')
-createPayment(
+async createPayment(
   @Param('applicationId') applicationId: string,
   @Param('surveyorId') surveyorId: string,
   @Body('currency') currency: string,
   @Body('type') type: string,
+  @Body('valuationFee') valuationFee: number,
 ) {
+  if (!currency) {
+    throw new BadRequestException('currency is required');
+  }
+
+  if (!type) {
+    throw new BadRequestException('type is required');
+  }
+
+  if (!valuationFee) {
+    throw new BadRequestException('valuationFee is required');
+  }
+
   return this.valuationService.createPayment(
     applicationId,
     surveyorId,
     currency,
     type,
+    valuationFee,
   );
 }
+
+
 }

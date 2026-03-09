@@ -17,9 +17,14 @@ export class Payment {
   @Prop({ type: String, default: '' })
   type: string;
 
+     @Prop({ type: String, default: '' })
+  surveyorId: string;
 
   @Prop({ required: true, unique: true })
   stripePaymentIntentId: string;
+
+  @Prop()
+  currency: string;
 
   @Prop({ type: String, default: 'requires_payment_method' })
   status: string;

@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model , Types } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import Stripe from 'stripe';
 
 import { Valuation, ValuationDocument } from './schemas/valuation.schema';
+import { Payment, PaymentDocument } from '../payments/schemas/payment.schema';
 
 @Injectable()
 export class ValuationService {
@@ -13,6 +14,9 @@ export class ValuationService {
   constructor(
     @InjectModel(Valuation.name)
     private valuationModel: Model<ValuationDocument>,
+
+    @InjectModel(Payment.name)
+    private paymentModel: Model<PaymentDocument>,
   ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
   }
@@ -39,7 +43,9 @@ export class ValuationService {
   // ================= GET VALUATION =================
   async getByApplication(applicationId: string) {
 
-    const valuation = await this.valuationModel.findOne({ applicationId }).lean();
+    const valuation = await this.valuationModel
+      .findOne({ applicationId })
+      .lean();
 
     if (!valuation) {
       throw new NotFoundException('Valuation not found');
@@ -51,19 +57,19 @@ export class ValuationService {
       companyType: valuation.companyType,
       turnaroundTime: valuation.turnaroundTime,
       accreditation: valuation.accreditation,
-      valuationFee: valuation.price,
+     
       paymentStatus: valuation.paymentStatus || 'NOT_PAID',
       paymentIntentId: valuation.stripePaymentIntentId || null,
     };
   }
 
-
-
+  // ================= CREATE PAYMENT =================
 async createPayment(
   applicationId: string,
   surveyorId: string,
   currency: string,
   type: string,
+  valuationFee: number,
 ) {
 
   if (!applicationId) {
@@ -80,30 +86,41 @@ async createPayment(
     throw new NotFoundException('Valuation not found');
   }
 
-  const amount = valuation.price;
+  /* DEFINE AMOUNT FROM BODY */
 
-  if (!amount) {
-    throw new BadRequestException('Valuation price not set');
+  const amount = Number(valuationFee);
+
+  if (isNaN(amount) || amount <= 0) {
+    throw new BadRequestException('Invalid valuation fee');
   }
 
-  // Prevent duplicate PaymentIntent
-  if (valuation.stripePaymentIntentId) {
+  /* CHECK EXISTING PAYMENT */
+
+  const existingPayment = await this.paymentModel.findOne({
+    applicationId,
+    surveyorId,
+    type,
+  });
+
+  if (existingPayment?.stripePaymentIntentId) {
 
     const intent = await this.stripe.paymentIntents.retrieve(
-      valuation.stripePaymentIntentId,
+      existingPayment.stripePaymentIntentId,
     );
 
     return {
       success: true,
       clientSecret: intent.client_secret,
       paymentIntentId: intent.id,
-      surveyorId: valuation.surveyorId,
-      type: valuation.type,
+      surveyorId,
+      type,
       amount: intent.amount / 100,
       currency: intent.currency,
       status: intent.status,
     };
   }
+
+  /* CREATE STRIPE PAYMENT */
 
   const intent = await this.stripe.paymentIntents.create({
     amount: Math.round(amount * 100),
@@ -115,13 +132,18 @@ async createPayment(
     },
   });
 
-  valuation.surveyorId = surveyorId;
-  valuation.type = type;
-  valuation.stripePaymentIntentId = intent.id;
-  valuation.paymentAmount = amount;
-  valuation.paymentStatus = intent.status;
+  /* SAVE PAYMENT */
 
-  await valuation.save();
+  await this.paymentModel.create({
+    applicationId,
+    userId: valuation.userId,
+    surveyorId,
+    amount,  // saved as amount
+    currency,
+    type,
+    stripePaymentIntentId: intent.id,
+    status: intent.status,
+  });
 
   return {
     success: true,
@@ -129,7 +151,7 @@ async createPayment(
     paymentIntentId: intent.id,
     surveyorId,
     type,
-    amount,
+    amount, // return amount instead of valuationFee
     currency,
     status: intent.status,
   };

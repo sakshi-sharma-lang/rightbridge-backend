@@ -19,12 +19,20 @@ export class PaymentsController {
   constructor(private readonly service: PaymentsService) {}
 
   /* ================= CREATE STRIPE INTENT ================= */
-  @Post('create-intent')
-  @UseGuards(JwtAuthGuard)
-  async create(@Body('applicationId') applicationId: string, @Req() req: any) {
-    return this.service.createPayment(applicationId, req.user.userId);
-  }
+@Post('create-intent')
+@UseGuards(JwtAuthGuard)
+async create(@Body() body: any, @Req() req: any) {
 
+  const userId = req.user.sub || req.user.userId || req.user._id;
+
+  return this.service.createPayment(
+    body.applicationId,
+    userId,
+    body.commitmentFee,
+    body.currency,
+    body.type
+  );
+}
   /* ================= PAYMENT DETAILS ================= */
   @Get('application/:applicationId')
   @UseGuards(JwtAuthGuard)
