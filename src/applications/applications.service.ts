@@ -16,6 +16,8 @@ import { MailService } from '../mail/mail.service';
 import { User } from '../users/schemas/user.schema';
 import { Payment, PaymentDocument } from '../payments/schemas/payment.schema';
 
+import { ApplicationDocument } from '../application-documents/schemas/application-document.schema';
+import { Kyc } from '../kyc/schemas/kyc.schema';
 
 @Injectable()
 export class ApplicationsService {
@@ -33,6 +35,12 @@ export class ApplicationsService {
 
   @InjectModel(Payment.name)
   private paymentModel: Model<PaymentDocument>, 
+
+  @InjectModel(ApplicationDocument.name)
+private readonly applicationDocumentsModel: Model<ApplicationDocument>,
+
+@InjectModel(Kyc.name)
+private readonly kycModel: Model<Kyc>,
   ) {}
 
   private getFileHash(filePath: string): string {
@@ -1624,7 +1632,89 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
   }
 }
 
+async exportApplicationPdf(applicationId: string, user: any) {
+
+  const application = await this.applicationModel
+    .findById(applicationId)
+    .lean();
+
+  if (!application) {
+    throw new BadRequestException('Application not found');
+  }
+
+  const documents = await this.applicationDocumentsModel
+    .findOne({ applicationId })
+    .lean();
+
+  const externalIds =
+    application?.applicants?.map((a: any) => a.externalUserId).filter(Boolean) || [];
+
+  const kycs = await this.kycModel.find({
+    externalUserId: { $in: externalIds },
+  }).lean();
+
+  const primaryApplicant = application?.applicants?.[0];
+
+  return {
+
+    /* ================= 1 APPLICATION SUMMARY ================= */
+
+    applicationSummary: {
+      applicationId: application?.appId || 'N/A',
+      applicantName: `${primaryApplicant?.firstName || ''} ${primaryApplicant?.lastName || ''}`.trim(),
+      applicationSubmissionDate: application?.createdAt || 'N/A',
+      currentApplicationStatus:
+        application?.application_stage_management?.slice(-1)[0] || 'N/A',
+      dipDecision: application?.dipconditional ? 'Approved' : 'Declined',
+      offerIssuanceStatus: 'N/A',
+      lastStatusChangeDate: application?.updatedAt || 'N/A',
+      decisionBy: 'N/A'
+    },
 
 
+    /* ================= 2 BORROWER / APPLICANTS ================= */
+
+    borrowers: application?.applicants || [],
+
+
+    /* ================= 3 PROPERTY DETAILS ================= */
+
+    propertyDetails: application?.property || {},
+
+
+    /* ================= 4 LOAN DETAILS ================= */
+
+    loanDetails: application?.loanRequirements || {},
+
+
+    /* ================= 5 FINANCIAL INFO ================= */
+
+    financialInfo: application?.financialInfo || {},
+
+
+    /* ================= 6 DOCUMENTS ================= */
+
+    uploadedDocuments: documents || {},
+
+
+    /* ================= 7 KYC ================= */
+
+    kycInformation: kycs || [],
+
+
+    /* ================= 8 ACTIVITY LOG ================= */
+
+    applicationActivityLog: 'N/A',
+
+
+    /* ================= 9 EXPORT METADATA ================= */
+
+    exportMetadata: {
+      exportDateTime: new Date(),
+      exportedBy: user?.email || 'system'
+    }
+
+  };
+}
 
 }

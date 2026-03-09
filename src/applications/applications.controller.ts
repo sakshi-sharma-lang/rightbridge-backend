@@ -175,4 +175,10 @@ export class ApplicationsController {
   ) {
     return this.service.adminUpdateApplication(id, body, files);
   }
+
+  @UseGuards(AdminJwtGuard)
+@Get('applications/admin/:id/export-pdf')
+async exportApplicationPdf(@Param('id') applicationId: string, @Req() req: any) {
+  return this.service.exportApplicationPdf(applicationId, req.user);
+}
 }
