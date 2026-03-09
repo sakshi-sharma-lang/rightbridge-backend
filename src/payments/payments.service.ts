@@ -720,35 +720,58 @@ async getPaymentsManagement(query: {
   }
 }
 
-async getPaymentStatus(applicationId: string) {
+async getPaymentStatus(applicationId: string, type: string) {
+  try {
+    // Validate input
+    if (!applicationId) {
+      return {
+        success: false,
+        message: 'applicationId is required',
+      };
+    }
 
-  if (!applicationId) {
-    return {
-      success: false,
-      message: 'applicationId required',
-    };
-  }
+    if (!type) {
+      return {
+        success: false,
+        message: 'payment type is required',
+      };
+    }
 
-  const payment = await this.paymentModel
-    .findOne({ applicationId })
-    .select('status amount applicationId')
-    .lean();
+    // Fetch payment
+    const payment = await this.paymentModel
+      .findOne({ applicationId, type })
+      .select('status amount applicationId type')
+      .lean();
 
-  if (!payment) {
+    // Payment not found
+    if (!payment) {
+      return {
+        success: true,
+        status: 'NOT_PAID',
+        amount: 0,
+        type,
+        applicationId,
+      };
+    }
+
+    // Payment found
     return {
       success: true,
-      status: 'NOT_PAID',
-      amount: 0,
-      applicationId,
+      status: payment.status || 'UNKNOWN',
+      amount: payment.amount || 0,
+      type: payment.type,
+      applicationId: payment.applicationId,
+    };
+
+  } catch (error) {
+    console.error('Payment Status Error:', error);
+
+    return {
+      success: false,
+      message: 'Failed to fetch payment status',
+      error: error?.message || 'Internal server error',
     };
   }
-
-  return {
-    success: true,
-    status: payment.status,
-    amount: payment.amount,
-    applicationId: payment.applicationId,
-  };
 }
 
 async getSuperAdminId(): Promise<string | null> {

@@ -71,11 +71,12 @@ async create(@Body() body: any, @Req() req: any) {
     return this.service.getPaymentsManagement(query);
   }
 
-  @Get('status/:applicationId')
+@Get('status/:applicationId/:type')
 @UseGuards(JwtAuthGuard)
 async getPaymentStatus(
   @Param('applicationId') applicationId: string,
+  @Param('type') type: string,
 ) {
-  return this.service.getPaymentStatus(applicationId);
+  return this.service.getPaymentStatus(applicationId, type);
 }
 }
