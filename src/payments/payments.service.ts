@@ -35,89 +35,91 @@ export class PaymentsService {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
   }
 
-  async createPayment(applicationId: string, userId: string) {
-    let application;
+ async createPayment(applicationId: string, userId: string) {
+  let application;
 
-    if (Types.ObjectId.isValid(applicationId)) {
-      application = await this.applicationModel.findById(applicationId).lean();
-    } else {
-      application = await this.applicationModel
-        .findOne({ appId: applicationId })
-        .lean();
-    }
+  if (Types.ObjectId.isValid(applicationId)) {
+    application = await this.applicationModel.findById(applicationId).lean();
+  } else {
+    application = await this.applicationModel
+      .findOne({ appId: applicationId })
+      .lean();
+  }
 
-    if (!application) {
-      throw new BadRequestException('Application not found');
-    }
+  if (!application) {
+    throw new BadRequestException('Application not found');
+  }
 
-    if (application.userId.toString() !== userId) {
-      throw new ForbiddenException('Not allowed');
-    }
+  if (application.userId.toString() !== userId) {
+    throw new ForbiddenException('Not allowed');
+  }
 
-    const commitmentFee = Number(application.commitment_fee) ;
+  const commitmentFee = Number(application.commitment_fee);
 
-    // 🔎 check existing payment
-    const existingPayment = await this.paymentModel.findOne({
-      applicationId: application._id,
-    });
+  // ✅ static type
+  const type = 'commitment_fee';
 
-    // ================= IF EXISTS =================
-    if (existingPayment?.stripePaymentIntentId) {
-      const stripeIntent = await this.stripe.paymentIntents.retrieve(
-        existingPayment.stripePaymentIntentId,
-      );
+  // 🔎 check existing payment
+  const existingPayment = await this.paymentModel.findOne({
+    applicationId: application._id,
+  });
 
-      // ⭐ update status from stripe
-      await this.paymentModel.updateOne(
-        { _id: existingPayment._id },
-        { status: stripeIntent.status },
-      );
+  // ================= IF EXISTS =================
+  if (existingPayment?.stripePaymentIntentId) {
+    const stripeIntent = await this.stripe.paymentIntents.retrieve(
+      existingPayment.stripePaymentIntentId,
+    );
 
-      return {
-        statusCode: 200,
-        message: 'Existing payment intent',
-        data: {
-          clientSecret: stripeIntent.client_secret,
-          paymentIntentId: stripeIntent.id,
-          stripeStatus: stripeIntent.status,
-          amount: stripeIntent.amount / 100,
-          currency: stripeIntent.currency,
-        },
-      };
-    }
+    await this.paymentModel.updateOne(
+      { _id: existingPayment._id },
+      { status: stripeIntent.status },
+    );
 
-    // ================= CREATE NEW =================
-    const intent = await this.stripe.paymentIntents.create({
-      amount: commitmentFee * 100,
-      currency: 'gbp',
-      metadata: {
-        applicationId: application._id.toString(),
-        userId,
-      },
-    });
-
-
-    await this.paymentModel.create({
-      applicationId: application._id,
-      userId,
-      amount: commitmentFee,
-      stripePaymentIntentId: intent.id,
-      status: intent.status, // exact stripe status
-    });
-
-    //  send full data to frontend
     return {
-      statusCode: 201,
-      message: 'Payment intent created',
+      statusCode: 200,
+      message: 'Existing payment intent',
       data: {
-        clientSecret: intent.client_secret,
-        paymentIntentId: intent.id,
-        stripeStatus: intent.status,
-        amount: intent.amount / 100,
-        currency: intent.currency,
+        clientSecret: stripeIntent.client_secret,
+        paymentIntentId: stripeIntent.id,
+        stripeStatus: stripeIntent.status,
+        amount: stripeIntent.amount / 100,
+        currency: stripeIntent.currency,
       },
     };
   }
+
+  // ================= CREATE NEW =================
+  const intent = await this.stripe.paymentIntents.create({
+    amount: commitmentFee * 100,
+    currency: 'gbp',
+    metadata: {
+      applicationId: application._id.toString(),
+      userId,
+      type,
+    },
+  });
+
+  await this.paymentModel.create({
+    applicationId: application._id,
+    userId,
+    amount: commitmentFee,
+    stripePaymentIntentId: intent.id,
+    status: intent.status,
+    type, // ✅ saved in DB
+  });
+
+  return {
+    statusCode: 201,
+    message: 'Payment intent created',
+    data: {
+      clientSecret: intent.client_secret,
+      paymentIntentId: intent.id,
+      stripeStatus: intent.status,
+      amount: intent.amount / 100,
+      currency: intent.currency,
+    },
+  };
+}
 
   /* ================= PAYMENT DETAILS ================= */
   async getApplicationPaymentDetails(applicationId: string, userId: string) {

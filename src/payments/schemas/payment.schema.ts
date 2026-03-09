@@ -14,6 +14,10 @@ export class Payment {
   @Prop({ required: true })
   amount: number;
 
+  @Prop({ type: String, default: '' })
+  type: string;
+
+
   @Prop({ required: true, unique: true })
   stripePaymentIntentId: string;
 
