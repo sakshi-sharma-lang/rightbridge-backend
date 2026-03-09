@@ -1669,7 +1669,7 @@ async exportApplicationPdf(applicationId: string, user: any) {
       applicationSubmissionDate: application?.createdAt || 'N/A',
       currentApplicationStatus:
         application?.application_stage_management?.slice(-1)[0] || 'N/A',
-      dipDecision: application?.dipconditional ? 'Approved' : 'Declined',
+      dipDecision: application?.status ,
       offerIssuanceStatus: 'N/A',
       lastStatusChangeDate: application?.updatedAt || 'N/A',
       decisionBy: 'N/A'
