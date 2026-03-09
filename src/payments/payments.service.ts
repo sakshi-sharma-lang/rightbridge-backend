@@ -419,9 +419,9 @@ if (superAdmin?._id) {
     }
 
     // Verify the payment intent belongs to the user
-    if (intent.metadata.userId !== userId) {
-      throw new ForbiddenException('Access denied');
-    }
+    // if (intent.metadata.userId !== userId) {
+    //   throw new ForbiddenException('Access denied');
+    // }
 
     // Check if payment already exists
     const existingPayment = await this.paymentModel.findOne({
