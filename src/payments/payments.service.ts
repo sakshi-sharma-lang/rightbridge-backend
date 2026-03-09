@@ -17,6 +17,8 @@ import { Application } from '../applications/schemas/application.schema';
 import { NotificationService } from '../notification/notification.service';
 
 import { Admin, AdminDocument } from '../admin/schemas/admin.schema';
+
+import { Counter } from './schemas/counter.schema';
 @Injectable()
 export class PaymentsService {
   private stripe: Stripe;
@@ -30,6 +32,7 @@ export class PaymentsService {
 
       @InjectModel(Admin.name)
   private readonly adminModel: Model<AdminDocument>,
+    @InjectModel(Counter.name) private counterModel: Model<Counter>,
     private readonly notificationService: NotificationService
   ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
@@ -143,8 +146,9 @@ async createPayment(
     console.log("Stripe intent created:", intent.id);
 
     /* ================= SAVE PAYMENT ================= */
-
+const payId = await this.generatePayId();
     await this.paymentModel.create({
+        payId,
       applicationId: application._id,
       userId,
       amount: fee,
@@ -786,5 +790,17 @@ async getSuperAdminId(): Promise<string | null> {
   }
 
   return admin._id.toString();
+}
+
+private async generatePayId(): Promise<string> {
+  const year = new Date().getFullYear();
+
+  const counter = await this.counterModel.findOneAndUpdate(
+    { name: `payment-${year}` },
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true },
+  );
+
+  return `PI-${year}-${counter.seq.toString().padStart(4, '0')}`;
 }
 }

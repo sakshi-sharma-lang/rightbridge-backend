@@ -6,12 +6,14 @@ import { ValuationService } from './valuation.service';
 
 import { Valuation, ValuationSchema } from './schemas/valuation.schema';
 import { Payment, PaymentSchema } from '../payments/schemas/payment.schema';
+import { Counter, CounterSchema } from '../payments/schemas/counter.schema'; // ✅ add this
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Valuation.name, schema: ValuationSchema },
-      { name: Payment.name, schema: PaymentSchema }, // ← add this
+      { name: Payment.name, schema: PaymentSchema },
+      { name: Counter.name, schema: CounterSchema }, // ✅ register counter
     ]),
   ],
   controllers: [ValuationController],

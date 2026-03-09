@@ -516,7 +516,7 @@ async getApplicationsByUserId(userId: string) {
 
   const applications = await this.applicationModel
     .find({ userId: new Types.ObjectId(userId) })
-    .select('_id appId status applicationStatus createdAt loanRequirements.loanAmount')
+    .select('_id appId status applicationStatus createdAt loanRequirements.loanAmount loanType')
     .sort({ createdAt: -1 })
     .lean();
 
@@ -525,8 +525,7 @@ async getApplicationsByUserId(userId: string) {
     total: applications.length,
     data: applications,
   };
-}
-async getAdminConversation(
+}async getAdminConversation(
   adminId: string,
   applicationId: string,
   userId: string,

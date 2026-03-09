@@ -6,6 +6,8 @@ import Stripe from 'stripe';
 import { Valuation, ValuationDocument } from './schemas/valuation.schema';
 import { Payment, PaymentDocument } from '../payments/schemas/payment.schema';
 
+import { Counter } from '../payments/schemas/counter.schema';
+
 @Injectable()
 export class ValuationService {
 
@@ -17,6 +19,9 @@ export class ValuationService {
 
     @InjectModel(Payment.name)
     private paymentModel: Model<PaymentDocument>,
+
+  @InjectModel(Counter.name)
+  private counterModel: Model<Counter>, // ✅ required
   ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
   }
@@ -133,8 +138,10 @@ async createPayment(
   });
 
   /* SAVE PAYMENT */
+const payId = await this.generatePayId();
 
   await this.paymentModel.create({
+    payId,
     applicationId,
     userId: valuation.userId,
     surveyorId,
@@ -155,5 +162,17 @@ async createPayment(
     currency,
     status: intent.status,
   };
+}
+
+private async generatePayId(): Promise<string> {
+  const year = new Date().getFullYear();
+
+  const counter = await this.counterModel.findOneAndUpdate(
+    { name: `payment-${year}` },
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true },
+  );
+
+  return `PI-${year}-${counter.seq.toString().padStart(4, '0')}`;
 }
 }

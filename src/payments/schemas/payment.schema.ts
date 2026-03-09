@@ -26,7 +26,10 @@ export class Payment {
   @Prop()
   currency: string;
 
-  @Prop({ type: String, default: 'requires_payment_method' })
+   @Prop()
+  payId: string;
+
+  @Prop({ type: String, default: '' })
   status: string;
 }
 
