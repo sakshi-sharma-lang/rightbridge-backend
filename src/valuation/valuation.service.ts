@@ -111,27 +111,31 @@ async selectSurveyor(data: any, userId: string) {
   }
 }
   // ================= GET VALUATION =================
-  async getByApplication(applicationId: string) {
+ async getByApplication(applicationId: string) {
+  console.log("application id:", applicationId);
 
-    const valuation = await this.valuationModel
-      .findOne({ applicationId })
-      .lean();
-
-    if (!valuation) {
-      throw new NotFoundException('Valuation not found');
-    }
-
-    return {
-      applicationId: valuation.applicationId,
-      surveyorName: valuation.surveyorName,
-      companyType: valuation.companyType,
-      turnaroundTime: valuation.turnaroundTime,
-      accreditation: valuation.accreditation,
-     
-      paymentStatus: valuation.paymentStatus || 'NOT_PAID',
-      paymentIntentId: valuation.stripePaymentIntentId || null,
-    };
+  if (!Types.ObjectId.isValid(applicationId)) {
+    throw new NotFoundException('Invalid application id');
   }
+
+  const valuation = await this.valuationModel
+    .findOne({ applicationId: new Types.ObjectId(applicationId) })
+    .lean();
+
+  if (!valuation) {
+    throw new NotFoundException('Valuation not found');
+  }
+
+  return {
+    applicationId: valuation.applicationId,
+    surveyorName: valuation.surveyorName,
+    companyType: valuation.companyType,
+    turnaroundTime: valuation.turnaroundTime,
+    accreditation: valuation.accreditation,
+    paymentStatus: valuation.paymentStatus || 'NOT_PAID',
+    paymentIntentId: valuation.stripePaymentIntentId || null,
+  };
+}
 
   // ================= CREATE PAYMENT =================
 async createPayment(
