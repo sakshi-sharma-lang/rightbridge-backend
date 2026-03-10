@@ -454,7 +454,7 @@ async updateApplicationDetails(
 
       if (!isNaN(loanAmount) && !isNaN(propertyValue) && propertyValue > 0) {
         const ltv = (loanAmount / propertyValue) * 100;
-          application.ltv = Number(ltv.toFixed(2));
+          application.ltv = ltv.toFixed(2);
           console.log("ltv",application.ltv);
 
         if (ltv > 75) {
@@ -1462,14 +1462,14 @@ async getAllApplicationbyAdmin(query: any) {
 
 async adminUpdateApplication(id: string, body: any, files: any[]) {
   try {
+
+    console.log("herssss");
     // console.log('\n========== ADMIN UPDATE START ==========');
 
     if (!id) throw new BadRequestException('Application id required');
 
     const application = await this.applicationModel.findById(id);
     if (!application) throw new NotFoundException('Application not found');
-
-   // console.log('STEP 1: BODY RECEIVED =>', JSON.stringify(body, null, 2));
 
     const updateData: any = {};
 
@@ -1499,12 +1499,39 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
     if (equityAmountChanged || borrowerContributionChanged || reasonChanged) {
       const now = new Date();
       updateData['loanRequirements.equity_override_date'] = now;
-    //  console.log(' DATE AUTO SET =>', now);
     } else {
-    //  console.log(' No equity change detected');
     }
 
-  //  console.log('STEP 2: FINAL UPDATE OBJECT =>', updateData);
+    // =========================================================
+    // LTV CALCULATION (ADDED ONLY THIS BLOCK)
+    // =========================================================
+    try {
+
+      const loanAmount = Number(
+        body['loanRequirements.loanAmount'] ??
+        application?.loanRequirements?.loanAmount
+      );
+
+      const propertyValue = Number(
+        body['loanRequirements.estimatedValue'] ??
+        body['property.estimatedValue'] ??
+        application?.loanRequirements?.estimatedValue ??
+        application?.property?.estimatedValue
+      );
+
+      if (!isNaN(loanAmount) && !isNaN(propertyValue) && propertyValue > 0) {
+
+        const ltv = (loanAmount / propertyValue) * 100;
+
+        updateData['ltv'] = ltv.toFixed(2);
+
+        console.log("Calculated LTV:", updateData['ltv']);
+
+      }
+
+    } catch (e) {
+      console.log("LTV calculation skipped");
+    }
 
     // =========================================================
     // UPDATE DB
@@ -1519,8 +1546,6 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
       },
     );
 
-   // console.log('STEP 3: DB RESULT =>', updated?.loanRequirements);
-
     // =========================================================
     // SEND EMAIL IF REASON EXISTS
     // =========================================================
@@ -1532,7 +1557,6 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
       reason !== null &&
       String(reason).trim() !== ''
     ) {
-     // console.log('📧 Equity reason found → sending email');
 
       try {
         const emails: string[] = [];
@@ -1549,26 +1573,6 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
         }
 
         // =====================================================
-        // 🥈 MAIN USER EMAIL (users table)
-        // =====================================================
-        let mainUserFirstName = '';
-        let mainUserLastName = '';
-        let mainUserEmail = '';
-
-        // if ((updated as any)?.userId) {
-        //   const userDoc = await this.userModel
-        //     .findById((updated as any).userId)
-        //     .lean();
-
-        //   if (userDoc?.email) {
-        //     emails.push(userDoc.email);
-        //     mainUserEmail = userDoc.email;
-        //     mainUserFirstName = userDoc.firstName || '';
-        //     mainUserLastName = userDoc.lastName || '';
-        //   }
-        // }
-
-        // =====================================================
         // REMOVE DUPLICATES
         // =====================================================
         const uniqueEmails = [...new Set(emails)];
@@ -1583,9 +1587,6 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
         for (const email of uniqueEmails) {
           let fullName = 'Customer';
 
-          // ================================
-          // IF APPLICANT EMAIL
-          // ================================
           const applicant = (updated as any)?.applicants?.find(
             (a: any) => a.email === email,
           );
@@ -1596,15 +1597,6 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
             fullName = `${f} ${l}`.trim();
           }
 
-          // ================================
-          // IF MAIN USER EMAIL
-          // ================================
-          // else if (email === mainUserEmail) {
-          //   const f = mainUserFirstName || '';
-          //   const l = mainUserLastName || '';
-          //   fullName = `${f} ${l}`.trim() || 'Customer';
-          // }
-
           await this.mailService.sendEquityChangeEmail({
             email,
             firstName: fullName,
@@ -1614,10 +1606,9 @@ async adminUpdateApplication(id: string, body: any, files: any[]) {
               (updated as any)?.loanRequirements?.borrowerContribution,
           });
 
-          //console.log(' Email sent to:', email);
+          console.log(' Equity change email sent:', email);
         }
       } catch (mailErr) {
-       // console.log(' Email sending failed:', mailErr);
       }
     }
 

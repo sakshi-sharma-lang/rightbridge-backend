@@ -268,8 +268,8 @@ declarationsAndConsent: {
   marketingSmsConsent?: boolean;
 };
 
-@Prop({ type: Number , default: null })
-ltv: number;
+@Prop({ type: String, default: null })
+ltv: string;
 
 @Prop({ type: Boolean, default: null })
 dipconditional?: boolean | null;
