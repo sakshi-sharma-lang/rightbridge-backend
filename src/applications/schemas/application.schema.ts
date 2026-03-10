@@ -268,6 +268,9 @@ declarationsAndConsent: {
   marketingSmsConsent?: boolean;
 };
 
+@Prop({ type: Number , default: null })
+ltv: number;
+
 @Prop({ type: Boolean, default: null })
 dipconditional?: boolean | null;
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true })

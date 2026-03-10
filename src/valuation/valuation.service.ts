@@ -8,6 +8,11 @@ import { Payment, PaymentDocument } from '../payments/schemas/payment.schema';
 
 import { Counter } from '../payments/schemas/counter.schema';
 
+import { Application } from '../applications/schemas/application.schema';
+import { Surveyor } from '../surveyors/schemas/surveyor.schema';
+
+
+
 @Injectable()
 export class ValuationService {
 
@@ -20,6 +25,12 @@ export class ValuationService {
     @InjectModel(Payment.name)
     private paymentModel: Model<PaymentDocument>,
 
+   @InjectModel(Application.name)
+private applicationModel: Model<Application>,
+ @InjectModel(Surveyor.name)
+  private surveyorModel: Model<Surveyor>,   // ✅ ADD THIS
+
+
   @InjectModel(Counter.name)
   private counterModel: Model<Counter>, // ✅ required
   ) {
@@ -27,24 +38,78 @@ export class ValuationService {
   }
 
   // ================= SELECT SURVEYOR =================
-  async selectSurveyor(data: any, userId: string) {
+async selectSurveyor(data: any, userId: string) {
+  try {
 
     if (!data.applicationId) {
       throw new BadRequestException('applicationId is required');
     }
 
-    const valuation = await this.valuationModel.findOneAndUpdate(
-      { applicationId: data.applicationId },
-      {
-        ...data,
-        userId,
-      },
-      { new: true, upsert: true },
-    );
+    if (!data.surveyorId) {
+      throw new BadRequestException('surveyorId is required');
+    }
+
+    if (!Types.ObjectId.isValid(data.applicationId)) {
+      throw new BadRequestException('Invalid applicationId');
+    }
+
+    if (!Types.ObjectId.isValid(data.surveyorId)) {
+      throw new BadRequestException('Invalid surveyorId');
+    }
+
+    const applicationId = new Types.ObjectId(data.applicationId);
+    const surveyorId = new Types.ObjectId(data.surveyorId);
+
+    const applicationExists = await this.applicationModel.exists({
+      _id: applicationId,
+    });
+
+    if (!applicationExists) {
+      throw new BadRequestException('Application not found');
+    }
+
+    const surveyorExists = await this.surveyorModel.findOne({
+      applicationId,
+      "surveyors._id": surveyorId,
+    });
+
+    if (!surveyorExists) {
+      throw new BadRequestException('Surveyor not found for this application');
+    }
+
+    /* 🚨 CHECK IF SURVEYOR ALREADY ASSIGNED */
+
+    const existingValuation = await this.valuationModel.findOne({
+      applicationId,
+    });
+
+    if (existingValuation) {
+      throw new BadRequestException(
+        'A surveyor is already assigned to this application'
+      );
+    }
+
+    /* SAVE SURVEYOR */
+
+    const valuation = await this.valuationModel.create({
+      applicationId,
+      surveyorId,
+      surveyorName: data.surveyorName,
+      companyType: data.companyType,
+      price: data.price,
+      turnaroundTime: data.turnaroundTime,
+      accreditation: data.accreditation,
+      type: data.type,
+      userId,
+    });
 
     return valuation;
-  }
 
+  } catch (error) {
+    console.error('Select Surveyor Error:', error);
+    throw new BadRequestException(error.message);
+  }
+}
   // ================= GET VALUATION =================
   async getByApplication(applicationId: string) {
 
@@ -174,5 +239,41 @@ private async generatePayId(): Promise<string> {
   );
 
   return `PI-${year}-${counter.seq.toString().padStart(4, '0')}`;
+}
+
+async getAssignedSurveyor(applicationId: string) {
+  try {
+    // Validate applicationId
+    if (!applicationId) {
+      throw new BadRequestException('applicationId is required');
+    }
+
+    if (!Types.ObjectId.isValid(applicationId)) {
+      throw new BadRequestException('Invalid applicationId');
+    }
+
+    // Find all surveyors assigned to this application
+    const valuations = await this.valuationModel
+      .find({ applicationId: new Types.ObjectId(applicationId) })
+      .select(
+        'applicationId surveyorId surveyorName companyType price currency turnaroundTime accreditation paymentStatus type createdAt'
+      )
+      .lean();
+
+    if (!valuations || valuations.length === 0) {
+      throw new BadRequestException(
+        'No surveyor found for this application',
+      );
+    }
+
+    return {
+      success: true,
+      message: 'Assigned surveyors fetched successfully',
+      count: valuations.length,
+      data: valuations,
+    };
+  } catch (error) {
+    throw error;
+  }
 }
 }

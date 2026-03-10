@@ -6,11 +6,17 @@ export type ValuationDocument = Valuation & Document;
 @Schema({ timestamps: true })
 export class Valuation {
 
-  @Prop({ type: Types.ObjectId, ref: 'Application', required: true })
+     @Prop({
+    type: Types.ObjectId,
+    ref: 'Application',
+    required: true,
+    unique: true,
+    index: true
+  })
   applicationId: Types.ObjectId;
 
-  @Prop({ required: true })
-  surveyorId: string;
+@Prop({ type: Types.ObjectId, required: true })
+surveyorId: Types.ObjectId;
 
   @Prop({ required: true })
   surveyorName: string;
@@ -58,4 +64,3 @@ userId: Types.ObjectId;
 export const ValuationSchema = SchemaFactory.createForClass(Valuation);
 
 // useful index
-ValuationSchema.index({ applicationId: 1 });

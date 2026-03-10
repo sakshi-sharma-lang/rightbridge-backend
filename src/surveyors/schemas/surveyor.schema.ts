@@ -14,6 +14,8 @@ export class Surveyor {
     unique: true,
   })
   applicationId: Types.ObjectId;
+  @Prop({ type: Boolean, default: false })
+  SendQuoteApplicant: boolean;
 
   // surveyor list
   @Prop([

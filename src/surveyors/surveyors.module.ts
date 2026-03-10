@@ -3,7 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { SurveyorsController } from './surveyors.controller';
 import { SurveyorsService } from './surveyors.service';
 import { Surveyor, SurveyorSchema } from './schemas/surveyor.schema';
-
+import { MailModule } from '../mail/mail.module';
 //  import application schema
 import { Application, ApplicationSchema } from '../applications/schemas/application.schema';
 
@@ -15,7 +15,9 @@ import { Application, ApplicationSchema } from '../applications/schemas/applicat
       //  VERY IMPORTANT
       { name: Application.name, schema: ApplicationSchema },
     ]),
+    MailModule,
   ],
+
   controllers: [SurveyorsController],
   providers: [SurveyorsService],
 })

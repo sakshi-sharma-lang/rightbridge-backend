@@ -10,12 +10,15 @@ import * as bcrypt from 'bcrypt';
 import { User } from '../users/schemas/user.schema';
 import { Application } from '../applications/schemas/application.schema';
 
+import { MailService } from '../mail/mail.service';
+
 
 @Injectable()
 export class UserSettingsService {
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(Application.name) private applicationModel: Model<Application>,
+     private mailService: MailService,
   ) {}
 
   // 🔷 GET SETTINGS
@@ -122,6 +125,8 @@ async updateNotifications(userId: string, body: any) {
     user.password = hashedPassword;
 
     await user.save();
+    await this.mailService.sendPasswordChangedEmail(user.email, user.firstName);
+
 
     return {
       success: true,

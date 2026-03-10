@@ -454,6 +454,8 @@ async updateApplicationDetails(
 
       if (!isNaN(loanAmount) && !isNaN(propertyValue) && propertyValue > 0) {
         const ltv = (loanAmount / propertyValue) * 100;
+          application.ltv = Number(ltv.toFixed(2));
+          console.log("ltv",application.ltv);
 
         if (ltv > 75) {
           application.status = 'AUTO_REJECTED' as any;
@@ -484,7 +486,7 @@ async updateApplicationDetails(
       console.log('LTV check skipped');
     }
 
-const updated = await application.save();
+   const updated = await application.save();
 
 try {
   const user = await this.userModel

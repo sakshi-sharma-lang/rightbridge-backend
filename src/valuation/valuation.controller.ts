@@ -22,7 +22,7 @@ export class ValuationController {
   ) {}
 
   // ================= SELECT SURVEYOR =================
-  @UseGuards(JwtAuthGuard)
+
  @UseGuards(JwtAuthGuard)
   @Post('select-surveyor')
   async selectSurveyor(
@@ -73,6 +73,20 @@ async createPayment(
     type,
     valuationFee,
   );
+}
+
+// ================= GET ASSIGNED SURVEYOR =================
+@UseGuards(JwtAuthGuard)
+@Get('assigned-surveyor/:applicationId')
+async getAssignedSurveyor(
+  @Param('applicationId') applicationId: string,
+) {
+
+  if (!applicationId) {
+    throw new BadRequestException('applicationId is required');
+  }
+
+  return this.valuationService.getAssignedSurveyor(applicationId);
 }
 
 

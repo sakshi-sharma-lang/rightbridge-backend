@@ -62,4 +62,12 @@ userfindByApplication(
   return this.service.userfindByApplication(applicationId);
 }
 
+@Post('send-quote/:applicationId')
+@UseGuards(AdminJwtGuard)
+async sendQuoteToApplicant(
+  @Param('applicationId') applicationId: string,
+) {
+  return this.service.sendQuoteApplicant(applicationId);
+}
+
 }

@@ -308,4 +308,38 @@ async sendDocumentReminderEmail(
   });
 }
 
+
+async sendSurveyorQuoteEmail(
+  email: string,
+  appId: string,
+  surveyorRows: string,
+) {
+
+  const html = this.loadTemplate('surveyor-quote.html', {
+    APP_ID: appId,
+    SURVEYOR_ROWS: surveyorRows,
+  });
+
+  await this.transporter.sendMail({
+    from: `"RightBridge" <${this.configService.get('SMTP_FROM') || this.configService.get('SMTP_USER')}>`,
+    to: email,
+    subject: `Surveyor Quotes Available - ${appId}`,
+    html,
+  });
+}
+
+// ================= PASSWORD CHANGE CONFIRMATION =================
+async sendPasswordChangedEmail(email: string, firstName: string) {
+  const html = this.loadTemplate('password-changed.html', {
+    FIRST_NAME: firstName,
+  });
+
+  await this.transporter.sendMail({
+    from: `"RightBridge" <${this.configService.get('SMTP_FROM') || this.configService.get('SMTP_USER')}>`,
+    to: email,
+    subject: 'Your password has been changed',
+    html,
+  });
+}
+
 }
