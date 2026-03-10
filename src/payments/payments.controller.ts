@@ -47,14 +47,14 @@ async create(@Body() body: any, @Req() req: any) {
   }
 
   /* ================= STRIPE WEBHOOK ================= */
-  @Post('webhook')
-  async stripeWebhook(
-    @Req() req: any,
-    @Res() res: any,
-    @Headers('stripe-signature') signature: string,
-  ) {
-    return this.service.handleStripeWebhook(req, signature, res);
-  }
+  // @Post('webhook')
+  // async stripeWebhook(
+  //   @Req() req: any,
+  //   @Res() res: any,
+  //   @Headers('stripe-signature') signature: string,
+  // ) {
+  //   return this.service.handleStripeWebhook(req, signature, res);
+  // }
 
   @Post('confirm')
   @UseGuards(JwtAuthGuard)

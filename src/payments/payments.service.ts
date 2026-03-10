@@ -236,183 +236,183 @@ const payId = await this.generatePayId();
     };
   }
 
-  async handleStripeWebhook(req: any, signature: string, res: any) {
-    console.log('🔔 Stripe webhook hit');
-    console.log('Headers signature:', signature);
-    console.log('Raw body type:', typeof req.body);
+//   async handleStripeWebhook(req: any, signature: string, res: any) {
+//     console.log('🔔 Stripe webhook hit');
+//     console.log('Headers signature:', signature);
+//     console.log('Raw body type:', typeof req.body);
 
-    let event: Stripe.Event;
+//     let event: Stripe.Event;
 
-    //  STRIPE SIGNATURE VERIFICATION
-    try {
-      event = this.stripe.webhooks.constructEvent(
-        req.body, // MUST be raw buffer
-        signature,
-        process.env.STRIPE_WEBHOOK_SECRET as string,
-      );
-    } catch (err: any) {
-      console.error(' Webhook signature verification failed');
-      console.error('Error message:', err.message);
-      return res.status(400).json({ message: 'Invalid signature' });
-    }
+//     //  STRIPE SIGNATURE VERIFICATION
+//     try {
+//       event = this.stripe.webhooks.constructEvent(
+//         req.body, // MUST be raw buffer
+//         signature,
+//         process.env.STRIPE_WEBHOOK_SECRET as string,
+//       );
+//     } catch (err: any) {
+//       console.error(' Webhook signature verification failed');
+//       console.error('Error message:', err.message);
+//       return res.status(400).json({ message: 'Invalid signature' });
+//     }
 
-    console.log(' Webhook verified');
-    console.log('Event ID:', event.id);
-    console.log('Event Type:', event.type);
-    console.log('Event Created:', new Date(event.created * 1000));
+//     console.log(' Webhook verified');
+//     console.log('Event ID:', event.id);
+//     console.log('Event Type:', event.type);
+//     console.log('Event Created:', new Date(event.created * 1000));
 
-    const intent = event.data.object as Stripe.PaymentIntent;
+//     const intent = event.data.object as Stripe.PaymentIntent;
 
-    console.log('🔹 PaymentIntent Debug');
-    console.log('Intent ID:', intent.id);
-    console.log('Status:', intent.status);
-    console.log('Amount:', intent.amount);
-    console.log('Currency:', intent.currency);
-    console.log('Metadata:', intent.metadata);
+//     console.log('🔹 PaymentIntent Debug');
+//     console.log('Intent ID:', intent.id);
+//     console.log('Status:', intent.status);
+//     console.log('Amount:', intent.amount);
+//     console.log('Currency:', intent.currency);
+//     console.log('Metadata:', intent.metadata);
 
-    try {
-      switch (event.type) {
-        case 'payment_intent.created': {
-          console.log('➡️ Handling payment_intent.created');
+//     try {
+//       switch (event.type) {
+//         case 'payment_intent.created': {
+//           console.log('➡️ Handling payment_intent.created');
 
-          const result = await this.paymentModel.updateOne(
-            { stripePaymentIntentId: intent.id },
-            {
-              $set: {
-                applicationId: intent.metadata?.applicationId,
-                userId: intent.metadata?.userId,
-                amount: intent.amount / 100,
-                status: 'PENDING',
-              },
-            },
-            { upsert: true },
-          );
+//           const result = await this.paymentModel.updateOne(
+//             { stripePaymentIntentId: intent.id },
+//             {
+//               $set: {
+//                 applicationId: intent.metadata?.applicationId,
+//                 userId: intent.metadata?.userId,
+//                 amount: intent.amount / 100,
+//                 status: 'PENDING',
+//               },
+//             },
+//             { upsert: true },
+//           );
 
-          console.log('DB result:', result);
-          break;
-        }
+//           console.log('DB result:', result);
+//           break;
+//         }
 
-        case 'payment_intent.processing': {
-          console.log('➡️ Handling payment_intent.processing');
+//         case 'payment_intent.processing': {
+//           console.log('➡️ Handling payment_intent.processing');
 
-          const result = await this.paymentModel.updateOne(
-            { stripePaymentIntentId: intent.id },
-            { $set: { status: 'PROCESSING' } },
-          );
+//           const result = await this.paymentModel.updateOne(
+//             { stripePaymentIntentId: intent.id },
+//             { $set: { status: 'PROCESSING' } },
+//           );
 
-          console.log('DB result:', result);
-          break;
-        }
+//           console.log('DB result:', result);
+//           break;
+//         }
 
-       case 'payment_intent.succeeded': {
-  console.log('➡️ Handling payment_intent.succeeded');
+//        case 'payment_intent.succeeded': {
+//   console.log('➡️ Handling payment_intent.succeeded');
 
-  const result = await this.paymentModel.updateOne(
-    { stripePaymentIntentId: intent.id },
-    {
-      $set: {
-        applicationId: intent.metadata?.applicationId,
-        userId: intent.metadata?.userId,
-        amount: intent.amount / 100,
-        status: 'PAID',
-      },
-    },
-    { upsert: true },
-  );
+//   const result = await this.paymentModel.updateOne(
+//     { stripePaymentIntentId: intent.id },
+//     {
+//       $set: {
+//         applicationId: intent.metadata?.applicationId,
+//         userId: intent.metadata?.userId,
+//         amount: intent.amount / 100,
+//         status: 'PAID',
+//       },
+//     },
+//     { upsert: true },
+//   );
 
-  console.log('DB result:', result);
+//   console.log('DB result:', result);
 
-  // =====================================================
-  // 🔔 SEND NOTIFICATION TO USER + ADMIN
-  // =====================================================
-  try {
-    const userId = intent.metadata?.userId;
-    const applicationId = intent.metadata?.applicationId;
+//   // =====================================================
+//   // 🔔 SEND NOTIFICATION TO USER + ADMIN
+//   // =====================================================
+//   try {
+//     const userId = intent.metadata?.userId;
+//     const applicationId = intent.metadata?.applicationId;
 
-    if (userId) {
-      await this.notificationService.sendToUser({
-        userId: userId,
-        message: `Payment successful (£${intent.amount / 100})`,
-        stage: 'payment_success',
-        type: 'payment',
-        applicationId: applicationId || null,
-      });
-    }
+//     if (userId) {
+//       await this.notificationService.sendToUser({
+//         userId: userId,
+//         message: `Payment successful (£${intent.amount / 100})`,
+//         stage: 'payment_success',
+//         type: 'payment',
+//         applicationId: applicationId || null,
+//       });
+//     }
 
 
-// 🔍 find super admin dynamically
-const superAdmin = await this.adminModel
-  .findOne({ role: 'super_admin' })
-  .select('_id')
-  .lean();
+// // 🔍 find super admin dynamically
+// const superAdmin = await this.adminModel
+//   .findOne({ role: 'super_admin' })
+//   .select('_id')
+//   .lean();
 
-if (superAdmin?._id) {
-  await this.notificationService.sendToAdmin({
-    adminId: superAdmin._id.toString(),
-    message: `User completed payment (£${intent.amount / 100})`,
-    stage: 'payment_success',
-    type: 'payment',
-    applicationId: applicationId || null,
-  });
+// if (superAdmin?._id) {
+//   await this.notificationService.sendToAdmin({
+//     adminId: superAdmin._id.toString(),
+//     message: `User completed payment (£${intent.amount / 100})`,
+//     stage: 'payment_success',
+//     type: 'payment',
+//     applicationId: applicationId || null,
+//   });
 
-  console.log("✅ Admin notification sent");
-} else {
-  console.log("❌ Super admin not found");
-}
-    console.log("✅ Payment notifications sent");
+//   console.log("✅ Admin notification sent");
+// } else {
+//   console.log("❌ Super admin not found");
+// }
+//     console.log("✅ Payment notifications sent");
 
-  } catch (err) {
-    console.log("❌ Payment notification error:", err.message);
-  }
+//   } catch (err) {
+//     console.log("❌ Payment notification error:", err.message);
+//   }
 
-  break;
-}
+//   break;
+// }
 
-        case 'payment_intent.payment_failed': {
-          console.log('➡️ Handling payment_intent.payment_failed');
-          console.log('Failure reason:', intent.last_payment_error);
+//         case 'payment_intent.payment_failed': {
+//           console.log('➡️ Handling payment_intent.payment_failed');
+//           console.log('Failure reason:', intent.last_payment_error);
 
-          const result = await this.paymentModel.updateOne(
-            { stripePaymentIntentId: intent.id },
-            {
-              $set: {
-                applicationId: intent.metadata?.applicationId,
-                userId: intent.metadata?.userId,
-                amount: intent.amount / 100,
-                status: 'FAILED',
-              },
-            },
-            { upsert: true },
-          );
+//           const result = await this.paymentModel.updateOne(
+//             { stripePaymentIntentId: intent.id },
+//             {
+//               $set: {
+//                 applicationId: intent.metadata?.applicationId,
+//                 userId: intent.metadata?.userId,
+//                 amount: intent.amount / 100,
+//                 status: 'FAILED',
+//               },
+//             },
+//             { upsert: true },
+//           );
 
-          console.log('DB result:', result);
-          break;
-        }
+//           console.log('DB result:', result);
+//           break;
+//         }
 
-        case 'payment_intent.canceled': {
-          console.log('➡️ Handling payment_intent.canceled');
+//         case 'payment_intent.canceled': {
+//           console.log('➡️ Handling payment_intent.canceled');
 
-          const result = await this.paymentModel.updateOne(
-            { stripePaymentIntentId: intent.id },
-            { $set: { status: 'CANCELED' } },
-          );
+//           const result = await this.paymentModel.updateOne(
+//             { stripePaymentIntentId: intent.id },
+//             { $set: { status: 'CANCELED' } },
+//           );
 
-          console.log('DB result:', result);
-          break;
-        }
+//           console.log('DB result:', result);
+//           break;
+//         }
 
-        default:
-          console.warn('⚠️ Unhandled Stripe event type:', event.type);
-      }
-    } catch (dbError) {
-      console.error(' Error while processing webhook event');
-      console.error(dbError);
-      return res.status(500).json({ message: 'Webhook processing failed' });
-    }
+//         default:
+//           console.warn('⚠️ Unhandled Stripe event type:', event.type);
+//       }
+//     } catch (dbError) {
+//       console.error(' Error while processing webhook event');
+//       console.error(dbError);
+//       return res.status(500).json({ message: 'Webhook processing failed' });
+//     }
 
-    console.log(' Webhook processed successfully');
-    return res.json({ received: true });
-  }
+//     console.log(' Webhook processed successfully');
+//     return res.json({ received: true });
+//   }
 
   async confirmPayment(paymentIntentId: string, userId: string) {
     // Retrieve payment intent from Stripe
