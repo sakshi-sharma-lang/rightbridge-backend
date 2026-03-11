@@ -123,7 +123,7 @@ async selectSurveyor(data: any, userId: string) {
     .lean();
 
   if (!valuation) {
-    throw new NotFoundException('Valuation not found');
+    throw new NotFoundException('surveyorId or applicationId not found');
   }
 
   return {
@@ -137,7 +137,10 @@ async selectSurveyor(data: any, userId: string) {
   };
 }
 
-  // ================= CREATE PAYMENT =================
+
+
+
+
 async createPayment(
   applicationId: string,
   surveyorId: string,
@@ -145,6 +148,9 @@ async createPayment(
   type: string,
   valuationFee: number,
 ) {
+
+  console.log("applicationId:", applicationId);
+  console.log("surveyorId:", surveyorId);
 
   if (!applicationId) {
     throw new BadRequestException('applicationId is required');
@@ -154,13 +160,16 @@ async createPayment(
     throw new BadRequestException('surveyorId is required');
   }
 
-  const valuation = await this.valuationModel.findOne({ applicationId });
+  /* FIND VALUATION (ObjectId in valuation collection) */
+
+  const valuation = await this.valuationModel.findOne({
+    applicationId: new Types.ObjectId(applicationId),
+    surveyorId: new Types.ObjectId(surveyorId),
+  });
 
   if (!valuation) {
-    throw new NotFoundException('Valuation not found');
+    throw new NotFoundException('surveyorId or applicationId not found');
   }
-
-  /* DEFINE AMOUNT FROM BODY */
 
   const amount = Number(valuationFee);
 
@@ -168,7 +177,7 @@ async createPayment(
     throw new BadRequestException('Invalid valuation fee');
   }
 
-  /* CHECK EXISTING PAYMENT */
+  /* CHECK EXISTING PAYMENT (payment schema uses string) */
 
   const existingPayment = await this.paymentModel.findOne({
     applicationId,
@@ -206,15 +215,16 @@ async createPayment(
     },
   });
 
-  /* SAVE PAYMENT */
-const payId = await this.generatePayId();
+  const payId = await this.generatePayId();
+
+  /* SAVE PAYMENT (string fields as required by schema) */
 
   await this.paymentModel.create({
     payId,
     applicationId,
     userId: valuation.userId,
     surveyorId,
-    amount,  // saved as amount
+    amount,
     currency,
     type,
     stripePaymentIntentId: intent.id,
@@ -227,7 +237,7 @@ const payId = await this.generatePayId();
     paymentIntentId: intent.id,
     surveyorId,
     type,
-    amount, // return amount instead of valuationFee
+    amount,
     currency,
     status: intent.status,
   };
