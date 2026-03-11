@@ -56,14 +56,20 @@ async create(@Body() body: any, @Req() req: any) {
   //   return this.service.handleStripeWebhook(req, signature, res);
   // }
 
-  @Post('confirm')
-  @UseGuards(JwtAuthGuard)
-  async confirmPayment(
-    @Body('paymentIntentId') paymentIntentId: string,
-    @Req() req: any,
-  ) {
-    return this.service.confirmPayment(paymentIntentId, req.user.userId);
-  }
+@Post('confirm')
+@UseGuards(JwtAuthGuard)
+async confirmPayment(
+  @Body() body: any,
+  @Req() req: any,
+) {
+  const { paymentIntentId } = body;
+
+  return this.service.confirmPayment(
+    paymentIntentId,
+    req.user.userId,
+    body
+  );
+}
 
   @Get('management')
   @UseGuards(JwtAuthGuard)

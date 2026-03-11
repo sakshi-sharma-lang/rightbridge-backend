@@ -414,55 +414,58 @@ const payId = await this.generatePayId();
 //     return res.json({ received: true });
 //   }
 
-  async confirmPayment(paymentIntentId: string, userId: string) {
-    // Retrieve payment intent from Stripe
+async confirmPayment(paymentIntentId: string, userId: string, body: any) {
+  try {
     const intent = await this.stripe.paymentIntents.retrieve(paymentIntentId);
 
     if (!intent) {
       throw new BadRequestException('Payment intent not found');
     }
 
-    // Verify the payment intent belongs to the user
-    // if (intent.metadata.userId !== userId) {
-    //   throw new ForbiddenException('Access denied');
-    // }
-
-    // Check if payment already exists
-    const existingPayment = await this.paymentModel.findOne({
+    let payment = await this.paymentModel.findOne({
       stripePaymentIntentId: paymentIntentId,
     });
 
-    if (existingPayment) {
-      return {
-        statusCode: 200,
-        message: 'Payment already recorded',
-        data: existingPayment,
-      };
-    }
-
-    // Save payment to database
-    const payment = await this.paymentModel.create({
-      applicationId: intent.metadata.applicationId,
-      userId: intent.metadata.userId,
-      amount: intent.amount / 100, // Convert from cents to pounds
+    // build update object only with fields that exist
+    const updateData: any = {
       stripePaymentIntentId: intent.id,
-      status: intent.status === 'succeeded' ? 'PAID' : 'PENDING',
-    });
+      amount: intent.amount / 100,
+      currency: intent.currency,
+      status: intent.status,
+      paymentMethod: intent.payment_method,
+      paymentMethodTypes: intent.payment_method_types,
+      livemode: intent.livemode,
+      stripeCreated: intent.created,
+    };
 
-    // Update application status if payment succeeded
-    if (intent.status === 'succeeded') {
-      await this.applicationModel.findByIdAndUpdate(
-        intent.metadata.applicationId,
-        { status: 'payment_completed' },
+    if (body.applicationId) updateData.applicationId = body.applicationId;
+    if (body.type) updateData.type = body.type;
+    if (body.surveyorId) updateData.surveyorId = body.surveyorId;
+    if (body.payId) updateData.payId = body.payId;
+
+    updateData.userId = userId;
+
+    if (payment) {
+      payment = await this.paymentModel.findOneAndUpdate(
+        { stripePaymentIntentId: paymentIntentId },
+        { $set: updateData },
+        { new: true }
       );
+    } else {
+      const newPayment = new this.paymentModel(updateData);
+      payment = await newPayment.save();
     }
 
     return {
       statusCode: 200,
-      message: 'Payment confirmed and saved',
+      message: 'Payment processed successfully',
       data: payment,
     };
+
+  } catch (error) {
+    throw new BadRequestException(error.message);
   }
+}
 
   /* ================= GET PAYMENTS MANAGEMENT ================= */
 
