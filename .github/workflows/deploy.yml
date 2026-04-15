@@ -32,7 +32,7 @@ jobs:
             nvm use 22 || nvm install 22
 
             # Go to project
-            cd /var/www/html/rightbridge || exit
+            cd /var/www/html/rightbridgeapi || exit
 
             # Pull latest code
             git fetch origin
