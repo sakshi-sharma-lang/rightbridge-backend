@@ -1,4 +1,4 @@
-name: Deploy Invento Backend
+name: Deploy rightbridge Backend
 
 on:
   push:
@@ -10,35 +10,42 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          # Use a heredoc to preserve newlines and add a trailing newline
+          cat <<EOF > ~/.ssh/id_rsa
+          ${{ secrets.SERVER_SSH_KEY }}
+          EOF
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Deploy to EC2
         run: |
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+          # Use -tt to force a pseudo-terminal if needed, or stick to standard for CI
+          ssh -i ~/.ssh/id_rsa ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e  # Exit immediately if a command fails
+            
+            # Load NVM
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
-          # Load NVM (VERY IMPORTANT)
-          export NVM_DIR="/home/ubuntu/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+            # Use the required Node version
+            nvm use 22 || nvm install 22
 
-          # Ensure correct Node version
-          nvm use 22
+            # Navigate to project
+            cd /var/www/html/rightbridgeapi
 
-          # Go to project
-          cd /var/www/html/rightbridgeapi || exit
+            # Update code
+            git fetch origin
+            git reset --hard origin/main
 
-          # Pull latest code
-          git fetch origin
-          git reset --hard origin/main
+            # Install dependencies
+            npm install --production
 
-          # Install dependencies
-          npm install
-
-          # Restart app
-          pm2 restart 0
-
+            # Restart application
+            pm2 restart 0 
           EOF
