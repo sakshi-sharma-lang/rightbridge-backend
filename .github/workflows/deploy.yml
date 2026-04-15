@@ -13,32 +13,34 @@ jobs:
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+          # printf preserves the newlines in your secret to avoid 'libcrypto' errors
+          printf "%s\n" "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Deploy to EC2
         run: |
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+          # Use the -i flag pointing to the correct ed25519 file
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+            set -e # Stops the script if any command fails
 
-          # Load NVM (VERY IMPORTANT)
-          export NVM_DIR="/home/ubuntu/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+            # Load NVM
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
-          # Ensure correct Node version
-          nvm use 22
+            # Ensure correct Node version
+            nvm use 22 || nvm install 22
 
-          # Go to project
-          cd /var/www/html/rightbridge || exit
+            # Go to project
+            cd /var/www/html/rightbridge || exit
 
-          # Pull latest code
-          git fetch origin
-          git reset --hard origin/main
+            # Pull latest code
+            git fetch origin
+            git reset --hard origin/main
 
-          # Install dependencies
-          npm install
+            # Install dependencies
+            npm install --production
 
-          # Restart app
-          pm2 restart 0
-
+            # Restart app (tries to restart, starts if it's not running)
+            pm2 restart 0 
           EOF
