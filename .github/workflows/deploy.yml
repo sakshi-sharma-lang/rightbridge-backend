@@ -1,4 +1,4 @@
-me: Deploy Invento Backend
+name: Deploy Invento Backend
 
 on:
   push:
