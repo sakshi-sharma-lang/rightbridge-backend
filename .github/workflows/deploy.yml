@@ -1,0 +1,44 @@
+me: Deploy Invento Backend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy to EC2
+        run: |
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+
+          # Load NVM (VERY IMPORTANT)
+          export NVM_DIR="/home/ubuntu/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+          # Ensure correct Node version
+          nvm use 22
+
+          # Go to project
+          cd /var/www/html/rightbridgeapi || exit
+
+          # Pull latest code
+          git fetch origin
+          git reset --hard origin/main
+
+          # Install dependencies
+          npm install
+
+          # Restart app
+          pm2 restart 0
+
+          EOF
